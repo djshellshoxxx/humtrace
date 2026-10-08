@@ -20,6 +20,8 @@ The CLI was manually run against generated mono 60/120 Hz, two-second frequency-
 
 AddressSanitizer and UndefinedBehaviorSanitizer builds of the spectrum, WAV, and report test executables passed locally with `ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not run in this container because its process-inspection attempt fails; this is an environment limitation, so leak checking remains open. CI has a sanitizer job for all current test executables.
 
+GitHub Actions run `37762099089` passed on commit `4727aa2`: Linux build/tests, Windows MSYS2/UCRT build/tests, and Linux AddressSanitizer/UndefinedBehaviorSanitizer tests. This verifies the CLI/core toolchains; it does not verify native GUI packaging or installers.
+
 ## Required before beta
 
 - PCM 8/16/24/32 and IEEE float 32/64 fixtures; stereo, extensible, multichannel, malformed and truncated inputs.
