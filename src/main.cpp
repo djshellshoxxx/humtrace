@@ -44,14 +44,23 @@ int main(int argc, char** argv) {
             std::vector<double> samples(static_cast<std::size_t>(frames));
             for (std::size_t frame = 0; frame < samples.size(); ++frame)
                 samples[frame] = audio.interleaved_samples[frame * audio.channels + channel];
-            const auto timeline = humtrace::analyze_tone_timeline(
+            const auto timeline = humtrace::analyze_interference_timeline(
                 samples, audio.sample_rate_hz, window_size, hop_size);
             std::cout << "Channel " << (channel + 1) << " measured frames: " << timeline.size() << '\n';
             for (const auto& frame : timeline) {
                 const auto start_seconds = static_cast<double>(frame.start_sample) / audio.sample_rate_hz;
                 const auto& peak = frame.strongest_peak;
-                std::cout << "  " << start_seconds << " s: strongest non-DC component "
-                          << peak.frequency_hz << " Hz, " << peak.level_dbfs << " dBFS\n";
+                std::cout << "  " << start_seconds << " s: ";
+                if (peak.frequency_hz == 0.0)
+                    std::cout << "no non-DC energy";
+                else
+                    std::cout << "strongest non-DC component " << peak.frequency_hz << " Hz, "
+                              << peak.level_dbfs << " dBFS";
+                std::cout << "; "
+                          << "50 Hz harmonic bins above -60 dBFS: "
+                          << frame.mains_50.supporting_harmonics << '/' << frame.mains_50.harmonics.size()
+                          << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
+                          << frame.mains_60.harmonics.size() << '\n';
             }
         }
         std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";

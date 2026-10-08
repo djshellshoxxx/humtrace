@@ -78,6 +78,31 @@ void tracks_the_strongest_component_in_non_overlapping_frames() {
     require(std::abs(frames[1].strongest_peak.frequency_hz - 120.0) < 0.01,
             "second frame tone change is tracked");
 }
+
+void reports_50_and_60_hz_harmonic_measurements_per_frame() {
+    constexpr double sample_rate = 4096.0;
+    constexpr std::size_t count = 4096;
+    std::vector<double> samples(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        const double time = static_cast<double>(i) / sample_rate;
+        samples[i] = 0.25 * std::sin(2.0 * std::numbers::pi * 60.0 * time) +
+                     0.125 * std::sin(2.0 * std::numbers::pi * 120.0 * time);
+    }
+    const auto frames = humtrace::analyze_interference_timeline(samples, sample_rate, count, count);
+    require(frames.size() == 1, "one complete analysis frame is returned");
+    require(frames[0].mains_60.supporting_harmonics == 2,
+            "60 Hz candidate reports the observed fundamental and second harmonic");
+    require(frames[0].mains_50.supporting_harmonics == 0,
+            "50 Hz candidate does not count absent harmonic bins");
+}
+
+void represents_silence_without_inventing_a_peak_frequency() {
+    const auto spectrum = humtrace::analyze_spectrum(std::vector<double>(4096, 0.0), 48000.0);
+    const auto peak = humtrace::strongest_peak(spectrum);
+    require(peak.frequency_hz == 0.0, "silence has no reported peak frequency");
+    require(std::isinf(peak.level_dbfs) && peak.level_dbfs < 0.0,
+            "silence is represented at negative infinity dBFS");
+}
 } // namespace
 
 int main() {
@@ -85,5 +110,7 @@ int main() {
     rejects_non_power_of_two_input();
     measures_harmonic_support_without_source_attribution();
     tracks_the_strongest_component_in_non_overlapping_frames();
+    reports_50_and_60_hz_harmonic_measurements_per_frame();
+    represents_silence_without_inventing_a_peak_frequency();
     std::cout << "All spectrum tests passed.\n";
 }

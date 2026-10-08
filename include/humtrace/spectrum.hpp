@@ -35,6 +35,13 @@ struct ToneFrame {
     SpectralPeak strongest_peak;
 };
 
+struct InterferenceFrame {
+    std::uint64_t start_sample{};
+    SpectralPeak strongest_peak;
+    HarmonicCandidate mains_50;
+    HarmonicCandidate mains_60;
+};
+
 // Analyze a finite, power-of-two block using a Hann window and a radix-2 FFT.
 // Levels are peak-amplitude dBFS; interior one-sided bins are gain-corrected.
 [[nodiscard]] std::vector<SpectrumBin> analyze_spectrum(
@@ -53,5 +60,11 @@ struct ToneFrame {
 [[nodiscard]] std::vector<ToneFrame> analyze_tone_timeline(
     const std::vector<double>& samples, double sample_rate_hz,
     std::size_t frame_size, std::size_t hop_size);
+
+// Measure per-frame dominant bins and nominal 50/60 Hz harmonic bins.
+[[nodiscard]] std::vector<InterferenceFrame> analyze_interference_timeline(
+    const std::vector<double>& samples, double sample_rate_hz,
+    std::size_t frame_size, std::size_t hop_size,
+    double support_threshold_dbfs = -60.0, std::size_t max_harmonics = 10);
 
 } // namespace humtrace

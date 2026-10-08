@@ -7,7 +7,9 @@
 - Spectrum frequency/level for a known exact-bin sine.
 - Rejection of a non-power-of-two FFT input.
 - Thresholded measurements for a two-harmonic synthetic signal.
+- Per-frame nominal 50/60 Hz harmonic-bin measurements.
 - Timeline timestamps and dominant-frequency change across two frames.
+- Silence representation without a fabricated peak frequency.
 - WAV metadata and 16-bit PCM normalization.
 - 24-bit sign extension and odd chunk padding.
 - Rejection of non-WAVE input.

@@ -79,6 +79,8 @@ SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
         throw std::invalid_argument("spectrum has no non-DC bins");
     const auto peak = std::max_element(spectrum.begin() + 1, spectrum.end(),
         [](const auto& lhs, const auto& rhs) { return lhs.level_dbfs < rhs.level_dbfs; });
+    if (std::isinf(peak->level_dbfs) && peak->level_dbfs < 0.0)
+        return {0.0, peak->level_dbfs};
     return {peak->frequency_hz, peak->level_dbfs};
 }
 
@@ -128,6 +130,32 @@ std::vector<ToneFrame> analyze_tone_timeline(const std::vector<double>& samples,
                                   samples.begin() + static_cast<std::ptrdiff_t>(start + frame_size));
         result.push_back({static_cast<std::uint64_t>(start),
                           strongest_peak(analyze_spectrum(block, sample_rate_hz))});
+    }
+    return result;
+}
+
+std::vector<InterferenceFrame> analyze_interference_timeline(
+    const std::vector<double>& samples, double sample_rate_hz,
+    std::size_t frame_size, std::size_t hop_size,
+    double support_threshold_dbfs, std::size_t max_harmonics) {
+    if (!std::isfinite(support_threshold_dbfs) || max_harmonics == 0)
+        throw std::invalid_argument("invalid harmonic support settings");
+    if (frame_size < 4 || (frame_size & (frame_size - 1)) != 0 || hop_size == 0 ||
+        !std::isfinite(sample_rate_hz) || sample_rate_hz <= 0.0)
+        throw std::invalid_argument("timeline requires a power-of-two frame and positive hop/rate");
+    std::vector<InterferenceFrame> result;
+    if (samples.size() < frame_size)
+        return result;
+    const auto frame_count = 1 + (samples.size() - frame_size) / hop_size;
+    result.reserve(frame_count);
+    for (std::size_t frame = 0; frame < frame_count; ++frame) {
+        const auto start = frame * hop_size;
+        std::vector<double> block(samples.begin() + static_cast<std::ptrdiff_t>(start),
+                                  samples.begin() + static_cast<std::ptrdiff_t>(start + frame_size));
+        const auto spectrum = analyze_spectrum(block, sample_rate_hz);
+        result.push_back({static_cast<std::uint64_t>(start), strongest_peak(spectrum),
+            measure_harmonics(spectrum, 50.0, support_threshold_dbfs, max_harmonics),
+            measure_harmonics(spectrum, 60.0, support_threshold_dbfs, max_harmonics)});
     }
     return result;
 }
