@@ -2,6 +2,7 @@ CXX ?= c++
 CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror
 CPPFLAGS ?= -Iinclude
 BUILD_DIR ?= build
+PYTHON ?= python3
 CORE_SOURCES = src/spectrum.cpp src/wav.cpp src/report.cpp
 CORE_HEADERS = $(wildcard include/humtrace/*.hpp)
 
@@ -23,10 +24,11 @@ $(BUILD_DIR)/test_wav: src/wav.cpp tests/test_wav.cpp $(CORE_HEADERS) | $(BUILD_
 $(BUILD_DIR)/test_report: src/report.cpp tests/test_report.cpp $(CORE_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/report.cpp tests/test_report.cpp -o $@
 
-test: $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
+test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
 	$(BUILD_DIR)/test_spectrum
 	$(BUILD_DIR)/test_wav
 	$(BUILD_DIR)/test_report
+	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
 
 clean:
 	rm -rf $(BUILD_DIR)
