@@ -1,6 +1,6 @@
 # Beta v0.1 release checklist
 
-Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on report commit `399d960`; the streaming-reader update still needs remote verification.
+Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on streaming commit `4727aa2` (run `37762099089`). There is no desktop GUI, installer, or release artifact.
 
 - [ ] GUI is navigable, responsive, and shows progress/cancellation.
 - [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
