@@ -5,6 +5,7 @@
 `make test` compiles with C++20, `-Wall -Wextra -Wpedantic -Wconversion -Werror` and runs:
 
 - Spectrum frequency/level for a known exact-bin sine.
+- Parabolic interpolation for a 60.4 Hz off-bin sine, with measured tolerance of 0.1 Hz and 0.25 dB.
 - Rejection of a non-power-of-two FFT input.
 - Thresholded measurements for a two-harmonic synthetic signal.
 - Per-frame nominal 50/60 Hz harmonic-bin measurements with absolute and local-prominence thresholds.

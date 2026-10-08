@@ -106,7 +106,21 @@ SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
         [](const auto& lhs, const auto& rhs) { return lhs.level_dbfs < rhs.level_dbfs; });
     if (std::isinf(peak->level_dbfs) && peak->level_dbfs < 0.0)
         return {0.0, peak->level_dbfs};
-    return {peak->frequency_hz, peak->level_dbfs};
+    const auto index = static_cast<std::size_t>(peak - spectrum.begin());
+    if (index == 0 || index + 1 >= spectrum.size())
+        return {peak->frequency_hz, peak->level_dbfs};
+    const double left = spectrum[index - 1].level_dbfs;
+    const double center = peak->level_dbfs;
+    const double right = spectrum[index + 1].level_dbfs;
+    if (!std::isfinite(left) || !std::isfinite(center) || !std::isfinite(right))
+        return {peak->frequency_hz, peak->level_dbfs};
+    const double curvature = left - 2.0 * center + right;
+    if (curvature >= 0.0)
+        return {peak->frequency_hz, peak->level_dbfs};
+    const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
+    const double interpolated_level = center - 0.25 * (left - right) * offset;
+    const double bin_width = spectrum[index].frequency_hz - spectrum[index - 1].frequency_hz;
+    return {peak->frequency_hz + offset * bin_width, interpolated_level};
 }
 
 HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,

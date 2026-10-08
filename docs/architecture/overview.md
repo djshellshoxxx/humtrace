@@ -9,7 +9,7 @@
 | Module | Public surface | Constraints |
 |---|---|---|
 | WAV decoder | `humtrace::decode_wav(std::istream&)` | File I/O only; no DSP; v0.1 prototype loads a complete RIFF file. |
-| Spectrum | `analyze_spectrum`, `strongest_peak`, `measure_harmonics`, `analyze_tone_timeline` | Pure computation; caller owns buffers; no audio callback use; FFT frame size must be a power of two. |
+| Spectrum | `analyze_spectrum`, `strongest_peak`, `measure_harmonics`, timeline analyzers | Pure computation; caller owns buffers; no audio callback use; FFT frame size must be a power of two. |
 | CLI | `humtrace <input.wav>` | Presentation and orchestration only; must not alter input files. |
 
 ## Planned module boundaries
@@ -26,7 +26,7 @@ Keep the analysis core independent of JUCE and GUI state. Never run long-file an
 ## Initial decisions
 
 - Use a self-contained radix-2 FFT for the first dependency-free prototype; benchmark and compare with an established FFT library before release.
-- Use a Hann window and coherent-gain-corrected one-sided peak-amplitude spectrum for the initial tone measurement.
+- Use a Hann window and coherent-gain-corrected one-sided peak-amplitude spectrum; apply parabolic interpolation in dB around the dominant bin for the reported peak estimate.
 - Report `dBFS`; no calibration metadata exists to justify SPL or voltage.
 - Label observed frequency energy directly; keep possible electrical-source explanations separate.
 - Require both an absolute level and local spectral prominence for initial harmonic-bin support; defer probability/confidence percentages until there is a representative labeled corpus and held-out validation.

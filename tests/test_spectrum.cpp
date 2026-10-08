@@ -126,6 +126,21 @@ void harmonic_support_requires_prominence_over_local_noise() {
     require(!candidate.harmonics[1].supports_threshold,
             "noise-only harmonic is not supported by an absolute cutoff alone");
 }
+
+void interpolates_frequency_between_fft_bins() {
+    constexpr double sample_rate = 4096.0;
+    constexpr std::size_t count = 4096;
+    constexpr double frequency = 60.4;
+    std::vector<double> samples(count);
+    for (std::size_t i = 0; i < count; ++i)
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * frequency *
+                                    static_cast<double>(i) / sample_rate);
+    const auto peak = humtrace::strongest_peak(humtrace::analyze_spectrum(samples, sample_rate));
+    require(std::abs(peak.frequency_hz - frequency) < 0.1,
+            "parabolic peak interpolation estimates an off-bin tone");
+    require(std::abs(peak.level_dbfs - (-6.0206)) < 0.25,
+            "off-bin peak level is corrected for scalloping");
+}
 } // namespace
 
 int main() {
@@ -136,5 +151,6 @@ int main() {
     reports_50_and_60_hz_harmonic_measurements_per_frame();
     represents_silence_without_inventing_a_peak_frequency();
     harmonic_support_requires_prominence_over_local_noise();
+    interpolates_frequency_between_fft_bins();
     std::cout << "All spectrum tests passed.\n";
 }
