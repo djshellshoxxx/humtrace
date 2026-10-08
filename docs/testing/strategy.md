@@ -15,6 +15,7 @@
 - 24-bit sign extension, IEEE float32 decoding, odd chunk padding, bounded batches, and multiple data chunks.
 - Rejection of non-WAVE input.
 - Report schema versioning, path escaping, non-finite JSON values, and measurement-field serialization.
+- End-to-end CLI analysis of independent stereo tones, rolling-window timestamps, JSON output parsing, and invalid-file errors.
 
 The CLI was manually run against generated mono 60/120 Hz, two-second frequency-change, and stereo 50/60 Hz fixtures. It reported the expected channel-specific components and timestamps. JSON output was parsed with Python's standard JSON parser and harmonic support counts were checked.
 
@@ -27,7 +28,7 @@ GitHub Actions run `37762099089` passed on commit `4727aa2`: Linux build/tests, 
 - PCM 8/16/24/32 and IEEE float 32/64 fixtures; stereo, extensible, multichannel, malformed and truncated inputs.
 - Fractional-bin, off-nominal 50/60 Hz, drift, close tones, broadband noise, silence, DC, bursts, clipping, and low-SNR tests.
 - Precision/recall and frequency/amplitude error on labeled development and held-out recordings.
-- Automated CLI integration tests, stable report round-trip/schema tests, cancellation/progress tests, and long-file bounded-memory tests.
+- Stable report round-trip/schema tests, cancellation/progress tests, and long-file bounded-memory tests.
 - Linux and Windows native CI; macOS only when a native environment is available.
 - Sanitizer coverage where supported, dependency/license scan, and reproducible package smoke tests.
 
