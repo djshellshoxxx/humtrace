@@ -37,6 +37,16 @@ std::string pcm24_wav() {
     tag(result, "WAVE"); result += body;
     return result;
 }
+std::string float32_wav() {
+    std::string body;
+    tag(body, "fmt "); u32(body, 16); u16(body, 3); u16(body, 1);
+    u32(body, 48000); u32(body, 192000); u16(body, 4); u16(body, 32);
+    tag(body, "data"); u32(body, 4); body.append("\0\0\x80\x3e", 4);
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
 void require(bool condition, const char* message) {
     if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); }
 }
@@ -65,11 +75,21 @@ void decodes_signed_24_bit_minimum() {
     require(audio.interleaved_samples.size() == 1, "odd-sized data chunk padding is skipped");
     require(audio.interleaved_samples[0] == -1.0, "24-bit sign extension is correct");
 }
+void decodes_ieee_float32_samples() {
+    std::istringstream stream(float32_wav(), std::ios::binary);
+    const auto audio = humtrace::decode_wav(stream);
+    require(audio.format_code == 3, "IEEE float format code is preserved");
+    require(audio.bit_depth == 32, "float bit depth is preserved");
+    require(audio.interleaved_samples.size() == 1, "one float sample is decoded");
+    require(std::abs(audio.interleaved_samples[0] - 0.25) < 1e-7,
+            "little-endian IEEE float sample is decoded");
+}
 } // namespace
 
 int main() {
     decodes_pcm16_metadata_and_samples();
     rejects_non_wave_input();
     decodes_signed_24_bit_minimum();
+    decodes_ieee_float32_samples();
     std::cout << "All WAV tests passed.\n";
 }

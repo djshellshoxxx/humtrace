@@ -11,7 +11,7 @@
 - Timeline timestamps and dominant-frequency change across two frames.
 - Silence representation without a fabricated peak frequency.
 - WAV metadata and 16-bit PCM normalization.
-- 24-bit sign extension and odd chunk padding.
+- 24-bit sign extension, IEEE float32 decoding, and odd chunk padding.
 - Rejection of non-WAVE input.
 
 The CLI was manually run against a generated 4096 Hz, 60/120 Hz, one-second WAV fixture. It reported a dominant 60 Hz component at -12.041 dBFS, 1 Hz/bin, and one complete frame.
