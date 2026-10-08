@@ -25,7 +25,7 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: mingw-w64-ucrt-x86_64-gcc make
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make
       - name: Build
         run: make
       - name: Test
