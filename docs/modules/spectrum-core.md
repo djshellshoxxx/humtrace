@@ -20,7 +20,8 @@ Provide deterministic offline frequency and level measurements that can be reuse
 - Input samples are finite normalized floating-point values; reported level is dBFS.
 - FFT size is power-of-two and at least four; timeline hop must be nonzero.
 - No audio callback, GUI, file I/O, or source-classification dependency.
-- Harmonic support is a thresholded observation, not a confidence score or proof of mains coupling.
+- Harmonic support requires both an absolute dBFS threshold and local prominence over a median spectral floor. The initial floor uses bins 3–8 away from the target bin on either side; this is a prototype heuristic that still needs calibration against real recordings.
+- Thresholded support is a measurement summary, not a confidence score or proof of mains coupling.
 - Silence is represented as frequency 0 Hz with level `-inf` dBFS, meaning no non-DC energy was measured.
 - The timeline does not associate peaks across frames and makes no persistence claim.
 

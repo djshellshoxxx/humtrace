@@ -21,6 +21,8 @@ struct HarmonicMeasurement {
     double expected_frequency_hz{};
     double measured_bin_hz{};
     double level_dbfs{};
+    double local_floor_dbfs{};
+    double prominence_db{};
     bool supports_threshold{};
 };
 
@@ -54,7 +56,8 @@ struct InterferenceFrame {
 // Nyquist. Threshold support is a measurement aid, not a source classification.
 [[nodiscard]] HarmonicCandidate measure_harmonics(
     const std::vector<SpectrumBin>& spectrum, double nominal_hz,
-    double support_threshold_dbfs, std::size_t max_harmonics);
+    double support_threshold_dbfs, std::size_t max_harmonics,
+    double minimum_prominence_db = 10.0);
 
 // Measure the strongest non-DC component in complete, fixed-size frames.
 [[nodiscard]] std::vector<ToneFrame> analyze_tone_timeline(
@@ -65,6 +68,7 @@ struct InterferenceFrame {
 [[nodiscard]] std::vector<InterferenceFrame> analyze_interference_timeline(
     const std::vector<double>& samples, double sample_rate_hz,
     std::size_t frame_size, std::size_t hop_size,
-    double support_threshold_dbfs = -60.0, std::size_t max_harmonics = 10);
+    double support_threshold_dbfs = -60.0, std::size_t max_harmonics = 10,
+    double minimum_prominence_db = 10.0);
 
 } // namespace humtrace

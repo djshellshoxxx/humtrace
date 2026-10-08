@@ -103,6 +103,29 @@ void represents_silence_without_inventing_a_peak_frequency() {
     require(std::isinf(peak.level_dbfs) && peak.level_dbfs < 0.0,
             "silence is represented at negative infinity dBFS");
 }
+
+void harmonic_support_requires_prominence_over_local_noise() {
+    constexpr double sample_rate = 4096.0;
+    constexpr std::size_t count = 4096;
+    std::vector<double> samples(count);
+    std::uint32_t state = 0x12345678U;
+    for (std::size_t i = 0; i < count; ++i) {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        const double noise = (static_cast<double>(state) / 4294967295.0 - 0.5) * 0.02;
+        const double time = static_cast<double>(i) / sample_rate;
+        samples[i] = noise + 0.25 * std::sin(2.0 * std::numbers::pi * 60.0 * time);
+    }
+    const auto spectrum = humtrace::analyze_spectrum(samples, sample_rate);
+    const auto candidate = humtrace::measure_harmonics(spectrum, 60.0, -80.0, 5, 15.0);
+    require(candidate.harmonics[0].prominence_db > 20.0,
+            "clear sinusoid is measured above its local spectral floor");
+    require(candidate.harmonics[0].supports_threshold,
+            "a tone above both absolute and local-prominence thresholds is supported");
+    require(!candidate.harmonics[1].supports_threshold,
+            "noise-only harmonic is not supported by an absolute cutoff alone");
+}
 } // namespace
 
 int main() {
@@ -112,5 +135,6 @@ int main() {
     tracks_the_strongest_component_in_non_overlapping_frames();
     reports_50_and_60_hz_harmonic_measurements_per_frame();
     represents_silence_without_inventing_a_peak_frequency();
+    harmonic_support_requires_prominence_over_local_noise();
     std::cout << "All spectrum tests passed.\n";
 }

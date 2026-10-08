@@ -40,6 +40,31 @@ void fft(std::vector<std::complex<double>>& values) {
     return amplitude <= 0.0 ? -std::numeric_limits<double>::infinity()
                             : 20.0 * std::log10(amplitude);
 }
+
+[[nodiscard]] double local_spectral_floor(const std::vector<SpectrumBin>& spectrum,
+                                          std::size_t center) {
+    constexpr std::size_t guard_bins = 2;
+    constexpr std::size_t radius_bins = 8;
+    std::vector<double> neighbors;
+    const auto first = center > radius_bins ? center - radius_bins : 1;
+    const auto last = std::min(spectrum.size() - 2, center + radius_bins);
+    for (std::size_t index = first; index <= last; ++index) {
+        const auto distance = index > center ? index - center : center - index;
+        if (distance > guard_bins)
+            neighbors.push_back(spectrum[index].level_dbfs);
+    }
+    if (neighbors.empty())
+        return -std::numeric_limits<double>::infinity();
+    std::sort(neighbors.begin(), neighbors.end());
+    const auto middle = neighbors.size() / 2;
+    if ((neighbors.size() & 1U) != 0)
+        return neighbors[middle];
+    const auto lower = neighbors[middle - 1];
+    const auto upper = neighbors[middle];
+    if (std::isinf(lower) && lower == upper)
+        return lower;
+    return (lower + upper) / 2.0;
+}
 } // namespace
 
 std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
@@ -86,9 +111,11 @@ SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
 
 HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
                                     double nominal_hz, double support_threshold_dbfs,
-                                    std::size_t max_harmonics) {
+                                    std::size_t max_harmonics,
+                                    double minimum_prominence_db) {
     if (spectrum.size() < 2 || !std::isfinite(nominal_hz) || nominal_hz <= 0.0 ||
-        !std::isfinite(support_threshold_dbfs) || max_harmonics == 0)
+        !std::isfinite(support_threshold_dbfs) || max_harmonics == 0 ||
+        !std::isfinite(minimum_prominence_db) || minimum_prominence_db < 0.0)
         throw std::invalid_argument("invalid spectrum or harmonic measurement settings");
     const double spacing = spectrum[1].frequency_hz - spectrum[0].frequency_hz;
     if (!std::isfinite(spacing) || spacing <= 0.0)
@@ -104,10 +131,17 @@ HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
         if (index >= spectrum.size())
             break;
         const auto& bin = spectrum[index];
-        const bool supported = bin.level_dbfs >= support_threshold_dbfs;
+        const double floor = local_spectral_floor(spectrum, index);
+        double prominence = bin.level_dbfs - floor;
+        if (std::isinf(floor) && floor < 0.0 && std::isfinite(bin.level_dbfs))
+            prominence = std::numeric_limits<double>::infinity();
+        if (std::isinf(floor) && floor < 0.0 && std::isinf(bin.level_dbfs) && bin.level_dbfs < 0.0)
+            prominence = 0.0;
+        const bool supported = bin.level_dbfs >= support_threshold_dbfs &&
+                               prominence >= minimum_prominence_db;
         candidate.supporting_harmonics += supported ? 1U : 0U;
         candidate.harmonics.push_back({harmonic, expected, bin.frequency_hz,
-                                       bin.level_dbfs, supported});
+                                       bin.level_dbfs, floor, prominence, supported});
     }
     return candidate;
 }
@@ -137,9 +171,12 @@ std::vector<ToneFrame> analyze_tone_timeline(const std::vector<double>& samples,
 std::vector<InterferenceFrame> analyze_interference_timeline(
     const std::vector<double>& samples, double sample_rate_hz,
     std::size_t frame_size, std::size_t hop_size,
-    double support_threshold_dbfs, std::size_t max_harmonics) {
+    double support_threshold_dbfs, std::size_t max_harmonics,
+    double minimum_prominence_db) {
     if (!std::isfinite(support_threshold_dbfs) || max_harmonics == 0)
         throw std::invalid_argument("invalid harmonic support settings");
+    if (!std::isfinite(minimum_prominence_db) || minimum_prominence_db < 0.0)
+        throw std::invalid_argument("minimum harmonic prominence must be finite and non-negative");
     if (frame_size < 4 || (frame_size & (frame_size - 1)) != 0 || hop_size == 0 ||
         !std::isfinite(sample_rate_hz) || sample_rate_hz <= 0.0)
         throw std::invalid_argument("timeline requires a power-of-two frame and positive hop/rate");
@@ -154,8 +191,8 @@ std::vector<InterferenceFrame> analyze_interference_timeline(
                                   samples.begin() + static_cast<std::ptrdiff_t>(start + frame_size));
         const auto spectrum = analyze_spectrum(block, sample_rate_hz);
         result.push_back({static_cast<std::uint64_t>(start), strongest_peak(spectrum),
-            measure_harmonics(spectrum, 50.0, support_threshold_dbfs, max_harmonics),
-            measure_harmonics(spectrum, 60.0, support_threshold_dbfs, max_harmonics)});
+            measure_harmonics(spectrum, 50.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db),
+            measure_harmonics(spectrum, 60.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db)});
     }
     return result;
 }

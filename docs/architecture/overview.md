@@ -29,7 +29,7 @@ Keep the analysis core independent of JUCE and GUI state. Never run long-file an
 - Use a Hann window and coherent-gain-corrected one-sided peak-amplitude spectrum for the initial tone measurement.
 - Report `dBFS`; no calibration metadata exists to justify SPL or voltage.
 - Label observed frequency energy directly; keep possible electrical-source explanations separate.
-- Defer probability/confidence percentages until there is a representative labeled corpus and held-out validation.
+- Require both an absolute level and local spectral prominence for initial harmonic-bin support; defer probability/confidence percentages until there is a representative labeled corpus and held-out validation.
 
 ## Known architecture gaps
 

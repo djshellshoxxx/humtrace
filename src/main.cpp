@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
                     std::cout << "strongest non-DC component " << peak.frequency_hz << " Hz, "
                               << peak.level_dbfs << " dBFS";
                 std::cout << "; "
-                          << "50 Hz harmonic bins above -60 dBFS: "
+                          << "50 Hz bins over -60 dBFS and 10 dB local prominence: "
                           << frame.mains_50.supporting_harmonics << '/' << frame.mains_50.harmonics.size()
                           << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
                           << frame.mains_60.harmonics.size() << '\n';
