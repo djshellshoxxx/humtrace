@@ -15,6 +15,8 @@ Windows and Linux desktop tool for inspecting audio recordings for repeatable el
 - Maintain a deterministic synthetic test suite with measurable frequency/level tolerances and false-positive negatives.
 - Package and natively verify Windows and Linux artifacts before claiming either platform complete.
 
+Detailed acceptance behavior is linked from the [design index](../design/index.md). In particular, v0.1 also requires input/report integrity metadata with bounded claims, keyboard and screen-reader access to measurements, no silent resampling/downmixing/alignment, and a validation corpus split by recording session/source to prevent leakage.
+
 ## Staged build order
 
 1. **Core measurement (started):** streaming RIFF/WAVE PCM/float batches, one-sided spectrum, dBFS units, parabolic peak interpolation, and test harness.
@@ -25,6 +27,10 @@ Windows and Linux desktop tool for inspecting audio recordings for repeatable el
 6. **Release hardening:** CI, sanitizer jobs, dependency/license audit, installers, native platform verification, user guide, beta notes.
 
 Optional plugin, ENF matching, hardware troubleshooting suggestions, and signature library are outside the first release gate unless the core beta is already verified.
+
+Deferred feature specs: [ENF](enf-analysis.md), [diagnostic guidance](diagnostic-guidance.md), [signature library](signature-library.md), and [plugin adapter](plugin-adapter.md). Each remains gated by separate research, validation, and licensing review; none is implied to be implemented by its specification.
+
+Toolkit direction is provisionally Qt 6 Widgets, subject to the prototype gates and per-module license/SBOM review in [GUI toolkit decision research](../research/gui-toolkit-decision-research.md). This does not set the HumTrace product license.
 
 ## Initial non-goals
 

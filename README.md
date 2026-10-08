@@ -25,9 +25,12 @@ build/humtrace recording.wav --json analysis.json
 
 ## Design notes
 
+- [Complete design and build index](docs/design/index.md)
 - [DSP algorithm research](docs/research/dsp-algorithms.md)
+- [GUI toolkit decision research](docs/research/gui-toolkit-decision-research.md)
 - [Architecture and module contracts](docs/architecture/overview.md)
 - [Requirements and staged delivery](docs/specs/product-requirements.md)
+- [Desktop GUI and visual design](docs/specs/gui.md)
 - [JSON report schema](docs/modules/report-schema-v1.md)
 - [Known limitations](docs/user-guide/limitations.md)
 

@@ -22,6 +22,8 @@
 5. `app`: desktop UI and background job lifecycle.
 6. `plugin`: optional adapter over the analysis library; no duplicated DSP.
 
+Detailed contracts live in the [design index](../design/index.md). The next module split is: `dsp` for estimates, `analysis` for tracking/comparison, `audio_io` for bounded decoding, `report` for streamed versioned outputs, and an optional Qt app adapter. The Qt target must not enter the dependency-free core or CLI.
+
 Keep the analysis core independent of JUCE and GUI state. Never run long-file analysis on a real-time audio callback. Every result should preserve units, analysis settings, channel identity, time range, and method/version metadata.
 
 ## Initial decisions
@@ -34,4 +36,4 @@ Keep the analysis core independent of JUCE and GUI state. Never run long-file an
 
 ## Known architecture gaps
 
-The CLI streams bounded audio windows, while the convenience `decode_wav` API loads the complete file. Reports and their timeline results grow with recording duration. The decoder does not support RF64, WAVEFORMATEXTENSIBLE, or compressed codecs. The current timeline independently reports each frame's strongest bin; it does not associate peaks into persistent tracks and does not yet expose PSD or calibrated detection evidence.
+The CLI streams bounded audio windows, while the convenience `decode_wav` API loads the complete file. Reports and their timeline results grow with recording duration. The decoder does not support RF64, WAVEFORMATEXTENSIBLE, or compressed codecs. The current timeline independently reports each frame's strongest bin; it does not associate peaks into persistent tracks and does not yet expose PSD or calibrated detection evidence. Progress/cancellation and desktop UI are not implemented. These gaps now have linked build specifications in the [design index](../design/index.md).

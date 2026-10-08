@@ -35,6 +35,18 @@ Practice guidance calls for documenting analysis and limitations, with method se
 
 Survey of ENF extraction and proposed forensic applications, including challenges. Useful overview; application areas discussed in a survey should not be interpreted as generic validation of source attribution or every individual implementation.
 
+### Hua et al. (2021), “Robust ENF Estimation Based on Harmonic Enhancement and Maximum Weight Clique”
+
+[IEEE DOI](https://doi.org/10.1109/TIFS.2021.3099697) · [arXiv preprint](https://arxiv.org/abs/2011.03414) · [authors' ENF-WHU repository](https://github.com/ghua-ac/ENF-WHU-Dataset)
+
+Studies multi-harmonic ENF enhancement and harmonic selection, and reports evaluation with synthetic signals and the ENF-WHU dataset. This is a relevant future method candidate if HumTrace implements ENF extraction. It does not justify applying the algorithm to unrelated HumTrace detection or treating an extracted sequence as uniquely identifying a date/location. Inspect the paper's evaluation conditions, repository revision, dataset license/consent, and reference-data assumptions before reusing code or data.
+
+### ENF-WHU audio dataset and companion code
+
+[Upstream GitHub project](https://github.com/ghua-ac/ENF-WHU-Dataset)
+
+The project describes a real-recording dataset and MATLAB programs for ENF detection, enhancement and estimation. This can inform an independent ENF-method evaluation, subject to verification of exact dataset files, annotations, split protocol, license, and recording conditions. It is not a general audio-interference corpus; the target task and population are specifically ENF-related.
+
 ## Spectral estimation and sampling
 
 ### Welch (1967), “The Use of the Fast Fourier Transform for the Estimation of Power Spectra: A Method Based on Time Averaging Over Short, Modified Periodograms”

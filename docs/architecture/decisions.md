@@ -40,10 +40,10 @@
 - **Alternatives:** FFmpeg or libsndfile from the start; support compressed formats.
 - **Consequences:** the offline CLI can demonstrate streaming analysis without a runtime dependency. RF64, WAVEFORMATEXTENSIBLE, AIFF, FLAC, and MP3 remain unsupported.
 
-## D-006: Defer desktop toolkit choice until license and accessibility review
+## D-006: Use Qt 6 Widgets provisionally for the desktop application
 
-- **Status:** open
-- **Problem:** GUI delivery needs a framework, but framework terms affect packaging and project licensing.
-- **Decision:** complete the interaction spec and compare supported toolkit options before adding a runtime dependency.
-- **Alternatives:** JUCE, Qt, wxWidgets, SDL2 with Dear ImGui.
-- **Consequences:** GUI implementation is the current major product blocker; analysis core remains usable while the decision is open.
+- **Status:** provisional; implementation gated by prototype and module/license review
+- **Problem:** GUI delivery needs a framework with a strong desktop shell, test support, custom plots, accessibility hooks, and Windows/Linux packaging.
+- **Decision:** prototype Qt 6 Widgets with CMake. Use Core/Gui/Widgets and QPainter-based plot widgets; keep GUI types out of the C++ analysis core. Do not pull in Qt Graphs or other modules before checking their license and runtime dependencies.
+- **Alternatives:** JUCE, wxWidgets, SDL2 with Dear ImGui; see [toolkit research](../research/gui-toolkit-decision-research.md).
+- **Consequences:** Qt is a good technical fit for this offline measurement desktop workflow, but project licensing is still undecided and Qt module terms vary. Before adopting it for release, audit exact pinned module versions and SBOM, run Windows/Linux accessibility and packaging prototypes, and decide whether the selected terms fit the product's chosen license/distribution. If that gate fails, reopen this decision. No HumTrace license is selected here.

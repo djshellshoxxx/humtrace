@@ -20,6 +20,32 @@ Use a Hann window as a sensible default for general tone inspection, with a docu
 
 Expose frame duration and hop in seconds in the UI/report. A useful initial analysis can offer a longer frame for close 50/60 Hz discrimination and a shorter frame for event timing, then validate defaults against realistic SNR and drift. Avoid asserting universal settings: low-frequency separation needs sufficiently long observations, while fast changes need shorter frames.
 
+### Implementation equations and invariants
+
+Use these definitions as the cross-library reference when implementing the analysis engine. They intentionally pin down conventions that libraries often expose as options. Keep the raw estimator output and derived display values separate.
+
+For a frame of `N` samples, apply the configured detrending rule first, multiply by window `w[n]`, then calculate
+
+`X[k] = Σ(n=0..N−1) x[n] w[n] exp(−j 2πkn/N)`
+
+with sample rate `fs` and bin spacing `Δf = fs/N`. For a real input, retain bins `0..floor(N/2)`. The window coherent gain is `C = Σ w[n]`. A coherent-gain-corrected one-sided peak-amplitude estimate is `A[k] = |X[k]|/C`, doubled for interior positive-frequency bins; do not double DC or (for even `N`) Nyquist. This is exact for an isolated bin-centered sinusoid under the stated convention. Off-bin tones have window-dependent scalloping error; interpolation around a peak estimates its location but does not make the finite observation lossless. Keep `raw_bin`, `raw_bin_hz`, interpolated frequency, and amplitude estimate distinct.
+
+For a modified periodogram with the same window, calculate the two-sided density `P2[k] = |X[k]|² / (fs Σw[n]²)`. Convert it to a one-sided density by doubling interior positive-frequency bins only. Average periodograms for Welch; if the last segment is shorter, either exclude it or apply a documented padding policy, never silently change its weight. This produces normalized-sample power per hertz. Integrating the linear one-sided PSD over frequency yields mean-square power over the integrated band (subject to discrete-bin integration convention). Do not compare a PSD ordinate directly to a tone amplitude or call both “dBFS.”
+
+For each numerical path, explicitly test Parseval consistency: the time-domain mean square after the declared detrend/window convention must agree with the corresponding spectral integral within a stated floating-point tolerance. Also test that a bin-centered full-scale sine returns the defined peak and RMS values, that DC/Nyquist are not doubled, and that even/odd FFT lengths take correct edge-bin handling. Record FFT backend, normalization version, window name/parameters, detrend rule, `N`, hop, segment count, and scaling in result metadata. A library upgrade that changes a default is a method-version change unless regression evidence proves otherwise.
+
+### Peak refinement and uncertainty
+
+Use a bounded local neighborhood for a candidate's floor/prominence and retain its size in both hertz and bins. Exclude a guard band around the candidate from floor estimation so the peak's own main lobe does not inflate the noise estimate. Compare robust estimators (median or trimmed/quantile variants) on white, colored, and impulsive backgrounds before choosing one. A flat, clipped, merged, boundary, or low-SNR peak gets a validity/quality flag instead of a precise-looking number.
+
+If using three-bin parabolic interpolation on log magnitude, with center bin `m` and values `a = log|X[m−1]|`, `b = log|X[m]|`, `c = log|X[m+1]|`, the offset is `δ = 0.5 (a−c)/(a−2b+c)` bins when the denominator is finite and concave and `|δ| ≤ 0.5`; otherwise return the raw bin and flag refinement failure. Frequency is `(m+δ) fs/N`. Keep interpolation method and log base fixed (the offset is invariant to a constant log-base scale). This approximation is not an uncertainty estimate; estimate bias/error empirically across fractional-bin offset, window, SNR, nearby tones, drift, and clipping, then report a validated error range or “not characterized.”
+
+### Harmonic candidate and track association
+
+For a candidate fundamental `f0`, generate expected partials `k f0` only while below Nyquist and outside configured invalid bands. A measured peak supports partial `k` only when it falls inside a tolerance derived from the greater of configured absolute tolerance and validated estimator uncertainty/resolution; cap tolerance to prevent adjacent partial regions from overlapping. Retain unmatched and competing peaks. A summary score may combine normalized frequency error, local prominence/SNR, persistence, and shared drift, but its components and weights must be explicit; do not describe an arbitrary weighted score as a probability.
+
+For temporal association, form a gated bipartite cost between active tracks and current-frame peaks. Reject edges outside the validated frequency gate. Within the gate, use a deterministic cost dominated by normalized frequency difference, with smaller level and width continuity terms; add dummy unmatched choices so tracks may end and peaks may start rather than forcing a bad match. A minimum-cost one-to-one assignment is preferable if measured candidate counts justify it; otherwise a sorted greedy matcher can be used only after proving equivalent behavior on the supported candidate cap. Tie-break deterministically by prior track ID and current frequency/bin. Do not interpolate measurements through missed frames. Evaluate gap allowance, split/merge behavior, and identity switches against labeled synthetic and real tracks before choosing defaults. See [temporal tracking](../specs/temporal-tracking.md).
+
 ## Peak detection and tracking
 
 Detect local maxima in a log-power spectrum, then filter candidates by prominence over a locally estimated noise floor, minimum width/height, and exclusion of DC and unreliable edge bins. Peak prominence, width, and separation are measurable controls; fixed absolute thresholds alone are fragile across recordings. [7]
@@ -51,6 +77,10 @@ Analyze every channel independently first; do not average channels before detect
 3. **Robustness sweeps:** vary SNR, duration, frame/hop, window, tone spacing, drift rate, channel phase, clipping, and interfering speech/music. Measure detection precision/recall and frequency/amplitude error; include difficult negatives such as bass notes near mains frequency.
 4. **Transformation checks:** resample and encode/decode representative files, apply filtering and gain changes, then document which measurements should remain invariant and where performance degrades.
 5. **Regression corpus:** keep synthetic generators and a small, rights-cleared labeled corpus with provenance. Freeze expected results and test output determinism. Tune thresholds on development data, then publish metrics on held-out recordings.
+
+## Engineering handoff
+
+The formulas above are implementation conventions, not code prescriptions. The [analysis engine specification](../specs/analysis-engine.md) defines API outputs, units, and failure behavior; [detector method selection](detector-method-selection.md) defines comparison experiments; [temporal tracking](../specs/temporal-tracking.md) defines event behavior; and the [validation corpus specification](../specs/validation-corpus.md) defines metrics and leakage controls. Before promoting a method from prototype to release, record exact library/version/settings and regression evidence. A numerical method can be mathematically standard and still be unsuitable at a particular sample rate, SNR, duration, codec, or recording chain.
 
 ## Sources
 

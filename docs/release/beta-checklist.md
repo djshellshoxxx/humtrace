@@ -9,6 +9,8 @@ Current status: **not release-ready**. The offline streaming WAV/core/CLI and pr
 - [ ] Multi-file comparison is implemented and reproducible.
 - [ ] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
 - [ ] Invalid/unsupported input handling and source preservation are tested.
+- [ ] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
+- [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
 - [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
 - [ ] Required license and third-party notices are reviewed and included.
 - [ ] Linux and Windows native builds and packaged artifacts are tested.

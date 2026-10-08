@@ -1,73 +1,135 @@
-# HumTrace desktop GUI specification
+# HumTrace desktop GUI and visual design specification
 
-**Status:** v0.1 interaction and layout specification. Visual implementation and toolkit selection are not complete.
+**Status:** product and visual specification. Framework recommendation is in [GUI toolkit research](../research/gui-toolkit-evaluation.md) and the current decision report at [GUI toolkit decision research](../research/gui-toolkit-decision-research.md). The framework-independent app contracts below remain valid if the toolkit changes.
 
-## Main window
+## Product role and interaction principles
 
-Use a three-column analysis workspace with a compact top command bar and a shared time ruler.
+HumTrace is an analytical workbench for inspecting recorded audio. It is not a live meter, audio editor, cleanup tool, source-attribution engine, or evidence-custody system. The interface should make the measured waveform, method, and limitations easy to inspect while keeping analysis controls out of the visual data path.
 
-| Area | Content | Behavior |
+- Show observations first, candidate interpretations second, limitations beside both.
+- Keep original channels separate. Visibility toggles never change analysis inputs.
+- Analysis and display settings are distinct. Zoom/pan/cursor changes do not rerun or change DSP.
+- Any derived operation (resample, downmix, alignment, filter, export redaction) is an explicit user action and appears in the session/report.
+- Preserve user work across window resizing. Keep the analysis task cancellable and the window responsive.
+
+## Visual direction
+
+Use a restrained, instrument-like dark interface: dark blue/slate surfaces, fine neutral separators, compact but readable data typography, and bright accents reserved for measured traces, selected objects, and warnings. Avoid decorative gradients, glow, fake hardware meters, 3D knobs, and color effects that compete with low-level spectral detail. Charts should feel precise and quiet, with visible axes, units, and scale context.
+
+Initial palette tokens, to be verified against WCAG contrast on implementation:
+
+| Token | Suggested value | Use |
 |---|---|---|
-| Left rail | Open/import, current recording, channel list, recent analysis sessions | Select a recording or channel; show decode status and source metadata. |
-| Center canvas | Overview waveform above a scrollable spectrogram; optional spectrum panel | Shared time axis; zoom/pan; selecting a time range updates spectrum and findings. |
-| Right inspector | Selected finding, measurements, evidence components, interpretation limits | Show measured frequency/level/time/channel and harmonic support; source ideas must be labeled as hypotheses. |
-| Top bar | Open, analyze, cancel, export, compare, settings | Disable controls only when their action is unavailable; show analysis progress without blocking playback or navigation. |
-| Bottom ruler | Time, selection, playhead, visible event markers | Click/drag to seek or select; keyboard navigation must reach each event. |
+| `canvas` | `#111820` | Main application background |
+| `surface` | `#19232D` | Panels, tables, toolbars |
+| `raised` | `#222F3B` | Menus, selected cards, popovers |
+| `text.primary` | `#F0F3F6` | Primary labels and values |
+| `text.secondary` | `#A6B3C2` | Supporting labels, axis ticks |
+| `accent.signal` | `#59D8E8` | Spectrum cursor/selected trace |
+| `accent.event` | `#FFBF69` | Candidate event and caution |
+| `accent.compare` | `#C4A7FF` | Comparison overlay |
+| `status.ok` | `#7ED6A5` | Completion/verified state only |
+| `status.error` | `#FF7773` | Error state |
 
-## Default screen hierarchy
+Color is never the only encoding: pair trace colors with channel labels, solid/dashed patterns, markers, and table values. Text aims at WCAG 2.2 AA contrast (4.5:1 for normal text; 3:1 for large text). Chart/UI boundaries and focus indicators must remain distinguishable at 3:1 or better where the criterion applies. Include a high-contrast theme and test keyboard focus visibility. [1][2]
 
-1. File identity and decoded format at the top: filename, rate, channels, bit depth/codec, duration.
-2. Waveform gives context for the full recording; spectrogram gives time/frequency structure.
-3. Event markers use consistent colors for measured types, with channel identity conveyed by labels/patterns as well as color.
-4. Findings panel lists severity by evidence strength and persistence, not by a guessed physical hazard.
-5. Selecting a finding highlights its time span, relevant channel, spectral band, and measured harmonics.
+Using the WCAG relative-luminance formula, the proposed primary text has 16.04:1 contrast on `canvas` and 14.29:1 on `surface`; secondary text is 8.38:1 and 7.46:1 respectively. Accent values are also above 6:1 on both bases. These are palette-pair calculations only; text over plots, disabled states, overlays, selected rows, and focus states still need implementation-level checks.
 
-## Finding detail
+## Main window layout
 
-Show the following separately:
+Target initial desktop size is 1440×900 logical pixels. Support minimum usable size 1024×680, 100–200% text/UI scaling, and panels that collapse without hiding essential actions. This is a design target, not a platform support claim.
 
-- **Measurement:** frequency/range, peak level in dBFS, start/end, duration, channel, drift, and analysis frame/hop.
-- **Harmonic measurements:** expected and measured bin frequency, level, local floor, prominence, and supported threshold per partial.
-- **Evidence summary:** observed partial count, prominence threshold, temporal stability and missing/weak partials.
-- **Interpretation:** “consistent with” candidate labels only. A 50/60 Hz series alone must never be called a confirmed ground loop, appliance, or location.
-- **Limitations:** lossy encoding, resampling, filters, short duration, masking, and uncalibrated microphone/electrical path where applicable.
+```mermaid
+flowchart TB
+  T["Toolbar: Open · Analyze · Cancel · Compare · Export · Settings"]
+  H["Recording identity and channel selector"]
+  subgraph W["Analysis workspace"]
+    direction LR
+    L["Sessions, sources, channels, findings"]
+    C["Waveform overview<br/>Spectrogram<br/>Selected-range spectrum"]
+    R["Finding inspector<br/>Measurements · evidence · limits · notes"]
+  end
+  B["Shared time ruler · playhead · selection · progress"]
+  T --> H --> W --> B
+  L <--> C
+  C <--> R
+```
 
-## Interactions
+Use a collapsible left rail (about 240 px), central chart workspace (flexible, minimum 520 px), and right inspector (about 340 px). When the window narrows, convert rails to drawers and preserve a visible channel selector, run/cancel state, selected measurement, and export action.
 
-- Opening a file never modifies it. Analysis can be cancelled and restarted.
-- Selecting a finding seeks the shared playhead and reveals the full event neighborhood.
-- Clicking a channel toggles visibility without mixing channels for detection.
-- Zooming changes display detail only; analysis frame settings remain unchanged unless the user explicitly reruns analysis.
-- Spectrum cursor reports frequency and dBFS with grid/bin-resolution context.
-- A/B comparison aligns timestamps only when the user explicitly requests alignment; automatic alignment must be disclosed.
-- Export preview shows report schema/version, settings, and any warnings before writing.
+## Screens and components
 
-## States and errors
+### 1. Start and file-open state
 
-- Empty state explains supported formats and provides Open/drag-and-drop entry points.
-- Loading state shows metadata as soon as available and file-read progress for streaming formats.
-- Analysis state shows determinate progress where possible, cancellation, and the current channel/frame range.
-- Unsupported or malformed files show the specific format or validation failure and a clear next action.
-- Empty/silent recordings show “no non-DC energy measured,” never an invented peak.
-- Comparison state clearly marks unmatched duration, sample-rate differences, resampling, and alignment choices.
+Show a clear Open Recording action, supported formats, and a recent-session list. Drag-and-drop is an alternate entry, not the only entry. Do not show empty charts that resemble failed analysis. Recent file paths are local/private and can be cleared. Opening is read-only.
 
-## Accessibility and presentation
+### 2. Recording header
 
-- Keyboard access for file opening, channel selection, zoom, seek, finding navigation, and report export.
-- Minimum readable text sizes, screen-reader names for controls, visible focus, and high-contrast mode.
-- Do not encode severity or channel solely by color.
-- Use consistent units (`Hz`, `s`, `dBFS`) and explain terms inline.
-- The visual theme should follow the shared Circuit Drift Labs theme specification if available; none was present in the initial checkout.
+Show basename, decode status, duration, sample rate, channel count/layout, sample format/valid bits, and original-file hash status when available. Warn if channel layout is unknown, source changed during analysis, the file is truncated, or decoding required a documented transformation.
 
-## Toolkit and implementation boundary
+### 3. Waveform overview
 
-The application shell must call the existing analysis library on a worker and receive immutable progress/results. GUI state must not enter DSP modules. No framework is selected yet: evaluate toolkit licensing, accessibility, Windows/Linux packaging, high-DPI rendering, testing support, and maintenance before adopting JUCE or another UI dependency. The JSON report and analysis core must remain usable if the GUI toolkit changes.
+Render a min/max envelope pyramid to show the whole file without loading every sample into a GUI object. Show per-channel lanes by default. Selection range is draggable and keyboard adjustable. Tooltip reports time, sample index, peak/RMS only when those measurements are actually available. Waveform is context; it does not prove a click or artifact's cause.
 
-## Acceptance checks
+### 4. Spectrogram
 
-- Window remains responsive while analyzing a long file; cancel works during decode and analysis.
-- A finding click moves the playhead and highlights the correct channel/time range.
-- Scrolling/zooming does not change analysis results.
-- Mono and stereo views never silently downmix.
-- Keyboard-only workflow can load, analyze, inspect findings, and export a report.
-- No label states a physical cause as verified from audio-only frequency measurements.
+Use a time × frequency heatmap with logarithmic frequency scale as the default for hum/interference inspection and an explicit linear option. Display frequency/time axes, window/hop, amplitude/PSD mode, and color floor/ceiling. The scale must be labeled (e.g. dBFS/Hz for PSD), not an unexplained color map. Provide grayscale/accessible palette options. Render tiles at the current zoom and maintain a bounded cache.
+
+### 5. Spectrum panel
+
+Show selected channel and selected time interval, window, FFT length, bin spacing, and estimator. Cursor readout gives frequency, unit/value, raw bin, interpolated frequency when valid, and uncertainty/resolution context. Mark DC and Nyquist. Provide a table view equivalent to cursor exploration for keyboard and screen-reader users.
+
+### 6. Findings list and event timeline
+
+List measured event/track, start/end, duration, channel, median frequency, peak/RMS level, persistence coverage, and warnings. Sorting must not reorder source measurements. Selecting an event synchronizes its interval across all charts and the inspector. Use labels and line styles as well as color. Distinguish “observation”, “candidate pattern”, “user note”, and “warning”.
+
+### 7. Finding inspector
+
+Sections: summary; measurement and units; frame/track evidence; harmonic partial table; noise-floor method; settings; warnings; qualified interpretation; limitations; analyst notes. Show every threshold behind support counts. Possible physical mechanisms use “may be consistent with” wording and remain visually subordinate to measurements.
+
+### 8. Comparison view
+
+Place recordings side by side with matching axes only when units/ranges are compatible. Make unmatched durations obvious. Show alignment offset and resampling state in a persistent banner. Unmatched tracks remain explicit; do not turn absence into a zero-valued measurement.
+
+### 9. Export preview
+
+Show report schema/version, input digest, completion state, warnings, destination, and path-redaction choice. Existing report replacement requires explicit confirmation. Export does not alter source audio.
+
+## Interaction and keyboard contract
+
+Keyboard-only flow must support Open, channel selection, Analyze, Cancel, chart focus, zoom, pan, time selection, next/previous finding, inspector/table navigation, export, and help. Provide shortcuts in menus and help, avoid trapping focus, and keep focus visible. Every custom chart has a focusable accessible summary and an equivalent measurement/event table. Screen reader announcements are concise and throttled; do not announce every frame update.
+
+Mouse and keyboard behaviors:
+
+- Click/drag selects time; shift-click extends; escape clears selection; arrow keys move selection/playhead by a documented step.
+- Wheel/trackpad zooms around the pointer; horizontal pan never changes analysis settings.
+- Clicking a finding selects channel and time range; it does not switch to a mixed/downmixed signal.
+- Settings changes mark the result stale and require explicit reanalysis; display-only settings never mark it stale.
+- Cancel leaves the source unchanged and labels partial output as cancelled.
+
+## State model and error presentation
+
+States: `empty`, `opening`, `ready`, `queued`, `hashing`, `decoding`, `analyzing`, `finalizing`, `complete`, `cancelling`, `cancelled`, `failed`, `invalidated`. Show progress only when countable; otherwise show stage and current work. Errors identify file/stage and next action, preserve logs without dumping sensitive absolute paths into public reports, and never silently fall back to mono, resampling, or another decoder.
+
+## Accessibility and platform validation
+
+Check semantic names/roles/value for every control, keyboard traversal, visible focus, text resizing, contrast, color independence, high-contrast mode, and table alternatives. Test the actual packaged app with Windows Narrator and a Linux screen reader/AT-SPI environment. Toolkit-native widgets are preferred for controls; custom plots need their own accessible model and keyboard operations. Passing toolkit documentation is not proof of HumTrace accessibility. See [toolkit decision research](../research/gui-toolkit-decision-research.md).
+
+## Architecture and performance boundary
+
+The shell owns navigation, settings snapshots, worker lifecycle, and immutable result views. Analysis jobs run on a worker with bounded input/FFT buffers; chart rendering consumes decimated waveform summaries, spectrogram tiles, and event rows. UI must not call DSP per paint or retain full-resolution samples for the full duration. Keep toolkit types out of core headers. GUI tests cover state transitions and user-visible behavior; plot math stays in a testable presentation-model module.
+
+## Acceptance criteria
+
+- A user can load, analyze, inspect each channel independently, navigate a finding, understand its evidence/limits, and export a report without a mouse.
+- A multi-hour file does not freeze the window; progress and cancellation work through decode, analysis, and finalization.
+- Plot zoom and color changes never alter analysis results.
+- Every plotted value has a text/table alternative and units.
+- High-DPI, narrow-window, long filename, many-channel, no-findings, malformed-input, cancelled-job, and report-overwrite states are visually reviewed.
+- No UI label asserts ground loop, device, source location, recording date, authenticity, or custody based only on a frequency pattern.
+
+## Sources
+
+1. W3C, [WCAG 2.2](https://www.w3.org/TR/WCAG22/), contrast and resize criteria.
+2. W3C WAI, [Focus Not Obscured (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum) and [Non-text Contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html).
+3. HumTrace [product requirements](product-requirements.md), [analysis engine](analysis-engine.md), [long-file workflow](long-file-workflow.md), and [report integrity](report-integrity.md).
