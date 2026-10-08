@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.0",
+  "title": "HumTrace Analysis Report 1.0",
+  "type": "object",
+  "required": ["schema_version", "application", "input", "settings", "channels", "interpretation"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "application": { "const": "HumTrace" },
+    "input": {
+      "type": "object",
+      "required": ["path", "sample_rate_hz", "channels", "bit_depth", "format_code", "duration_seconds"],
+      "properties": {
+        "path": { "type": "string" },
+        "sample_rate_hz": { "type": "integer", "minimum": 1 },
+        "channels": { "type": "integer", "minimum": 1 },
+        "bit_depth": { "type": "integer", "minimum": 1 },
+        "format_code": { "enum": [1, 3] },
+        "duration_seconds": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": ["window", "frame_size_samples", "hop_size_samples", "support_threshold_dbfs", "minimum_prominence_db"],
+      "properties": {
+        "window": { "const": "hann" },
+        "frame_size_samples": { "type": "integer", "minimum": 4 },
+        "hop_size_samples": { "type": "integer", "minimum": 1 },
+        "support_threshold_dbfs": { "type": ["number", "null"] },
+        "minimum_prominence_db": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["channel_number", "frames"],
+        "properties": {
+          "channel_number": { "type": "integer", "minimum": 1 },
+          "frames": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start_sample", "start_seconds", "strongest_peak", "mains_50_hz_measurements", "mains_60_hz_measurements"],
+              "properties": {
+                "start_sample": { "type": "integer", "minimum": 0 },
+                "start_seconds": { "type": ["number", "null"], "minimum": 0 },
+                "strongest_peak": {
+                  "type": "object",
+                  "required": ["frequency_hz", "level_dbfs"],
+                  "properties": {
+                    "frequency_hz": { "type": ["number", "null"], "minimum": 0 },
+                    "level_dbfs": { "type": ["number", "null"] }
+                  }
+                },
+                "mains_50_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" },
+                "mains_60_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "interpretation": {
+      "type": "object",
+      "required": ["source_classification", "note"],
+      "properties": {
+        "source_classification": { "type": "null" },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "harmonicCandidate": {
+      "type": "object",
+      "required": ["nominal_frequency_hz", "supporting_harmonics", "harmonics"],
+      "properties": {
+        "nominal_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
+        "supporting_harmonics": { "type": "integer", "minimum": 0 },
+        "harmonics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["number", "expected_frequency_hz", "measured_bin_hz", "level_dbfs", "local_floor_dbfs", "prominence_db", "supported"],
+            "properties": {
+              "number": { "type": "integer", "minimum": 1 },
+              "expected_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
+              "measured_bin_hz": { "type": ["number", "null"], "minimum": 0 },
+              "level_dbfs": { "type": ["number", "null"] },
+              "local_floor_dbfs": { "type": ["number", "null"] },
+              "prominence_db": { "type": ["number", "null"] },
+              "supported": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

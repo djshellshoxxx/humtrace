@@ -2,7 +2,7 @@
 
 ## Current data flow
 
-`RIFF/WAVE stream -> decoder -> interleaved normalized samples -> per-channel overlapping frames -> Hann/radix-2 spectrum -> dominant-bin timeline measurement`
+`RIFF/WAVE stream -> decoder -> interleaved normalized samples -> per-channel overlapping frames -> Hann/radix-2 spectrum -> dominant-bin/harmonic timeline -> versioned JSON report`
 
 ## Modules
 
@@ -10,6 +10,7 @@
 |---|---|---|
 | WAV decoder | `humtrace::decode_wav(std::istream&)` | File I/O only; no DSP; v0.1 prototype loads a complete RIFF file. |
 | Spectrum | `analyze_spectrum`, `strongest_peak`, `measure_harmonics`, timeline analyzers | Pure computation; caller owns buffers; no audio callback use; FFT frame size must be a power of two. |
+| Report | `serialize_report_json` | Serializes measurement results and settings; maps non-finite floats to JSON `null`; no file I/O. |
 | CLI | `humtrace <input.wav>` | Presentation and orchestration only; must not alter input files. |
 
 ## Planned module boundaries

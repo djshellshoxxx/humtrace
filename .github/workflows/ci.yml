@@ -30,3 +30,9 @@ jobs:
         run: make
       - name: Test
         run: make test
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AddressSanitizer and UndefinedBehaviorSanitizer tests
+        run: make clean && make test CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -Wconversion -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"

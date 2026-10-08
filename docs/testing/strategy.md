@@ -14,17 +14,18 @@
 - WAV metadata and 16-bit PCM normalization.
 - 24-bit sign extension, IEEE float32 decoding, and odd chunk padding.
 - Rejection of non-WAVE input.
+- Report schema versioning, path escaping, non-finite JSON values, and measurement-field serialization.
 
-The CLI was manually run against a generated 4096 Hz, 60/120 Hz, one-second WAV fixture. It reported a dominant 60 Hz component at -12.041 dBFS, 1 Hz/bin, and one complete frame.
+The CLI was manually run against generated 4096 Hz, 60/120 Hz, one-second WAV and two-second frequency-change fixtures. It reported a dominant 60 Hz component at -12.041 dBFS, 1 Hz/bin, and per-frame harmonic support. JSON output was parsed with Python's standard JSON parser and its 60 Hz support count was checked.
 
-AddressSanitizer and UndefinedBehaviorSanitizer builds of both test executables passed with `ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not run in this container because its process-inspection attempt fails; this is an environment limitation, so leak checking remains open.
+AddressSanitizer and UndefinedBehaviorSanitizer builds of the spectrum and WAV test executables passed locally with `ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not run in this container because its process-inspection attempt fails; this is an environment limitation, so leak checking remains open. CI has a sanitizer job for all current test executables.
 
 ## Required before beta
 
 - PCM 8/16/24/32 and IEEE float 32/64 fixtures; stereo, extensible, multichannel, malformed and truncated inputs.
 - Fractional-bin, off-nominal 50/60 Hz, drift, close tones, broadband noise, silence, DC, bursts, clipping, and low-SNR tests.
 - Precision/recall and frequency/amplitude error on labeled development and held-out recordings.
-- CLI integration tests, stable report round-trip/schema tests, cancellation/progress tests, and long-file bounded-memory tests.
+- Automated CLI integration tests, stable report round-trip/schema tests, cancellation/progress tests, and long-file bounded-memory tests.
 - Linux and Windows native CI; macOS only when a native environment is available.
 - Sanitizer coverage where supported, dependency/license scan, and reproducible package smoke tests.
 

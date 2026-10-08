@@ -1,4 +1,5 @@
 #include "humtrace/spectrum.hpp"
+#include "humtrace/report.hpp"
 #include "humtrace/wav.hpp"
 
 #include <algorithm>
@@ -6,11 +7,13 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: humtrace <input.wav>\n";
+    if (argc != 2 && (argc != 4 || std::string(argv[2]) != "--json")) {
+        std::cerr << "Usage: humtrace <input.wav> [--json <report.json>]\n";
         return 2;
     }
     try {
@@ -29,6 +32,15 @@ int main(int argc, char** argv) {
         const std::size_t hop_size = window_size / 2;
         const auto bin_spacing = static_cast<double>(audio.sample_rate_hz) /
                                  static_cast<double>(window_size);
+        humtrace::AnalysisReport report;
+        report.input_path = argv[1];
+        report.sample_rate_hz = audio.sample_rate_hz;
+        report.channels = audio.channels;
+        report.bit_depth = audio.bit_depth;
+        report.format_code = audio.format_code;
+        report.duration_seconds = static_cast<double>(frames) / audio.sample_rate_hz;
+        report.frame_size_samples = window_size;
+        report.hop_size_samples = hop_size;
 
         std::cout << std::fixed << std::setprecision(3)
                   << "HumTrace analysis (" << static_cast<double>(window_size) /
@@ -62,8 +74,20 @@ int main(int argc, char** argv) {
                           << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
                           << frame.mains_60.harmonics.size() << '\n';
             }
+            report.channel_results.push_back({static_cast<std::uint16_t>(channel + 1), timeline});
         }
         std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
+        if (argc == 4) {
+            const std::string report_path = argv[3];
+            const auto json = humtrace::serialize_report_json(report);
+            std::ofstream report_file(report_path, std::ios::binary | std::ios::trunc);
+            if (!report_file)
+                throw std::runtime_error("could not create JSON report");
+            report_file << json;
+            if (!report_file)
+                throw std::runtime_error("failed while writing JSON report");
+            std::cout << "JSON report saved: " << report_path << '\n';
+        }
     } catch (const std::exception& error) {
         std::cerr << "HumTrace: " << error.what() << '\n';
         return 1;

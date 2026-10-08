@@ -3,8 +3,9 @@
 ## Current dependency graph
 
 ```text
-WAV reader ──> CLI ──> stdout
+WAV reader ──> CLI ──> stdout / JSON report
 Spectrum core ──> CLI
+Report serializer ──> CLI
 Spectrum core ──> unit tests
 WAV reader ──> unit tests
 ```
@@ -16,8 +17,8 @@ The WAV reader and spectrum core have no dependency on each other. The CLI coord
 1. Build the spectrum core and tests independently.
 2. Build the WAV reader and tests independently.
 3. Link both modules into the CLI.
-4. Later, add an analysis-result model that stores input metadata, analysis settings, channel identity, timestamps, units, algorithm version, and per-frame measurements.
-5. Add the report serializer against that result model.
+4. The current report model stores input metadata, settings, channel identity, timestamps, units, and per-frame measurements in versioned JSON.
+5. Add provenance, input hashes, decoder/build metadata, validation status, and schema compatibility tests to the report layer.
 6. Add the desktop UI as an asynchronous client of the same analysis interface; do not duplicate DSP.
 7. Add plugin adapters only after the offline analysis core has stable tests and a clear threading contract.
 
