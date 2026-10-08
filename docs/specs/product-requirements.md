@@ -17,10 +17,10 @@ Windows and Linux desktop tool for inspecting audio recordings for repeatable el
 
 ## Staged build order
 
-1. **Core measurement (started):** WAV PCM/float decoding, one-sided spectrum, units, test harness.
-2. **Interference measurements:** Welch PSD, local peak prominence, 50/60 candidate scoring, harmonic evidence, validated fixtures.
-3. **Timeline:** framed STFT, candidate association across frames, drift and event intervals.
-4. **File workflow:** streaming decode, cancellation/progress, multi-channel comparison, JSON report schema.
+1. **Core measurement (started):** streaming RIFF/WAVE PCM/float batches, one-sided spectrum, dBFS units, parabolic peak interpolation, and test harness.
+2. **Interference measurements (partial):** local spectral-floor prominence and 50/60 harmonic-bin measurements are implemented; Welch PSD, off-nominal candidate tracking, and validated real-recording fixtures remain.
+3. **Timeline (partial):** overlapping per-channel dominant-bin timeline is implemented; persistent candidate association, drift estimates, and event intervals remain.
+4. **File workflow (partial):** streaming decode and preliminary JSON report schema are implemented; cancellation/progress and multi-file comparison remain.
 5. **Desktop application:** background analysis, responsive UI, waveform/spectrum/spectrogram/timeline, result explanation.
 6. **Release hardening:** CI, sanitizer jobs, dependency/license audit, installers, native platform verification, user guide, beta notes.
 

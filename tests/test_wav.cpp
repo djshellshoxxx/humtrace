@@ -47,6 +47,17 @@ std::string float32_wav() {
     tag(result, "WAVE"); result += body;
     return result;
 }
+std::string pcm16_multiple_data_chunks_wav() {
+    std::string body;
+    tag(body, "fmt "); u32(body, 16); u16(body, 1); u16(body, 1);
+    u32(body, 8000); u32(body, 16000); u16(body, 2); u16(body, 16);
+    tag(body, "data"); u32(body, 2); u16(body, 16384);
+    tag(body, "data"); u32(body, 2); u16(body, 0x8000);
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
 void require(bool condition, const char* message) {
     if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); }
 }
@@ -84,6 +95,26 @@ void decodes_ieee_float32_samples() {
     require(std::abs(audio.interleaved_samples[0] - 0.25) < 1e-7,
             "little-endian IEEE float sample is decoded");
 }
+void streaming_reader_returns_bounded_frame_batches() {
+    std::istringstream stream(pcm16_wav(), std::ios::binary);
+    humtrace::WavStreamReader reader(stream);
+    require(reader.metadata().frame_count == 2, "stream reader exposes total frame count");
+    const auto first = reader.read_frames(1);
+    const auto second = reader.read_frames(1);
+    const auto end = reader.read_frames(8);
+    require(first.size() == 1 && second.size() == 1, "reader respects requested frame batch size");
+    require(first[0] > 0.49 && first[0] < 0.51 && second[0] == -1.0,
+            "streaming sample order and normalization are preserved");
+    require(end.empty(), "reader returns an empty batch at end of audio");
+}
+void streaming_reader_continues_across_data_chunks() {
+    std::istringstream stream(pcm16_multiple_data_chunks_wav(), std::ios::binary);
+    humtrace::WavStreamReader reader(stream);
+    const auto samples = reader.read_frames(8);
+    require(samples.size() == 2, "frames across multiple data chunks are returned together");
+    require(samples[0] > 0.49 && samples[0] < 0.51 && samples[1] == -1.0,
+            "sample order is retained across data chunk boundaries");
+}
 } // namespace
 
 int main() {
@@ -91,5 +122,7 @@ int main() {
     rejects_non_wave_input();
     decodes_signed_24_bit_minimum();
     decodes_ieee_float32_samples();
+    streaming_reader_returns_bounded_frame_batches();
+    streaming_reader_continues_across_data_chunks();
     std::cout << "All WAV tests passed.\n";
 }

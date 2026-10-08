@@ -1,9 +1,9 @@
 # Beta v0.1 release checklist
 
-Current status: **not release-ready**. The offline WAV/core/CLI and preliminary JSON report are implemented. Linux and Windows CI passed on the prior interpolation checkpoint; report integration and the new sanitizer job still need remote verification.
+Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on report commit `399d960`; the streaming-reader update still needs remote verification.
 
 - [ ] GUI is navigable, responsive, and shows progress/cancellation.
-- [ ] Audio loading supports advertised formats and long files with bounded memory.
+- [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
 - [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
 - [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
 - [ ] Multi-file comparison is implemented and reproducible.

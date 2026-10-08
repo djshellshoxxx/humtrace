@@ -3,12 +3,12 @@
 #include "humtrace/wav.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 int main(int argc, char** argv) {
@@ -20,47 +20,80 @@ int main(int argc, char** argv) {
         std::ifstream input(argv[1], std::ios::binary);
         if (!input)
             throw std::runtime_error("could not open input file");
-        const auto audio = humtrace::decode_wav(input);
-        const auto frames = audio.frame_count();
+        humtrace::WavStreamReader reader(input);
+        const auto& metadata = reader.metadata();
+        const auto frames = metadata.frame_count;
         if (frames < 4)
             throw std::runtime_error("audio is too short to analyze");
         std::size_t window_size = 1;
         const auto frame_limit = std::min<std::uint64_t>(
-            frames, std::max<std::uint64_t>(4, std::min<std::uint64_t>(audio.sample_rate_hz, 65536)));
+            frames, std::max<std::uint64_t>(4, std::min<std::uint64_t>(metadata.sample_rate_hz, 65536)));
         while (window_size <= frame_limit / 2)
             window_size *= 2;
         const std::size_t hop_size = window_size / 2;
-        const auto bin_spacing = static_cast<double>(audio.sample_rate_hz) /
+        constexpr std::size_t max_interleaved_window_samples = 16 * 1024 * 1024;
+        if (window_size > max_interleaved_window_samples / metadata.channels)
+            throw std::runtime_error("too many channels for the selected analysis window");
+        const auto bin_spacing = static_cast<double>(metadata.sample_rate_hz) /
                                  static_cast<double>(window_size);
         humtrace::AnalysisReport report;
         report.input_path = argv[1];
-        report.sample_rate_hz = audio.sample_rate_hz;
-        report.channels = audio.channels;
-        report.bit_depth = audio.bit_depth;
-        report.format_code = audio.format_code;
-        report.duration_seconds = static_cast<double>(frames) / audio.sample_rate_hz;
+        report.sample_rate_hz = metadata.sample_rate_hz;
+        report.channels = metadata.channels;
+        report.bit_depth = metadata.bit_depth;
+        report.format_code = metadata.format_code;
+        report.duration_seconds = static_cast<double>(frames) / metadata.sample_rate_hz;
         report.frame_size_samples = window_size;
         report.hop_size_samples = hop_size;
 
         std::cout << std::fixed << std::setprecision(3)
                   << "HumTrace analysis (" << static_cast<double>(window_size) /
-                         audio.sample_rate_hz << " s per frame)\n"
-                  << "Sample rate: " << audio.sample_rate_hz << " Hz\n"
-                  << "Channels: " << audio.channels << "\n"
-                  << "Bit depth: " << audio.bit_depth << "\n"
-                  << "Duration: " << static_cast<double>(frames) / audio.sample_rate_hz << " s\n"
+                         metadata.sample_rate_hz << " s per frame)\n"
+                  << "Sample rate: " << metadata.sample_rate_hz << " Hz\n"
+                  << "Channels: " << metadata.channels << "\n"
+                  << "Bit depth: " << metadata.bit_depth << "\n"
+                  << "Duration: " << static_cast<double>(frames) / metadata.sample_rate_hz << " s\n"
                   << "FFT bins: " << window_size / 2 + 1 << " (" << bin_spacing << " Hz/bin)\n"
-                  << "Timeline hop: " << static_cast<double>(hop_size) / audio.sample_rate_hz << " s\n";
+                  << "Timeline hop: " << static_cast<double>(hop_size) / metadata.sample_rate_hz << " s\n";
 
-        for (std::uint16_t channel = 0; channel < audio.channels; ++channel) {
-            std::vector<double> samples(static_cast<std::size_t>(frames));
-            for (std::size_t frame = 0; frame < samples.size(); ++frame)
-                samples[frame] = audio.interleaved_samples[frame * audio.channels + channel];
-            const auto timeline = humtrace::analyze_interference_timeline(
-                samples, audio.sample_rate_hz, window_size, hop_size);
-            std::cout << "Channel " << (channel + 1) << " measured frames: " << timeline.size() << '\n';
+        std::vector<humtrace::ReportChannel> channel_results(metadata.channels);
+        for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
+            channel_results[channel].channel_number = static_cast<std::uint16_t>(channel + 1);
+        auto interleaved_window = reader.read_frames(window_size);
+        const auto samples_per_window = window_size * metadata.channels;
+        if (interleaved_window.size() != samples_per_window)
+            throw std::runtime_error("could not read the first complete analysis window");
+        std::uint64_t window_start = 0;
+        while (true) {
+            for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
+                std::vector<double> samples(window_size);
+                for (std::size_t frame = 0; frame < window_size; ++frame)
+                    samples[frame] = interleaved_window[frame * metadata.channels + channel];
+                auto measured = humtrace::analyze_interference_timeline(
+                    samples, metadata.sample_rate_hz, window_size, window_size);
+                if (measured.empty())
+                    throw std::runtime_error("analysis produced no complete frames");
+                measured[0].start_sample = window_start;
+                channel_results[channel].frames.push_back(std::move(measured[0]));
+            }
+            if (window_start + hop_size + window_size > frames)
+                break;
+            const auto retained_samples = hop_size * metadata.channels;
+            std::move(interleaved_window.begin() + static_cast<std::ptrdiff_t>(retained_samples),
+                      interleaved_window.end(), interleaved_window.begin());
+            auto next_samples = reader.read_frames(hop_size);
+            if (next_samples.size() != retained_samples)
+                break;
+            std::copy(next_samples.begin(), next_samples.end(),
+                      interleaved_window.end() - static_cast<std::ptrdiff_t>(next_samples.size()));
+            window_start += hop_size;
+        }
+
+        for (const auto& channel : channel_results) {
+            const auto& timeline = channel.frames;
+            std::cout << "Channel " << channel.channel_number << " measured frames: " << timeline.size() << '\n';
             for (const auto& frame : timeline) {
-                const auto start_seconds = static_cast<double>(frame.start_sample) / audio.sample_rate_hz;
+                const auto start_seconds = static_cast<double>(frame.start_sample) / metadata.sample_rate_hz;
                 const auto& peak = frame.strongest_peak;
                 std::cout << "  " << start_seconds << " s: ";
                 if (peak.frequency_hz == 0.0)
@@ -74,7 +107,7 @@ int main(int argc, char** argv) {
                           << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
                           << frame.mains_60.harmonics.size() << '\n';
             }
-            report.channel_results.push_back({static_cast<std::uint16_t>(channel + 1), timeline});
+            report.channel_results.push_back(channel);
         }
         std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
         if (argc == 4) {

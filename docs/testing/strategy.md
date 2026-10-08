@@ -12,13 +12,13 @@
 - Timeline timestamps and dominant-frequency change across two frames.
 - Silence representation without a fabricated peak frequency.
 - WAV metadata and 16-bit PCM normalization.
-- 24-bit sign extension, IEEE float32 decoding, and odd chunk padding.
+- 24-bit sign extension, IEEE float32 decoding, odd chunk padding, bounded batches, and multiple data chunks.
 - Rejection of non-WAVE input.
 - Report schema versioning, path escaping, non-finite JSON values, and measurement-field serialization.
 
-The CLI was manually run against generated 4096 Hz, 60/120 Hz, one-second WAV and two-second frequency-change fixtures. It reported a dominant 60 Hz component at -12.041 dBFS, 1 Hz/bin, and per-frame harmonic support. JSON output was parsed with Python's standard JSON parser and its 60 Hz support count was checked.
+The CLI was manually run against generated mono 60/120 Hz, two-second frequency-change, and stereo 50/60 Hz fixtures. It reported the expected channel-specific components and timestamps. JSON output was parsed with Python's standard JSON parser and harmonic support counts were checked.
 
-AddressSanitizer and UndefinedBehaviorSanitizer builds of the spectrum and WAV test executables passed locally with `ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not run in this container because its process-inspection attempt fails; this is an environment limitation, so leak checking remains open. CI has a sanitizer job for all current test executables.
+AddressSanitizer and UndefinedBehaviorSanitizer builds of the spectrum, WAV, and report test executables passed locally with `ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not run in this container because its process-inspection attempt fails; this is an environment limitation, so leak checking remains open. CI has a sanitizer job for all current test executables.
 
 ## Required before beta
 

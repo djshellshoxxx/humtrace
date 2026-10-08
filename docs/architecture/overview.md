@@ -8,7 +8,7 @@
 
 | Module | Public surface | Constraints |
 |---|---|---|
-| WAV decoder | `humtrace::decode_wav(std::istream&)` | File I/O only; no DSP; v0.1 prototype loads a complete RIFF file. |
+| WAV decoder | `WavStreamReader`, `decode_wav` | File I/O only; no DSP; streaming interface returns bounded frame batches, convenience API loads all samples. |
 | Spectrum | `analyze_spectrum`, `strongest_peak`, `measure_harmonics`, timeline analyzers | Pure computation; caller owns buffers; no audio callback use; FFT frame size must be a power of two. |
 | Report | `serialize_report_json` | Serializes measurement results and settings; maps non-finite floats to JSON `null`; no file I/O. |
 | CLI | `humtrace <input.wav>` | Presentation and orchestration only; must not alter input files. |
@@ -34,4 +34,4 @@ Keep the analysis core independent of JUCE and GUI state. Never run long-file an
 
 ## Known architecture gaps
 
-The current decoder does not support RF64, WAVEFORMATEXTENSIBLE, compressed codecs, streaming, or bounded-memory operation. The current timeline independently reports each frame's strongest bin; it does not associate peaks into persistent tracks and does not yet expose PSD, noise-floor estimates, or calibrated detection evidence.
+The CLI streams bounded audio windows, while the convenience `decode_wav` API loads the complete file. Reports and their timeline results grow with recording duration. The decoder does not support RF64, WAVEFORMATEXTENSIBLE, or compressed codecs. The current timeline independently reports each frame's strongest bin; it does not associate peaks into persistent tracks and does not yet expose PSD or calibrated detection evidence.
