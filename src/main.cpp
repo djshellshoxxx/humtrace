@@ -51,8 +51,14 @@ int main(int argc, char** argv) {
                          metadata.sample_rate_hz << " s per frame)\n"
                   << "Sample rate: " << metadata.sample_rate_hz << " Hz\n"
                   << "Channels: " << metadata.channels << "\n"
-                  << "Bit depth: " << metadata.bit_depth << "\n"
-                  << "Duration: " << static_cast<double>(frames) / metadata.sample_rate_hz << " s\n"
+                  << "Bit depth: " << metadata.bit_depth << "\n";
+        if (metadata.extensible) {
+            std::cout << "Valid bits: " << metadata.valid_bits << "\n"
+                      << "Channel mask: 0x" << std::hex << std::uppercase << metadata.channel_mask
+                      << std::dec << std::nouppercase
+                      << (metadata.channel_mask == 0 ? " (speaker layout not specified)\n" : "\n");
+        }
+        std::cout << "Duration: " << static_cast<double>(frames) / metadata.sample_rate_hz << " s\n"
                   << "FFT bins: " << window_size / 2 + 1 << " (" << bin_spacing << " Hz/bin)\n"
                   << "Timeline hop: " << static_cast<double>(hop_size) / metadata.sample_rate_hz << " s\n";
 

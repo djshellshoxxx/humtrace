@@ -9,7 +9,7 @@ Returned samples are finite normalized floating-point channel values. Decoder mu
 ## Format stages
 
 1. Harden RIFF/WAVE PCM and IEEE float: all currently supported depths, odd chunk padding, unknown chunks, multiple `data` chunks, truncated headers and reads, seek overflow, frame alignment, stream bounds, hostile declared sizes and resource caps.
-2. Add `WAVEFORMATEXTENSIBLE`: parse valid bits, subtype GUID, channel mask, and container width. Preserve unknown speaker mapping instead of guessing.
+2. Add `WAVEFORMATEXTENSIBLE`: parse valid bits, subtype GUID, channel mask, and container width. Preserve unknown speaker mapping instead of guessing. *Status: implemented in the reader and CLI for PCM/float subtypes; JSON report fields remain.*
 3. Add RF64/BW64 only with 64-bit chunk sizes and fixtures crossing the 32-bit declared-size boundary using sparse/test streams. RF64 derives from RIFF but carries large-file metadata; follow ITU-R BS.2088 / EBU Tech 3306 lineage, not a custom approximation. [1]
 4. If broader formats are accepted for v0.1, evaluate one maintained library such as libsndfile for AIFF/FLAC/WAV and a separate codec route for MP3 only if requirements justify it. Pin versions and every enabled codec/license/build option. Existing dependency review recommends libsndfile as leading general audio candidate but defers adoption pending packaging/license review. [2]
 

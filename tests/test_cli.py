@@ -49,6 +49,39 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
         assert abs(peak["level_dbfs"] - level_dbfs) < 0.15, peak
 
 
+def write_extensible_tone(path: pathlib.Path) -> None:
+    sample_rate = 4096
+    frames = b"".join(
+        struct.pack("<i", round(0.5 * 2147483647 * math.sin(2 * math.pi * 60 * n / sample_rate)) & ~0xFFF)[1:]
+        for n in range(sample_rate)
+    )
+    subformat_pcm = struct.pack("<IHH", 1, 0, 0x10) + bytes.fromhex("800000aa00389b71")
+    fmt = struct.pack("<HHIIHHHHI", 0xFFFE, 1, sample_rate, sample_rate * 3, 3, 24, 22, 20, 0x4) + subformat_pcm
+    body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(frames)) + frames
+    path.write_bytes(b"RIFF" + struct.pack("<I", len(body)) + body)
+
+
+def check_extensible_input(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "extensible.wav"
+    report_path = directory / "extensible.json"
+    write_extensible_tone(source)
+    result = subprocess.run(
+        [str(executable), str(source), "--json", str(report_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Valid bits: 20" in result.stdout, result.stdout
+    assert "Channel mask: 0x4" in result.stdout, result.stdout
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["input"]["format_code"] == 1
+    assert report["input"]["bit_depth"] == 24
+    peak = report["channels"][0]["frames"][0]["strongest_peak"]
+    assert abs(peak["frequency_hz"] - 60.0) < 0.2, peak
+    assert abs(peak["level_dbfs"] + 6.02) < 0.15, peak
+
+
 def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "not audio.wav"
     source.write_text("not a wave file", encoding="ascii")
@@ -66,6 +99,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="humtrace-cli-") as temporary:
         directory = pathlib.Path(temporary)
         check_stereo_report(executable, directory)
+        check_extensible_input(executable, directory)
         check_invalid_file_fails(executable, directory)
     print("All CLI integration tests passed.")
 

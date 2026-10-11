@@ -4,7 +4,7 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 
 ## Current prototype
 
-- Reads RIFF/WAVE PCM integer audio (8/16/24/32-bit) and IEEE float audio (32/64-bit).
+- Reads RIFF/WAVE PCM integer audio (8/16/24/32-bit) and IEEE float audio (32/64-bit), including `WAVE_FORMAT_EXTENSIBLE` headers (valid bits and channel mask are preserved, not guessed).
 - Reports sample rate, channels, bit depth, duration, and FFT resolution.
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.

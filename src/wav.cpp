@@ -64,6 +64,11 @@ void read_exact(std::istream& input, char* destination, std::size_t count) {
     return sample;
 }
 
+constexpr std::uint16_t wave_format_extensible = 0xFFFE;
+// KSDATAFORMAT_SUBTYPE_* GUIDs share these bytes after the leading format code.
+constexpr std::array<unsigned char, 14> extensible_subtype_suffix{
+    0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+
 [[nodiscard]] bool tag_is(const std::array<char, 8>& header, const char* tag) {
     return std::memcmp(header.data(), tag, 4) == 0;
 }
@@ -108,13 +113,29 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         if (tag_is(chunk_header, "fmt ")) {
             if (length < 16)
                 throw std::runtime_error("invalid WAVE format chunk");
-            std::array<char, 16> format{};
-            read_exact(input, format.data(), format.size());
-            metadata_.format_code = read_u16(format.data());
+            if (have_format)
+                throw std::runtime_error("WAVE file has more than one format chunk");
+            std::array<char, 40> format{};
+            const auto format_bytes = static_cast<std::size_t>(std::min<std::uint64_t>(length, format.size()));
+            read_exact(input, format.data(), format_bytes);
+            const auto format_tag = read_u16(format.data());
             metadata_.channels = read_u16(format.data() + 2);
             metadata_.sample_rate_hz = read_u32(format.data() + 4);
             block_align_ = read_u16(format.data() + 12);
             metadata_.bit_depth = read_u16(format.data() + 14);
+            metadata_.format_code = format_tag;
+            metadata_.valid_bits = metadata_.bit_depth;
+            if (format_tag == wave_format_extensible) {
+                if (format_bytes < 40 || read_u16(format.data() + 16) < 22)
+                    throw std::runtime_error("invalid WAVE_FORMAT_EXTENSIBLE format chunk");
+                metadata_.extensible = true;
+                metadata_.valid_bits = read_u16(format.data() + 18);
+                metadata_.channel_mask = read_u32(format.data() + 20);
+                if (std::memcmp(format.data() + 26, extensible_subtype_suffix.data(),
+                                extensible_subtype_suffix.size()) != 0)
+                    throw std::runtime_error("unsupported WAVE_FORMAT_EXTENSIBLE subtype");
+                metadata_.format_code = read_u16(format.data() + 24);
+            }
             have_format = true;
         } else if (tag_is(chunk_header, "data")) {
             if (length > std::numeric_limits<std::uint64_t>::max() - total_data_bytes)
@@ -141,6 +162,15 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         : (metadata_.bit_depth == 32 || metadata_.bit_depth == 64);
     if (!valid_depth || block_align_ != metadata_.channels * (metadata_.bit_depth / 8))
         throw std::runtime_error("unsupported or inconsistent WAVE sample format");
+    if (metadata_.extensible) {
+        const bool valid_bits_ok = metadata_.format_code == 1
+            ? (metadata_.valid_bits >= 1 && metadata_.valid_bits <= metadata_.bit_depth)
+            : metadata_.valid_bits == metadata_.bit_depth;
+        if (!valid_bits_ok)
+            throw std::runtime_error("WAVE_FORMAT_EXTENSIBLE valid bits are inconsistent with the sample container");
+        if (std::popcount(metadata_.channel_mask) > metadata_.channels)
+            throw std::runtime_error("WAVE_FORMAT_EXTENSIBLE channel mask names more speakers than channels");
+    }
     for (const auto& chunk : data_chunks_) {
         if (chunk.byte_count % block_align_ != 0)
             throw std::runtime_error("WAVE data chunk ends with an incomplete sample frame");
@@ -194,7 +224,8 @@ WavAudio decode_wav(std::istream& input) {
     WavStreamReader reader(input);
     const auto& metadata = reader.metadata();
     WavAudio audio{metadata.sample_rate_hz, metadata.channels, metadata.bit_depth,
-                   metadata.format_code, {}};
+                   metadata.format_code, metadata.valid_bits, metadata.channel_mask,
+                   metadata.extensible, {}};
     if (metadata.frame_count > std::numeric_limits<std::size_t>::max() / metadata.channels)
         throw std::runtime_error("WAVE file is too large for an in-memory decode");
     audio.interleaved_samples.reserve(static_cast<std::size_t>(metadata.frame_count) * metadata.channels);
