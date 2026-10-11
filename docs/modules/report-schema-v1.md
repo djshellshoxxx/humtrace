@@ -30,4 +30,4 @@ The report omits input hashes, decoder/library versions, software build ID, user
 
 ## Migration
 
-Use `include/humtrace/report.hpp` and `src/report.cpp` as a standalone module. Add the source to the consumer build, preserve the schema version and units, and port `tests/test_report.cpp`. A breaking field or semantic change requires a schema version change and compatibility policy.
+Use `include/humtrace/report.hpp` and `src/core/report.cpp` as a standalone module. Add the source to the consumer build, preserve the schema version and units, and port `tests/unit/test_report.cpp`. A breaking field or semantic change requires a schema version change and compatibility policy.

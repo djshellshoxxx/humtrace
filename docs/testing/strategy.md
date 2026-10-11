@@ -2,7 +2,7 @@
 
 ## Current automated tests
 
-`make test` compiles with C++20, `-Wall -Wextra -Wpedantic -Wconversion -Werror` and runs:
+`make test` (CMake + CTest) compiles with C++20, `-Wall -Wextra -Wpedantic -Wconversion -Werror` and runs every `tests/unit/test_*.cpp` executable and `tests/test_*.py` script:
 
 - Spectrum frequency/level for a known exact-bin sine.
 - Parabolic interpolation for a 60.4 Hz off-bin sine, with measured tolerance of 0.1 Hz and 0.25 dB.

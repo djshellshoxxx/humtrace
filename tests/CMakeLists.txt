@@ -1,0 +1,18 @@
+# Every tests/unit/test_*.cpp becomes one test executable linked to the core.
+file(GLOB HUMTRACE_UNIT_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_*.cpp)
+foreach(test_source ${HUMTRACE_UNIT_TESTS})
+    get_filename_component(test_name ${test_source} NAME_WE)
+    add_executable(${test_name} ${test_source})
+    target_link_libraries(${test_name} PRIVATE humtrace_core humtrace_warnings)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+    set_tests_properties(${test_name} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endforeach()
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    file(GLOB HUMTRACE_PY_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.py)
+    foreach(test_script ${HUMTRACE_PY_TESTS})
+        get_filename_component(test_name ${test_script} NAME_WE)
+        add_test(NAME ${test_name} COMMAND ${Python3_EXECUTABLE} ${test_script} $<TARGET_FILE:humtrace>)
+    endforeach()
+endif()

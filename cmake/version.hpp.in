@@ -1,0 +1,6 @@
+#pragma once
+
+namespace humtrace {
+inline constexpr const char* kVersion = "@PROJECT_VERSION@";
+inline constexpr const char* kGitCommit = "@HUMTRACE_GIT_COMMIT@";
+} // namespace humtrace

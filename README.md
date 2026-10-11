@@ -14,7 +14,7 @@ This is an engineering prototype, not beta v0.1. The CLI streams WAV audio throu
 
 ## Build and test
 
-Requires a C++20 compiler and `make`.
+Requires a C++20 compiler and CMake 3.20 or newer (`make` is a thin wrapper around CMake/CTest).
 
 ```sh
 make

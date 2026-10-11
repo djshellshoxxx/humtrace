@@ -7,7 +7,7 @@ Provide deterministic offline frequency and level measurements that can be reuse
 ## Files and public API
 
 - `include/humtrace/spectrum.hpp`
-- `src/spectrum.cpp`
+- `src/core/spectrum.cpp`
 - `analyze_spectrum(samples, sample_rate_hz)` returns a one-sided, Hann-windowed, coherent-gain-corrected peak-amplitude spectrum.
 - `strongest_peak(spectrum)` reports the largest non-DC bin with local parabolic interpolation in dB when both adjacent bins are usable.
 - `measure_harmonics(spectrum, nominal_hz, support_threshold_dbfs, max_harmonics)` returns the selected bins and threshold-support count.
@@ -28,7 +28,7 @@ Provide deterministic offline frequency and level measurements that can be reuse
 
 ## Test and migration
 
-Run `make test`; `tests/test_spectrum.cpp` checks exact-bin and fractional-bin frequency/level, invalid FFT size, harmonic measurements, frequency changes across frames, local prominence over deterministic noise, and silence. To migrate, copy the header and source, preserve the namespace and units, add the source to the consuming build, then port the test file and compile with C++20. The caller must supply a sample rate and decide its own framing and result interpretation.
+Run `make test`; `tests/unit/test_spectrum.cpp` checks exact-bin and fractional-bin frequency/level, invalid FFT size, harmonic measurements, frequency changes across frames, local prominence over deterministic noise, and silence. To migrate, copy the header and source, preserve the namespace and units, add the source to the consuming build, then port the test file and compile with C++20. The caller must supply a sample rate and decide its own framing and result interpretation.
 
 ## Reuse candidates
 

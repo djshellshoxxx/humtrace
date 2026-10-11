@@ -7,7 +7,7 @@ Decode common uncompressed RIFF/WAVE PCM and IEEE float samples for offline anal
 ## Files and public API
 
 - `include/humtrace/wav.hpp`
-- `src/wav.cpp`
+- `src/core/wav.cpp`
 - `decode_wav(std::istream&)` returns sample rate, channel count, container bit depth, effective format code, valid bits, channel mask, extensible flag, and interleaved normalized samples.
 - `WavStreamReader(std::istream&)` scans chunk locations and metadata, then `read_frames(max_frames)` decodes bounded interleaved batches.
 
@@ -25,7 +25,7 @@ Decode common uncompressed RIFF/WAVE PCM and IEEE float samples for offline anal
 
 ## Test and migration
 
-Run `make test`; `tests/test_wav.cpp` builds in-memory WAV fixtures to verify 16/24-bit and float decoding, extensible PCM/float headers and their rejection cases, odd padding, bounded batches, multiple data chunks, metadata, and rejection of non-WAV input. To migrate, copy the two module files, add `src/wav.cpp` to the consumer build, and port the fixture test. Before release, expand fixtures for all advertised formats and fuzz malformed chunk boundaries.
+Run `make test`; `tests/unit/test_wav.cpp` builds in-memory WAV fixtures to verify 16/24-bit and float decoding, extensible PCM/float headers and their rejection cases, odd padding, bounded batches, multiple data chunks, metadata, and rejection of non-WAV input. To migrate, copy the two module files, add `src/core/wav.cpp` to the consumer build, and port the fixture test. Before release, expand fixtures for all advertised formats and fuzz malformed chunk boundaries.
 
 ## Reuse candidates
 
