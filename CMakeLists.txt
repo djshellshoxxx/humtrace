@@ -63,3 +63,9 @@ endif()
 if(HUMTRACE_BUILD_GUI)
     add_subdirectory(app)
 endif()
+
+# libFuzzer targets (clang only); see fuzz/CMakeLists.txt.
+option(HUMTRACE_BUILD_FUZZERS "Build libFuzzer targets (requires clang)" OFF)
+if(HUMTRACE_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
+endif()
