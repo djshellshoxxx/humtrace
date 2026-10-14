@@ -109,7 +109,8 @@
             "relative_tolerance",
             "bin_spacing_hz",
             "bin_fraction",
-            "max_gap_frames"
+            "max_gap_frames",
+            "min_observed_frames"
           ],
           "properties": {
             "fixed_hz_tolerance": {
@@ -143,6 +144,10 @@
             "max_gap_frames": {
               "type": "integer",
               "minimum": 0
+            },
+            "min_observed_frames": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         }

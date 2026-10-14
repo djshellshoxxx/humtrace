@@ -49,6 +49,10 @@ CMakeFiles/humtrace-gui.dir/app/qt/main.cpp.o: /home/user/humtrace/app/qt/main.c
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
+  /usr/include/c++/13/bits/fs_dir.h \
+  /usr/include/c++/13/bits/fs_fwd.h \
+  /usr/include/c++/13/bits/fs_ops.h \
+  /usr/include/c++/13/bits/fs_path.h \
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
   /usr/include/c++/13/bits/hash_bytes.h \
@@ -137,6 +141,7 @@ CMakeFiles/humtrace-gui.dir/app/qt/main.cpp.o: /home/user/humtrace/app/qt/main.c
   /usr/include/c++/13/climits \
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/cmath \
+  /usr/include/c++/13/codecvt \
   /usr/include/c++/13/compare \
   /usr/include/c++/13/concepts \
   /usr/include/c++/13/cstddef \
@@ -157,6 +162,7 @@ CMakeFiles/humtrace-gui.dir/app/qt/main.cpp.o: /home/user/humtrace/app/qt/main.c
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/filesystem \
   /usr/include/c++/13/format \
   /usr/include/c++/13/functional \
   /usr/include/c++/13/initializer_list \
@@ -610,8 +616,6 @@ CMakeFiles/humtrace-gui.dir/humtrace-gui_autogen/mocs_compilation.cpp.o: humtrac
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h:
 
-/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h:
-
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h:
@@ -786,15 +790,15 @@ CMakeFiles/humtrace-gui.dir/humtrace-gui_autogen/mocs_compilation.cpp.o: humtrac
 
 /usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
-/usr/include/c++/13/bits/uses_allocator_args.h:
+/usr/include/x86_64-linux-gnu/bits/locale.h:
 
-/usr/include/c++/13/bits/atomic_base.h:
+/usr/include/x86_64-linux-gnu/bits/local_lim.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
+/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
 
-/usr/include/c++/13/bits/unique_ptr.h:
+/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
 
-/usr/include/c++/13/bits/align.h:
+/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
 
 /usr/include/c++/13/bits/max_size_type.h:
 
@@ -807,12 +811,6 @@ CMakeFiles/humtrace-gui.dir/humtrace-gui_autogen/mocs_compilation.cpp.o: humtrac
 /usr/include/x86_64-linux-gnu/qt6/QtGui/qrgba64.h:
 
 /usr/include/c++/13/bits/stl_map.h:
-
-/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h:
-
-/usr/include/c++/13/bits/new_allocator.h:
-
-/usr/include/c++/13/bits/stl_uninitialized.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h:
 
@@ -828,8 +826,6 @@ CMakeFiles/humtrace-gui.dir/humtrace-gui_autogen/mocs_compilation.cpp.o: humtrac
 
 /usr/include/c++/13/bits/functexcept.h:
 
-/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
-
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h:
 
 /usr/include/c++/13/bits/stl_construct.h:
@@ -844,17 +840,17 @@ CMakeFiles/humtrace-gui.dir/humtrace-gui_autogen/mocs_compilation.cpp.o: humtrac
 
 /usr/include/c++/13/cstddef:
 
-/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h:
-
-/usr/include/c++/13/bits/uses_allocator.h:
-
-/usr/include/c++/13/bits/postypes.h:
-
 /usr/include/c++/13/cstdint:
 
 humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/cstdlib:
+
+/usr/include/c++/13/bits/postypes.h:
+
+/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h:
+
+/usr/include/c++/13/bits/uses_allocator.h:
 
 /usr/include/c++/13/bits/sstream.tcc:
 
@@ -902,7 +898,19 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/numbers:
 
+/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h:
+
+/usr/include/c++/13/bits/stl_uninitialized.h:
+
+/usr/include/c++/13/bits/new_allocator.h:
+
+/usr/include/c++/13/bits/atomic_base.h:
+
+/usr/include/c++/13/bits/uses_allocator_args.h:
+
 /usr/include/c++/13/bits/memoryfwd.h:
+
+/usr/include/c++/13/bits/fs_fwd.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h:
 
@@ -923,6 +931,14 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 /usr/include/x86_64-linux-gnu/qt6/QtGui/qpolygon.h:
 
 /usr/include/c++/13/bits/locale_facets.h:
+
+/usr/include/x86_64-linux-gnu/sys/syscall.h:
+
+/usr/include/c++/13/clocale:
+
+/usr/include/c++/13/bits/stringfwd.h:
+
+/usr/include/c++/13/bits/iterator_concepts.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h:
 
@@ -952,6 +968,12 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/iosfwd:
 
+/usr/include/c++/13/bits/align.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
+
+/usr/include/c++/13/bits/unique_ptr.h:
+
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
 
 /usr/include/c++/13/bits/algorithmfwd.h:
@@ -968,17 +990,19 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/bits/node_handle.h:
 
-/usr/include/c++/13/bits/stringfwd.h:
-
-/usr/include/c++/13/bits/iterator_concepts.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
 
 /usr/include/c++/13/bits/charconv.h:
 
+/usr/include/c++/13/bits/fs_path.h:
+
 /usr/include/x86_64-linux-gnu/qt6/QtWidgets/qwidget.h:
 
 /usr/include/c++/13/cstdio:
+
+/usr/include/c++/13/bits/allocated_ptr.h:
+
+/usr/include/c++/13/bit:
 
 /usr/include/c++/13/bits/basic_string.tcc:
 
@@ -1024,13 +1048,13 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /home/user/humtrace/app/qt/MainWindow.hpp:
 
-/usr/include/c++/13/bit:
+/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h:
 
-/usr/include/c++/13/bits/allocated_ptr.h:
+/usr/include/c++/13/bits/fs_ops.h:
 
-/usr/include/x86_64-linux-gnu/sys/syscall.h:
+/usr/include/x86_64-linux-gnu/bits/timesize.h:
 
-/usr/include/c++/13/clocale:
+/usr/include/c++/13/bits/locale_classes.h:
 
 /usr/include/c++/13/bits/basic_ios.tcc:
 
@@ -1080,10 +1104,6 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/ostream:
 
-/usr/include/c++/13/bits/locale_facets_nonio.h:
-
-/usr/include/x86_64-linux-gnu/bits/confname.h:
-
 /usr/include/c++/13/bits/cpp_type_traits.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h:
@@ -1093,8 +1113,6 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h:
 
 /home/user/humtrace/include/humtrace/tracker.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/locale.h:
 
 /usr/include/x86_64-linux-gnu/bits/waitstatus.h:
 
@@ -1186,19 +1204,27 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/streambuf:
 
-/usr/include/c++/13/bits/functional_hash.h:
+/usr/include/x86_64-linux-gnu/bits/confname.h:
 
-/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h:
+/usr/include/c++/13/bits/locale_facets_nonio.h:
 
-/usr/include/errno.h:
+/usr/include/c++/13/bits/fs_dir.h:
+
+/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
+
+/usr/include/c++/13/sstream:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
 
 /usr/include/c++/13/bits/hashtable.h:
 
-/usr/include/x86_64-linux-gnu/bits/timesize.h:
+/usr/include/c++/13/bits/functional_hash.h:
 
-/usr/include/c++/13/bits/locale_classes.h:
+/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h:
+
+/usr/include/errno.h:
 
 /usr/include/c++/13/optional:
 
@@ -1232,13 +1258,17 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/cmath:
 
+/usr/include/c++/13/codecvt:
+
+/usr/include/c++/13/ctime:
+
 /usr/include/c++/13/system_error:
 
 /usr/include/c++/13/compare:
 
-/usr/include/c++/13/cstring:
+/usr/include/c++/13/filesystem:
 
-/usr/include/c++/13/ctime:
+/usr/include/c++/13/cstring:
 
 /usr/include/x86_64-linux-gnu/sys/select.h:
 
@@ -1284,10 +1314,6 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/istream:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
-
-/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
-
 /usr/include/c++/13/bits/ios_base.h:
 
 /usr/include/c++/13/iterator:
@@ -1326,12 +1352,6 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 
 /usr/include/c++/13/span:
 
-/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
-
-/usr/include/c++/13/sstream:
-
 /usr/include/c++/13/stdexcept:
 
 /usr/include/c++/13/stdlib.h:
@@ -1341,6 +1361,12 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 
 /usr/include/c++/13/string:
+
+/usr/include/x86_64-linux-gnu/bits/iscanonical.h:
+
+/usr/include/c++/13/map:
+
+/usr/include/c++/13/string_view:
 
 /usr/include/features-time64.h:
 
@@ -1463,11 +1489,3 @@ humtrace-gui_autogen/mocs_compilation.cpp:
 /usr/include/x86_64-linux-gnu/bits/fp-fast.h:
 
 /usr/include/x86_64-linux-gnu/bits/getopt_core.h:
-
-/usr/include/c++/13/map:
-
-/usr/include/c++/13/string_view:
-
-/usr/include/x86_64-linux-gnu/bits/iscanonical.h:
-
-/usr/include/x86_64-linux-gnu/bits/local_lim.h:

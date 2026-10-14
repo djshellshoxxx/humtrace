@@ -15,6 +15,7 @@ static FramePeaks frame(std::uint64_t start, std::initializer_list<TrackPeak> pe
 int main() {
     TrackerSettings settings;
     settings.fixed_hz_tolerance = 1.0;
+    settings.min_observed_frames = 1;
 
     { // steady tone with one dropout: gap explicit, not interpolated
         auto tracks = track_peaks({frame(0, {{60.0, -6}}), frame(100, {}), frame(200, {{60.2, -6}}),
@@ -43,6 +44,12 @@ int main() {
         const std::vector<FramePeaks> input{frame(0, {{0.0, -6}, {60.0, -6}})};
         CHECK(track_peaks(input, 1000.0, settings).size() == 1);
         CHECK(track_peaks(input, 1000.0, settings).size() == track_peaks(input, 1000.0, settings).size());
+    }
+    { // minimum observed frames suppresses flicker but keeps persistent tracks
+        TrackerSettings strict = settings;
+        strict.min_observed_frames = 3;
+        auto tracks = track_peaks({frame(0, {{60.0, -6}, {90.0, -6}}), frame(1, {{60.0, -6}}), frame(2, {{60.1, -6}, {200.0, -6}})}, 1000.0, strict);
+        CHECK(tracks.size() == 1 && tracks[0].observed_frames == 3);
     }
     { // invalid settings rejected
         bool threw = false;

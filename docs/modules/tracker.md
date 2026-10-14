@@ -14,6 +14,7 @@ Associate per-frame spectral peaks of one channel into tracks and summarize pers
 - Match radius = `max(fixed_hz_tolerance, relative_tolerance * prior_frequency, bin_fraction * bin_spacing_hz)`; all settings are serialized in the report.
 - Deterministic greedy one-to-one assignment sorted by (distance, track id, peak index).
 - A track survives up to `max_gap_frames` consecutive empty frames; the gap is counted in `missing_frames`, never filled. Longer gaps start a new track.
+- Tracks observed in fewer than `min_observed_frames` (default 3) frames are dropped from the output so single-frame noise peaks do not flood the findings list; the threshold is serialized and is not a validated persistence rule.
 - Non-finite, zero, or negative-frequency peaks are ignored. Invalid settings throw `std::invalid_argument`.
 - Pipeline input is up to `max_peaks_per_frame` (default 8) prominent local maxima per frame from `find_peaks` (min level -80 dBFS, 10 dB over local floor), so concurrent tones form separate tracks.
 

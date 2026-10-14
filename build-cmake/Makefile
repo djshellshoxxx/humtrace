@@ -258,6 +258,19 @@ test_report/fast:
 .PHONY : test_report/fast
 
 #=============================================================================
+# Target rules for targets named test_session
+
+# Build rule for target.
+test_session: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_session
+.PHONY : test_session
+
+# fast build rule for target.
+test_session/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_session.dir/build.make CMakeFiles/test_session.dir/build
+.PHONY : test_session/fast
+
+#=============================================================================
 # Target rules for targets named test_sha256
 
 # Build rule for target.
@@ -336,6 +349,19 @@ test_wav_fuzz/fast:
 .PHONY : test_wav_fuzz/fast
 
 #=============================================================================
+# Target rules for targets named settings_fuzz
+
+# Build rule for target.
+settings_fuzz: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 settings_fuzz
+.PHONY : settings_fuzz
+
+# fast build rule for target.
+settings_fuzz/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/settings_fuzz.dir/build.make CMakeFiles/settings_fuzz.dir/build
+.PHONY : settings_fuzz/fast
+
+#=============================================================================
 # Target rules for targets named humtrace_app
 
 # Build rule for target.
@@ -360,6 +386,19 @@ humtrace-gui: cmake_check_build_system
 humtrace-gui/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/humtrace-gui.dir/build.make CMakeFiles/humtrace-gui.dir/build
 .PHONY : humtrace-gui/fast
+
+#=============================================================================
+# Target rules for targets named gui_settings_fuzz
+
+# Build rule for target.
+gui_settings_fuzz: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 gui_settings_fuzz
+.PHONY : gui_settings_fuzz
+
+# fast build rule for target.
+gui_settings_fuzz/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/build
+.PHONY : gui_settings_fuzz/fast
 
 #=============================================================================
 # Target rules for targets named app_test_gui
@@ -438,6 +477,32 @@ humtrace-gui_autogen: cmake_check_build_system
 humtrace-gui_autogen/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/humtrace-gui_autogen.dir/build.make CMakeFiles/humtrace-gui_autogen.dir/build
 .PHONY : humtrace-gui_autogen/fast
+
+#=============================================================================
+# Target rules for targets named gui_settings_fuzz_autogen_timestamp_deps
+
+# Build rule for target.
+gui_settings_fuzz_autogen_timestamp_deps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 gui_settings_fuzz_autogen_timestamp_deps
+.PHONY : gui_settings_fuzz_autogen_timestamp_deps
+
+# fast build rule for target.
+gui_settings_fuzz_autogen_timestamp_deps/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz_autogen_timestamp_deps.dir/build.make CMakeFiles/gui_settings_fuzz_autogen_timestamp_deps.dir/build
+.PHONY : gui_settings_fuzz_autogen_timestamp_deps/fast
+
+#=============================================================================
+# Target rules for targets named gui_settings_fuzz_autogen
+
+# Build rule for target.
+gui_settings_fuzz_autogen: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 gui_settings_fuzz_autogen
+.PHONY : gui_settings_fuzz_autogen
+
+# fast build rule for target.
+gui_settings_fuzz_autogen/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz_autogen.dir/build.make CMakeFiles/gui_settings_fuzz_autogen.dir/build
+.PHONY : gui_settings_fuzz_autogen/fast
 
 #=============================================================================
 # Target rules for targets named app_test_gui_autogen_timestamp_deps
@@ -827,6 +892,30 @@ app_test_presentation_autogen/mocs_compilation.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/app_test_presentation.dir/build.make CMakeFiles/app_test_presentation.dir/app_test_presentation_autogen/mocs_compilation.cpp.s
 .PHONY : app_test_presentation_autogen/mocs_compilation.cpp.s
 
+gui_settings_fuzz_autogen/mocs_compilation.o: gui_settings_fuzz_autogen/mocs_compilation.cpp.o
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.o
+
+# target to build an object file
+gui_settings_fuzz_autogen/mocs_compilation.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/gui_settings_fuzz_autogen/mocs_compilation.cpp.o
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.cpp.o
+
+gui_settings_fuzz_autogen/mocs_compilation.i: gui_settings_fuzz_autogen/mocs_compilation.cpp.i
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.i
+
+# target to preprocess a source file
+gui_settings_fuzz_autogen/mocs_compilation.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/gui_settings_fuzz_autogen/mocs_compilation.cpp.i
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.cpp.i
+
+gui_settings_fuzz_autogen/mocs_compilation.s: gui_settings_fuzz_autogen/mocs_compilation.cpp.s
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.s
+
+# target to generate assembly for a file
+gui_settings_fuzz_autogen/mocs_compilation.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/gui_settings_fuzz_autogen/mocs_compilation.cpp.s
+.PHONY : gui_settings_fuzz_autogen/mocs_compilation.cpp.s
+
 humtrace-gui_autogen/mocs_compilation.o: humtrace-gui_autogen/mocs_compilation.cpp.o
 .PHONY : humtrace-gui_autogen/mocs_compilation.o
 
@@ -1163,6 +1252,54 @@ tests/app/test_presentation.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/app_test_presentation.dir/build.make CMakeFiles/app_test_presentation.dir/tests/app/test_presentation.cpp.s
 .PHONY : tests/app/test_presentation.cpp.s
 
+tests/fuzz/gui_settings_fuzz.o: tests/fuzz/gui_settings_fuzz.cpp.o
+.PHONY : tests/fuzz/gui_settings_fuzz.o
+
+# target to build an object file
+tests/fuzz/gui_settings_fuzz.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/tests/fuzz/gui_settings_fuzz.cpp.o
+.PHONY : tests/fuzz/gui_settings_fuzz.cpp.o
+
+tests/fuzz/gui_settings_fuzz.i: tests/fuzz/gui_settings_fuzz.cpp.i
+.PHONY : tests/fuzz/gui_settings_fuzz.i
+
+# target to preprocess a source file
+tests/fuzz/gui_settings_fuzz.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/tests/fuzz/gui_settings_fuzz.cpp.i
+.PHONY : tests/fuzz/gui_settings_fuzz.cpp.i
+
+tests/fuzz/gui_settings_fuzz.s: tests/fuzz/gui_settings_fuzz.cpp.s
+.PHONY : tests/fuzz/gui_settings_fuzz.s
+
+# target to generate assembly for a file
+tests/fuzz/gui_settings_fuzz.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gui_settings_fuzz.dir/build.make CMakeFiles/gui_settings_fuzz.dir/tests/fuzz/gui_settings_fuzz.cpp.s
+.PHONY : tests/fuzz/gui_settings_fuzz.cpp.s
+
+tests/fuzz/settings_fuzz.o: tests/fuzz/settings_fuzz.cpp.o
+.PHONY : tests/fuzz/settings_fuzz.o
+
+# target to build an object file
+tests/fuzz/settings_fuzz.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/settings_fuzz.dir/build.make CMakeFiles/settings_fuzz.dir/tests/fuzz/settings_fuzz.cpp.o
+.PHONY : tests/fuzz/settings_fuzz.cpp.o
+
+tests/fuzz/settings_fuzz.i: tests/fuzz/settings_fuzz.cpp.i
+.PHONY : tests/fuzz/settings_fuzz.i
+
+# target to preprocess a source file
+tests/fuzz/settings_fuzz.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/settings_fuzz.dir/build.make CMakeFiles/settings_fuzz.dir/tests/fuzz/settings_fuzz.cpp.i
+.PHONY : tests/fuzz/settings_fuzz.cpp.i
+
+tests/fuzz/settings_fuzz.s: tests/fuzz/settings_fuzz.cpp.s
+.PHONY : tests/fuzz/settings_fuzz.s
+
+# target to generate assembly for a file
+tests/fuzz/settings_fuzz.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/settings_fuzz.dir/build.make CMakeFiles/settings_fuzz.dir/tests/fuzz/settings_fuzz.cpp.s
+.PHONY : tests/fuzz/settings_fuzz.cpp.s
+
 tests/test_compare.o: tests/test_compare.cpp.o
 .PHONY : tests/test_compare.o
 
@@ -1234,6 +1371,30 @@ tests/test_report.s: tests/test_report.cpp.s
 tests/test_report.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_report.dir/build.make CMakeFiles/test_report.dir/tests/test_report.cpp.s
 .PHONY : tests/test_report.cpp.s
+
+tests/test_session.o: tests/test_session.cpp.o
+.PHONY : tests/test_session.o
+
+# target to build an object file
+tests/test_session.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_session.dir/build.make CMakeFiles/test_session.dir/tests/test_session.cpp.o
+.PHONY : tests/test_session.cpp.o
+
+tests/test_session.i: tests/test_session.cpp.i
+.PHONY : tests/test_session.i
+
+# target to preprocess a source file
+tests/test_session.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_session.dir/build.make CMakeFiles/test_session.dir/tests/test_session.cpp.i
+.PHONY : tests/test_session.cpp.i
+
+tests/test_session.s: tests/test_session.cpp.s
+.PHONY : tests/test_session.s
+
+# target to generate assembly for a file
+tests/test_session.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_session.dir/build.make CMakeFiles/test_session.dir/tests/test_session.cpp.s
+.PHONY : tests/test_session.cpp.s
 
 tests/test_sha256.o: tests/test_sha256.cpp.o
 .PHONY : tests/test_sha256.o
@@ -1398,19 +1559,24 @@ help:
 	@echo "... app_test_gui_autogen_timestamp_deps"
 	@echo "... app_test_presentation_autogen"
 	@echo "... app_test_presentation_autogen_timestamp_deps"
+	@echo "... gui_settings_fuzz_autogen"
+	@echo "... gui_settings_fuzz_autogen_timestamp_deps"
 	@echo "... humtrace-gui_autogen"
 	@echo "... humtrace-gui_autogen_timestamp_deps"
 	@echo "... humtrace_app_autogen"
 	@echo "... humtrace_app_autogen_timestamp_deps"
 	@echo "... app_test_gui"
 	@echo "... app_test_presentation"
+	@echo "... gui_settings_fuzz"
 	@echo "... humtrace"
 	@echo "... humtrace-gui"
 	@echo "... humtrace_app"
 	@echo "... humtrace_core"
+	@echo "... settings_fuzz"
 	@echo "... test_compare"
 	@echo "... test_pipeline"
 	@echo "... test_report"
+	@echo "... test_session"
 	@echo "... test_sha256"
 	@echo "... test_spectrum"
 	@echo "... test_tracker"
@@ -1459,6 +1625,9 @@ help:
 	@echo "... app_test_presentation_autogen/mocs_compilation.o"
 	@echo "... app_test_presentation_autogen/mocs_compilation.i"
 	@echo "... app_test_presentation_autogen/mocs_compilation.s"
+	@echo "... gui_settings_fuzz_autogen/mocs_compilation.o"
+	@echo "... gui_settings_fuzz_autogen/mocs_compilation.i"
+	@echo "... gui_settings_fuzz_autogen/mocs_compilation.s"
 	@echo "... humtrace-gui_autogen/mocs_compilation.o"
 	@echo "... humtrace-gui_autogen/mocs_compilation.i"
 	@echo "... humtrace-gui_autogen/mocs_compilation.s"
@@ -1501,6 +1670,12 @@ help:
 	@echo "... tests/app/test_presentation.o"
 	@echo "... tests/app/test_presentation.i"
 	@echo "... tests/app/test_presentation.s"
+	@echo "... tests/fuzz/gui_settings_fuzz.o"
+	@echo "... tests/fuzz/gui_settings_fuzz.i"
+	@echo "... tests/fuzz/gui_settings_fuzz.s"
+	@echo "... tests/fuzz/settings_fuzz.o"
+	@echo "... tests/fuzz/settings_fuzz.i"
+	@echo "... tests/fuzz/settings_fuzz.s"
 	@echo "... tests/test_compare.o"
 	@echo "... tests/test_compare.i"
 	@echo "... tests/test_compare.s"
@@ -1510,6 +1685,9 @@ help:
 	@echo "... tests/test_report.o"
 	@echo "... tests/test_report.i"
 	@echo "... tests/test_report.s"
+	@echo "... tests/test_session.o"
+	@echo "... tests/test_session.i"
+	@echo "... tests/test_session.s"
 	@echo "... tests/test_sha256.o"
 	@echo "... tests/test_sha256.i"
 	@echo "... tests/test_sha256.s"

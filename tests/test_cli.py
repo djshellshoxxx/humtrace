@@ -70,6 +70,55 @@ def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) 
     assert "not a RIFF/WAVE file" in result.stderr
 
 
+def check_compare(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "two-channel tones.wav"
+    output = directory / "comparison.json"
+    result = subprocess.run(
+        [str(executable), "compare", str(source), str(source), "--json", str(output)],
+        capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    comparison = json.loads(output.read_text(encoding="utf-8"))
+    assert comparison["alignment"]["applied"] is False and comparison["resampling"]["applied"] is False
+    assert len(comparison["matches"]) == 2 and not comparison["unmatched_a"] and not comparison["unmatched_b"]
+    assert all(m["delta_frequency_hz"] == 0 for m in comparison["matches"])
+    assert comparison["inputs"][0]["sha256"] == comparison["inputs"][1]["sha256"]
+
+
+def check_unwritable_output_leaves_nothing(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "two-channel tones.wav"
+    target = directory / "no-such-dir" / "report.json"
+    result = subprocess.run([str(executable), str(source), "--json", str(target)],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 1 and "could not create output file" in result.stderr, result.stderr
+    assert not target.exists() and not pathlib.Path(str(target) + ".humtrace-tmp").exists()
+
+
+def check_interrupt_cancels_without_output(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    if sys.platform == "win32":
+        return
+    import signal
+    import time
+    long_wav = directory / "long.wav"
+    rate = 8000
+    with wave.open(str(long_wav), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        chunk = struct.pack("<h", 1000) * rate
+        for _ in range(3600):  # one hour of audio
+            out.writeframes(chunk)
+    report = directory / "cancelled.json"
+    process = subprocess.Popen([str(executable), str(long_wav), "--json", str(report)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    time.sleep(0.5)
+    started = time.monotonic()
+    process.send_signal(signal.SIGINT)
+    _, stderr = process.communicate(timeout=30)
+    assert process.returncode == 130, (process.returncode, stderr)
+    assert time.monotonic() - started < 5, "cancellation latency"
+    assert "cancelled" in stderr and not report.exists()
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_cli.py <humtrace executable>")
@@ -78,6 +127,9 @@ def main() -> None:
         directory = pathlib.Path(temporary)
         check_stereo_report(executable, directory)
         check_invalid_file_fails(executable, directory)
+        check_compare(executable, directory)
+        check_unwritable_output_leaves_nothing(executable, directory)
+        check_interrupt_cancels_without_output(executable, directory)
     print("All CLI integration tests passed.")
 
 

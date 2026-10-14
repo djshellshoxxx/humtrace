@@ -2,6 +2,7 @@
 
 #include "humtrace/pipeline.hpp"
 
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
@@ -19,6 +20,9 @@ struct AnalysisResult {
     AnalysisReport report;
     std::vector<ChannelView> views; // filled only when want_views is true
 };
+
+// All path arguments are UTF-8 (converted to the native encoding, so non-ASCII names work on Windows).
+[[nodiscard]] std::filesystem::path path_from_utf8(const std::string& utf8);
 
 // Read-only analysis of a file on disk: hash the exact bytes, then stream-analyze.
 // Throws std::runtime_error (including AnalysisCancelled) on failure; never writes the input.

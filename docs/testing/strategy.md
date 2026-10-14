@@ -33,3 +33,17 @@ GitHub Actions run `37762099089` passed on commit `4727aa2`: Linux build/tests, 
 - Sanitizer coverage where supported, dependency/license scan, and reproducible package smoke tests.
 
 Do not use passing synthetic tests as proof of classifier accuracy or field performance.
+
+## Current automated suite (beta)
+
+| Layer | Where | Run |
+|---|---|---|
+| Unit: WAV, spectrum, tracker, compare, view, pipeline, session, report, SHA-256 | `tests/test_*.cpp` | `make test` / `ctest` |
+| WAV mutation fuzz (20,000 inputs) | `tests/test_wav_fuzz.cpp` | with unit tests |
+| CLI integration, schema validation, cancel | `tests/test_cli.py` | with unit tests |
+| Presentation math/state/contrast, GUI behavior (offscreen) | `tests/app/` | `ctest` (Qt build) |
+| Synthetic measurement validation | `tools/validate_synthetic.py` | CI |
+| CLI QA matrix (formats, corruption, immutability, memory, cancel latency) | `tools/qa_run.py` | CI / manual |
+| Randomized settings-matrix fuzz (core and GUI, 30 s) | `tests/fuzz/` | `make fuzz`, `gui_settings_fuzz` |
+
+The settings fuzzers re-randomize every setting (and the input recording) from a fresh entropy-derived seed at every step, alternate the exercised feature (analyze, compare/export, cancel; GUI: export, navigation, finding selection, re-analysis, cancel), record only errors, and print a replay seed for each (`settings_fuzz --replay <seed>`).

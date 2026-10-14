@@ -1,14 +1,33 @@
 #include "humtrace/pipeline.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
 namespace humtrace {
 
+void validate_settings(const PipelineSettings& s) {
+    auto finite = [](double v) { return std::isfinite(v); };
+    if (!finite(s.support_threshold_dbfs) || !finite(s.peak_min_level_dbfs) || !finite(s.spectrogram_floor_dbfs))
+        throw std::invalid_argument("level settings must be finite");
+    if (!finite(s.minimum_prominence_db) || s.minimum_prominence_db < 0.0 ||
+        !finite(s.peak_min_prominence_db) || s.peak_min_prominence_db < 0.0)
+        throw std::invalid_argument("prominence settings must be finite and non-negative");
+    if (!finite(s.spectrogram_min_hz) || s.spectrogram_min_hz <= 0.0)
+        throw std::invalid_argument("spectrogram minimum frequency must be positive");
+    if (s.max_peaks_per_frame == 0 || s.waveform_buckets == 0 || s.spectrogram_rows == 0 ||
+        s.tracker.min_observed_frames == 0 || s.max_interleaved_window_samples == 0 || s.max_result_bytes == 0)
+        throw std::invalid_argument("count and size settings must be at least 1");
+    const auto& t = s.tracker;
+    if (!finite(t.fixed_hz_tolerance) || t.fixed_hz_tolerance < 0.0 || !finite(t.relative_tolerance) ||
+        t.relative_tolerance < 0.0 || !finite(t.bin_fraction) || t.bin_fraction < 0.0)
+        throw std::invalid_argument("tracker tolerances must be finite and non-negative");
+}
+
 std::size_t select_window_size(const WavMetadata& metadata,
                                std::size_t max_interleaved_window_samples) {
-    if (metadata.frame_count < 4)
+    if (metadata.frame_count < 16)
         throw std::runtime_error("audio is too short to analyze");
     const auto frame_limit = std::min<std::uint64_t>(
         metadata.frame_count,
@@ -25,10 +44,19 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                            const std::function<void(double)>& progress,
                            const std::function<bool()>& cancelled,
                            std::vector<ChannelView>* views) {
+    validate_settings(settings);
     const auto& metadata = reader.metadata();
     const auto frames = metadata.frame_count;
     const auto window_size = select_window_size(metadata, settings.max_interleaved_window_samples);
     const auto hop_size = window_size / 2;
+    {
+        const std::uint64_t windows = (frames - window_size) / hop_size + 1;
+        const std::uint64_t per_window = metadata.channels *
+            (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
+             settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 3 * sizeof(double) + 64);
+        if (windows > settings.max_result_bytes / per_window)
+            throw std::runtime_error("recording is too long for the configured result memory limit");
+    }
 
     AnalysisReport report;
     report.sample_rate_hz = metadata.sample_rate_hz;
@@ -67,7 +95,9 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                 samples[i] = window[i * metadata.channels + channel];
             const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
             if (row_edges.empty()) {
-                row_edges = log_row_edges(spectrum, settings.spectrogram_rows, settings.spectrogram_min_hz);
+                // Keep the lowest row below Nyquist for very low sample rates.
+                row_edges = log_row_edges(spectrum, settings.spectrogram_rows,
+                                          std::min(settings.spectrogram_min_hz, spectrum.back().frequency_hz / 100.0));
                 for (auto& view : local_views)
                     view.row_frequency_hz.assign(row_edges.begin(), row_edges.end() - 1);
             }

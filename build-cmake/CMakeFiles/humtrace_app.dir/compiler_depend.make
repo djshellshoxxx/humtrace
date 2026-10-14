@@ -229,6 +229,10 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o: /home/user/humtrace/app
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
+  /usr/include/c++/13/bits/fs_dir.h \
+  /usr/include/c++/13/bits/fs_fwd.h \
+  /usr/include/c++/13/bits/fs_ops.h \
+  /usr/include/c++/13/bits/fs_path.h \
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
   /usr/include/c++/13/bits/hash_bytes.h \
@@ -321,6 +325,7 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o: /home/user/humtrace/app
   /usr/include/c++/13/climits \
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/cmath \
+  /usr/include/c++/13/codecvt \
   /usr/include/c++/13/compare \
   /usr/include/c++/13/concepts \
   /usr/include/c++/13/condition_variable \
@@ -342,6 +347,7 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o: /home/user/humtrace/app
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/filesystem \
   /usr/include/c++/13/format \
   /usr/include/c++/13/functional \
   /usr/include/c++/13/future \
@@ -5098,6 +5104,10 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o: humtrac
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
+  /usr/include/c++/13/bits/fs_dir.h \
+  /usr/include/c++/13/bits/fs_fwd.h \
+  /usr/include/c++/13/bits/fs_ops.h \
+  /usr/include/c++/13/bits/fs_path.h \
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
   /usr/include/c++/13/bits/hash_bytes.h \
@@ -5190,6 +5200,7 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o: humtrac
   /usr/include/c++/13/climits \
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/cmath \
+  /usr/include/c++/13/codecvt \
   /usr/include/c++/13/compare \
   /usr/include/c++/13/concepts \
   /usr/include/c++/13/condition_variable \
@@ -5211,6 +5222,7 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o: humtrac
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/filesystem \
   /usr/include/c++/13/format \
   /usr/include/c++/13/functional \
   /usr/include/c++/13/future \
@@ -5685,7 +5697,7 @@ humtrace_app_autogen/DUAKC4AGAV/moc_SpectrumChart.cpp:
 
 /usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtablewidget.h:
 
-/usr/include/c++/13/ctime:
+/usr/include/c++/13/codecvt:
 
 /usr/include/c++/13/cmath:
 
@@ -5706,10 +5718,6 @@ humtrace_app_autogen/DUAKC4AGAV/moc_SpectrumChart.cpp:
 /usr/include/c++/13/bits/stl_tree.h:
 
 /usr/include/c++/13/bits/codecvt.h:
-
-/home/user/humtrace/app/qt/WaveformChart.hpp:
-
-/usr/include/c++/13/cwctype:
 
 /usr/include/c++/13/bits/streambuf.tcc:
 
@@ -5743,11 +5751,17 @@ humtrace_app_autogen/DUAKC4AGAV/moc_SpectrumChart.cpp:
 
 /usr/include/c++/13/bits/uniform_int_dist.h:
 
-/usr/include/x86_64-linux-gnu/bits/timesize.h:
-
 /usr/include/c++/13/bits/hashtable.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/timesize.h:
+
+/usr/include/c++/13/bits/fs_ops.h:
+
+/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h:
+
+/usr/include/c++/13/bits/fs_dir.h:
 
 /usr/include/c++/13/bits/stl_multimap.h:
 
@@ -5934,6 +5948,8 @@ humtrace_app_autogen/DUAKC4AGAV/moc_FindingsModel.cpp:
 /usr/include/x86_64-linux-gnu/bits/wchar2-decl.h:
 
 /usr/include/linux/errno.h:
+
+/usr/include/c++/13/bits/fs_fwd.h:
 
 /usr/include/c++/13/bits/memoryfwd.h:
 
@@ -6127,8 +6143,6 @@ humtrace_app_autogen/DUAKC4AGAV/moc_FindingsModel.cpp:
 
 /usr/include/c++/13/algorithm:
 
-/usr/include/c++/13/exception:
-
 /usr/include/x86_64-linux-gnu/bits/errno.h:
 
 /home/user/humtrace/app/qt/SpectrumChart.hpp:
@@ -6219,11 +6233,11 @@ humtrace_app_autogen/DUAKC4AGAV/moc_FindingsModel.cpp:
 
 /usr/include/x86_64-linux-gnu/sys/syscall.h:
 
-/usr/include/c++/13/ext/aligned_buffer.h:
-
-/usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
+/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h:
+
+/usr/include/c++/13/bits/fs_path.h:
 
 /usr/include/c++/13/tuple:
 
@@ -6307,10 +6321,6 @@ humtrace_app_autogen/DUAKC4AGAV/moc_FindingsModel.cpp:
 
 /usr/include/c++/13/bits/this_thread_sleep.h:
 
-/usr/include/c++/13/pstl/glue_memory_defs.h:
-
-/usr/include/c++/13/bits/memory_resource.h:
-
 /usr/include/c++/13/streambuf:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h:
@@ -6349,11 +6359,29 @@ humtrace_app_autogen/DUAKC4AGAV/moc_FindingsModel.cpp:
 
 /usr/include/c++/13/bits/cpp_type_traits.h:
 
+/usr/include/c++/13/ctime:
+
+/home/user/humtrace/app/qt/WaveformChart.hpp:
+
+/usr/include/c++/13/cwctype:
+
+/usr/include/c++/13/exception:
+
+/usr/include/c++/13/bits/memory_resource.h:
+
+/usr/include/c++/13/pstl/glue_memory_defs.h:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:
+
+/usr/include/c++/13/ext/aligned_buffer.h:
+
 /usr/include/c++/13/ext/atomicity.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
 /usr/include/c++/13/ext/concurrence.h:
+
+/usr/include/c++/13/filesystem:
 
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
@@ -6655,10 +6683,6 @@ humtrace_app_autogen/DUAKC4AGAV/moc_MainWindow.cpp:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h:
 
-/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h:
-
-/usr/include/c++/13/bits/fs_ops.h:
-
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h:
@@ -6752,18 +6776,6 @@ humtrace_app_autogen/DUAKC4AGAV/moc_MainWindow.cpp:
 /usr/include/x86_64-linux-gnu/qt6/QtGui/qfont.h:
 
 /usr/include/x86_64-linux-gnu/qt6/QtGui/qimage.h:
-
-/usr/include/c++/13/bits/fs_dir.h:
-
-/usr/include/c++/13/bits/fs_fwd.h:
-
-/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h:
-
-/usr/include/c++/13/bits/fs_path.h:
-
-/usr/include/c++/13/codecvt:
-
-/usr/include/c++/13/filesystem:
 
 /usr/include/x86_64-linux-gnu/qt6/QtCore/QFileInfo:
 

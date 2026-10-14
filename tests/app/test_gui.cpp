@@ -80,6 +80,40 @@ private slots:
         }
     }
 
+    void visualStatesRenderWithoutErrors() {
+        // Renders every display state; images are saved when HUMTRACE_SCREENSHOT_DIR is set.
+        const auto path = writeWav(dir_.path(), "vis.wav", 6.0, 60.0, 180.0);
+        MainWindow w;
+        w.show();
+        w.openRecording(path);
+        const char* shots = std::getenv("HUMTRACE_SCREENSHOT_DIR");
+        auto shot = [&](const char* name) { QTest::qWait(50); const auto img = w.grab(); QVERIFY(!img.isNull()); if (shots) img.save(QString("%1/%2.png").arg(shots, name)); };
+        shot("ready");
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        w.setDisplayOptions(1, 1, -90, -20);
+        shot("linear-grayscale");
+        w.setDisplayOptions(0, 0, -100, -10);
+        w.viewState()->setChannel(1);
+        w.viewState()->zoomAround(3.0, 0.25);
+        shot("zoomed-channel2");
+        humtrace::PipelineSettings changed;
+        changed.support_threshold_dbfs = -30;
+        w.setPipelineSettings(changed);
+        QCOMPARE(w.state(), humtrace::ui::JobState::Invalidated);
+        shot("stale");
+        w.setPipelineSettings({});
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        w.resize(1024, 680);
+        shot("narrow");
+        QString msg;
+        w.setErrorHandler([&](const QString&, const QString& m) { msg = m; });
+        w.openRecording(dir_.path() + "/does-not-exist.wav");
+        QVERIFY(!msg.isEmpty());
+        shot("error-state");
+    }
+
     void selectingFindingSynchronizesViewAndInspector() {
         const auto path = writeWav(dir_.path(), "sel.wav", 4.0);
         MainWindow w;

@@ -29,7 +29,7 @@ void SpectrumChart::setFrame(const std::vector<float>* levels, const std::vector
 
 void SpectrumChart::paintEvent(QPaintEvent*) {
     QPainter p(this);
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     p.fillRect(rect(), t.surface);
     const QRect r(56, 6, std::max(10, width() - 64), std::max(10, height() - 28));
     p.setPen(QPen(hasFocus() ? t.focus : t.raised, hasFocus() ? 3 : 1));

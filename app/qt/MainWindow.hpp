@@ -42,6 +42,9 @@ public:
     [[nodiscard]] QTableView* findingsTable() const { return table_; }
     // Replace the modal error dialog (used by automated tests). Receives (stage, message).
     void setErrorHandler(std::function<void(const QString&, const QString&)> handler) { errorHandler_ = std::move(handler); }
+    // Programmatic equivalents of the settings dialog / display controls (also used by tests).
+    void setPipelineSettings(const humtrace::PipelineSettings& settings);
+    void setDisplayOptions(int scaleIndex, int paletteIndex, double floorDb, double ceilingDb);
     [[nodiscard]] QString exportReport(const QString& path, bool redactPath);
 
 protected:
@@ -71,6 +74,7 @@ private:
     void addRecent(const QString& path);
     void loadRecent();
     void clearResults();
+    void releaseWorker();
     int currentFrame() const;
     void updateFrameViews();
 

@@ -89,7 +89,8 @@ std::string serialize_report_json(const AnalysisReport& report) {
     write_number(output, report.tracker.bin_spacing_hz);
     output << ", \"bin_fraction\": ";
     write_number(output, report.tracker.bin_fraction);
-    output << ", \"max_gap_frames\": " << report.tracker.max_gap_frames;
+    output << ", \"max_gap_frames\": " << report.tracker.max_gap_frames
+           << ", \"min_observed_frames\": " << report.tracker.min_observed_frames;
     output << "}\n  },\n  \"channels\": [";
     for (std::size_t channel_index = 0; channel_index < report.channel_results.size(); ++channel_index) {
         const auto& channel = report.channel_results[channel_index];

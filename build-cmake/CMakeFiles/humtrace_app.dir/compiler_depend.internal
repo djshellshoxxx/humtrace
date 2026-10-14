@@ -231,6 +231,10 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o
  /usr/include/c++/13/bits/exception.h
  /usr/include/c++/13/bits/exception_defines.h
  /usr/include/c++/13/bits/exception_ptr.h
+ /usr/include/c++/13/bits/fs_dir.h
+ /usr/include/c++/13/bits/fs_fwd.h
+ /usr/include/c++/13/bits/fs_ops.h
+ /usr/include/c++/13/bits/fs_path.h
  /usr/include/c++/13/bits/functexcept.h
  /usr/include/c++/13/bits/functional_hash.h
  /usr/include/c++/13/bits/hash_bytes.h
@@ -323,6 +327,7 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o
  /usr/include/c++/13/climits
  /usr/include/c++/13/clocale
  /usr/include/c++/13/cmath
+ /usr/include/c++/13/codecvt
  /usr/include/c++/13/compare
  /usr/include/c++/13/concepts
  /usr/include/c++/13/condition_variable
@@ -344,6 +349,7 @@ CMakeFiles/humtrace_app.dir/app/qt/AnalysisWorker.cpp.o
  /usr/include/c++/13/ext/numeric_traits.h
  /usr/include/c++/13/ext/string_conversions.h
  /usr/include/c++/13/ext/type_traits.h
+ /usr/include/c++/13/filesystem
  /usr/include/c++/13/format
  /usr/include/c++/13/functional
  /usr/include/c++/13/future
@@ -5110,6 +5116,10 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o
  /usr/include/c++/13/bits/exception.h
  /usr/include/c++/13/bits/exception_defines.h
  /usr/include/c++/13/bits/exception_ptr.h
+ /usr/include/c++/13/bits/fs_dir.h
+ /usr/include/c++/13/bits/fs_fwd.h
+ /usr/include/c++/13/bits/fs_ops.h
+ /usr/include/c++/13/bits/fs_path.h
  /usr/include/c++/13/bits/functexcept.h
  /usr/include/c++/13/bits/functional_hash.h
  /usr/include/c++/13/bits/hash_bytes.h
@@ -5202,6 +5212,7 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o
  /usr/include/c++/13/climits
  /usr/include/c++/13/clocale
  /usr/include/c++/13/cmath
+ /usr/include/c++/13/codecvt
  /usr/include/c++/13/compare
  /usr/include/c++/13/concepts
  /usr/include/c++/13/condition_variable
@@ -5223,6 +5234,7 @@ CMakeFiles/humtrace_app.dir/humtrace_app_autogen/mocs_compilation.cpp.o
  /usr/include/c++/13/ext/numeric_traits.h
  /usr/include/c++/13/ext/string_conversions.h
  /usr/include/c++/13/ext/type_traits.h
+ /usr/include/c++/13/filesystem
  /usr/include/c++/13/format
  /usr/include/c++/13/functional
  /usr/include/c++/13/future

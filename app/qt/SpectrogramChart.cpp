@@ -64,11 +64,11 @@ QString SpectrogramChart::columnDescription(int frame) const {
 
 void SpectrogramChart::paintData(QPainter& p, const QRect& plot) {
     if (image_.isNull() || !report_) {
-        p.setPen(theme::tokens(false).textSecondary);
+        p.setPen(theme::current().textSecondary);
         p.drawText(plot, Qt::AlignCenter, tr("No spectrogram"));
         return;
     }
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     const double rate = report_->sample_rate_hz;
     const double hopSec = static_cast<double>(report_->hop_size_samples) / rate;
     const double windowSec = static_cast<double>(report_->frame_size_samples) / rate;
@@ -105,7 +105,7 @@ void SpectrogramChart::paintData(QPainter& p, const QRect& plot) {
 
 void SpectrogramChart::paintAxes(QPainter& p, const QRect& plot) {
     if (image_.isNull() || !report_ || !views_) return;
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     const double nyquist = report_->sample_rate_hz / 2.0;
     const double minHz = (*views_)[static_cast<std::size_t>(state_->channel())].row_frequency_hz.front();
     auto yAtHz = [&](double hz) {
@@ -118,13 +118,13 @@ void SpectrogramChart::paintAxes(QPainter& p, const QRect& plot) {
     if (log_) {
         for (const double hz : ticks)
             if (hz >= minHz && hz <= nyquist) {
-                const int y = static_cast<int>(yAtHz(hz));
+                const int y = std::clamp(static_cast<int>(yAtHz(hz)), plot.top() + 8, plot.bottom() - 8);
                 p.drawText(QRect(0, y - 8, kLeft - 4, 16), Qt::AlignRight | Qt::AlignVCenter,
                            hz >= 1000 ? QString::number(hz / 1000.0) + " kHz" : QString::number(hz) + " Hz");
             }
     } else {
         for (const double f : linTicks) {
-            const int y = static_cast<int>(yAtHz(f * nyquist));
+            const int y = std::clamp(static_cast<int>(yAtHz(f * nyquist)), plot.top() + 8, plot.bottom() - 8);
             p.drawText(QRect(0, y - 8, kLeft - 4, 16), Qt::AlignRight | Qt::AlignVCenter,
                        QString::number(f * nyquist / 1000.0, 'f', 1) + " kHz");
         }

@@ -84,4 +84,20 @@ std::string sha256_hex(std::istream& input) {
     return hash.hex_digest();
 }
 
+std::optional<std::string> sha256_hex_cancellable(std::istream& input, const std::function<bool()>& cancelled,
+                                                  const std::function<void(std::uint64_t)>& bytes_done) {
+    Sha256 hash;
+    std::vector<char> chunk(1 << 16);
+    std::uint64_t total = 0;
+    while (input.read(chunk.data(), static_cast<std::streamsize>(chunk.size())) || input.gcount() > 0) {
+        if (cancelled && cancelled())
+            return std::nullopt;
+        hash.update(chunk.data(), static_cast<std::size_t>(input.gcount()));
+        total += static_cast<std::uint64_t>(input.gcount());
+        if (bytes_done)
+            bytes_done(total);
+    }
+    return hash.hex_digest();
+}
+
 } // namespace humtrace

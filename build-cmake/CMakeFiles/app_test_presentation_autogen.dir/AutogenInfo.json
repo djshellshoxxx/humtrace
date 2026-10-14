@@ -260,6 +260,7 @@
 	"MOC_SKIP" : 
 	[
 		"/home/user/humtrace/build-cmake/app_test_gui_autogen/mocs_compilation.cpp",
+		"/home/user/humtrace/build-cmake/gui_settings_fuzz_autogen/mocs_compilation.cpp",
 		"/home/user/humtrace/build-cmake/humtrace-gui_autogen/mocs_compilation.cpp",
 		"/home/user/humtrace/build-cmake/humtrace_app_autogen/mocs_compilation.cpp"
 	],

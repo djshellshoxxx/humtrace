@@ -58,11 +58,20 @@ int main() {
         require(threw, "cancellation aborts analysis");
     }
     {
-        std::istringstream in(two_tone_wav(4096, 3), std::ios::binary);
+        std::istringstream in(two_tone_wav(4096, 15), std::ios::binary);
         humtrace::WavStreamReader reader(in);
         bool threw = false;
         try { (void)humtrace::analyze_wav(reader, {}); } catch (const std::runtime_error&) { threw = true; }
         require(threw, "too-short audio is rejected");
+    }
+    {
+        std::istringstream in(two_tone_wav(4096, 4096 * 3), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        humtrace::PipelineSettings tight;
+        tight.max_result_bytes = 1000;
+        bool threw = false;
+        try { (void)humtrace::analyze_wav(reader, tight); } catch (const std::runtime_error&) { threw = true; }
+        require(threw, "result memory limit is enforced up front");
     }
     std::cout << "All pipeline tests passed.\n";
 }

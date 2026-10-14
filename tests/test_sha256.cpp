@@ -23,5 +23,16 @@ int main() {
           "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
     check(std::string(1000000, 'a'),
           "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+    {
+        std::istringstream in(std::string(300000, 'x'));
+        if (humtrace::sha256_hex_cancellable(in, [] { return true; }))
+            { std::cerr << "cancel ignored\n"; return 1; }
+        std::istringstream again(std::string(300000, 'x'));
+        std::istringstream plain(std::string(300000, 'x'));
+        std::uint64_t seen = 0;
+        const auto digest = humtrace::sha256_hex_cancellable(again, {}, [&](std::uint64_t b) { seen = b; });
+        if (!digest || *digest != sha256_hex(plain) || seen != 300000)
+            { std::cerr << "cancellable hash mismatch\n"; return 1; }
+    }
     std::cout << "All SHA-256 tests passed.\n";
 }

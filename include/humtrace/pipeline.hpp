@@ -13,6 +13,9 @@ namespace humtrace {
 
 struct PipelineSettings {
     std::size_t max_interleaved_window_samples{16 * 1024 * 1024};
+    // Upper bound on retained results (frames, peaks, spectrogram rows). The run is refused up
+    // front, never silently downsampled, when the estimate exceeds it.
+    std::uint64_t max_result_bytes{512ULL * 1024 * 1024};
     TrackerSettings tracker;
     double peak_min_level_dbfs{-80.0};
     double peak_min_prominence_db{10.0};
@@ -24,6 +27,10 @@ struct PipelineSettings {
     double spectrogram_min_hz{20.0};
     double spectrogram_floor_dbfs{-120.0};
 };
+
+// Throws std::invalid_argument naming the offending setting (non-finite values, negative
+// tolerances, zero counts). analyze_wav calls this first.
+void validate_settings(const PipelineSettings& settings);
 
 // Choose a power-of-two analysis window for the given metadata. Throws
 // std::runtime_error when the audio is too short or the channel count is excessive.

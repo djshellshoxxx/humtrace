@@ -66,8 +66,8 @@ include CMakeFiles/humtrace-gui_autogen_timestamp_deps.dir/compiler_depend.make
 # Include the progress variables for this target.
 include CMakeFiles/humtrace-gui_autogen_timestamp_deps.dir/progress.make
 
-CMakeFiles/humtrace-gui_autogen_timestamp_deps: libhumtrace_app.a
 CMakeFiles/humtrace-gui_autogen_timestamp_deps: /usr/lib/qt6/libexec/moc
+CMakeFiles/humtrace-gui_autogen_timestamp_deps: libhumtrace_app.a
 
 humtrace-gui_autogen_timestamp_deps: CMakeFiles/humtrace-gui_autogen_timestamp_deps
 humtrace-gui_autogen_timestamp_deps: CMakeFiles/humtrace-gui_autogen_timestamp_deps.dir/build.make

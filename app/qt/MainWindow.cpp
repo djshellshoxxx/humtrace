@@ -237,7 +237,10 @@ void MainWindow::buildActions() {
     connect(prevAct_, &QAction::triggered, this, [this] { stepFinding(-1); });
     contrastAct_ = new QAction(tr("High-contrast theme"), this);
     contrastAct_->setCheckable(true);
-    connect(contrastAct_, &QAction::toggled, this, [](bool on) { theme::apply(*qApp, on); });
+    connect(contrastAct_, &QAction::toggled, this, [this](bool on) {
+        theme::apply(*qApp, on);
+        for (auto* chart : findChildren<QWidget*>()) chart->update();
+    });
     auto* help = new QAction(tr("Keyboard help and limitations"), this);
     help->setShortcut(QKeySequence::HelpContents);
     connect(help, &QAction::triggered, this, &MainWindow::showHelp);
@@ -302,7 +305,7 @@ void MainWindow::openRecording(const QString& path) {
     clearResults();
     setState(JobState::Opening);
     try {
-        std::ifstream in(path.toStdString(), std::ios::binary);
+        std::ifstream in(humtrace::path_from_utf8(path.toStdString()), std::ios::binary);
         if (!in) throw std::runtime_error("could not open input file");
         humtrace::WavStreamReader reader(in);
         const auto& m = reader.metadata();
@@ -344,17 +347,24 @@ void MainWindow::startAnalysis() {
     });
     connect(worker_, &AnalysisWorker::finished, this, &MainWindow::onFinished);
     connect(worker_, &AnalysisWorker::cancelledByUser, this, [this] {
-        worker_->deleteLater();
-        worker_ = nullptr;
+        releaseWorker();
         setState(JobState::Cancelled);
     });
     connect(worker_, &AnalysisWorker::failed, this, [this](const QString& message) {
-        worker_->deleteLater();
-        worker_ = nullptr;
+        releaseWorker();
         setState(JobState::Failed);
         showError(tr("Analysis"), message);
     });
     worker_->start();
+}
+
+// The worker emits its result as its last act, so wait() returns almost immediately; this
+// guarantees the QThread is never destroyed while still running.
+void MainWindow::releaseWorker() {
+    if (!worker_) return;
+    worker_->wait();
+    worker_->deleteLater();
+    worker_ = nullptr;
 }
 
 void MainWindow::cancelAnalysis() {
@@ -365,8 +375,7 @@ void MainWindow::cancelAnalysis() {
 }
 
 void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
-    worker_->deleteLater();
-    worker_ = nullptr;
+    releaseWorker();
     if (state_ == JobState::Cancelling) { // cancel raced with completion: honor the user's intent
         setState(JobState::Cancelled);
         return;
@@ -546,6 +555,10 @@ void MainWindow::showSettings() {
     gap->setRange(0, 20);
     gap->setValue(int(settings_.tracker.max_gap_frames));
     gap->setAccessibleName(tr("Maximum gap frames"));
+    auto* minFrames = new QSpinBox;
+    minFrames->setRange(1, 100);
+    minFrames->setValue(int(settings_.tracker.min_observed_frames));
+    minFrames->setAccessibleName(tr("Minimum observed frames per track"));
     auto* peaks = new QSpinBox;
     peaks->setRange(1, 32);
     peaks->setValue(int(settings_.max_peaks_per_frame));
@@ -558,6 +571,7 @@ void MainWindow::showSettings() {
     form->addRow(tr("Track match tolerance"), tolerance);
     form->addRow(tr("Track match radius"), fraction);
     form->addRow(tr("Gap tolerance (frames)"), gap);
+    form->addRow(tr("Minimum frames per track"), minFrames);
     form->addRow(new QLabel(tr("Analysis settings mark results stale; re-run Analyze to apply.")));
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     form->addRow(buttons);
@@ -573,16 +587,34 @@ void MainWindow::showSettings() {
     next.tracker.fixed_hz_tolerance = tolerance->value();
     next.tracker.bin_fraction = fraction->value();
     next.tracker.max_gap_frames = std::size_t(gap->value());
+    next.tracker.min_observed_frames = std::size_t(minFrames->value());
     const bool changed = next.support_threshold_dbfs != settings_.support_threshold_dbfs ||
         next.minimum_prominence_db != settings_.minimum_prominence_db || next.peak_min_level_dbfs != settings_.peak_min_level_dbfs ||
         next.peak_min_prominence_db != settings_.peak_min_prominence_db || next.max_peaks_per_frame != settings_.max_peaks_per_frame ||
         next.tracker.fixed_hz_tolerance != settings_.tracker.fixed_hz_tolerance || next.tracker.bin_fraction != settings_.tracker.bin_fraction ||
-        next.tracker.max_gap_frames != settings_.tracker.max_gap_frames;
+        next.tracker.max_gap_frames != settings_.tracker.max_gap_frames ||
+        next.tracker.min_observed_frames != settings_.tracker.min_observed_frames;
     settings_ = next;
     if (changed && state_ == JobState::Complete) {
         setState(JobState::Invalidated); // results stay visible but are labeled stale; export disabled
         summary_->setText(tr("Settings changed: these results are stale. Re-run Analyze (Ctrl+R)."));
     }
+}
+
+void MainWindow::setPipelineSettings(const humtrace::PipelineSettings& next) {
+    settings_ = next;
+    if (state_ == JobState::Complete) {
+        setState(JobState::Invalidated);
+        summary_->setText(tr("Settings changed: these results are stale. Re-run Analyze (Ctrl+R)."));
+    }
+}
+
+void MainWindow::setDisplayOptions(int scaleIndex, int paletteIndex, double floorDb, double ceilingDb) {
+    scaleBox_->setCurrentIndex(scaleIndex);
+    paletteBox_->setCurrentIndex(paletteIndex);
+    floorBox_->setValue(floorDb);
+    ceilingBox_->setValue(ceilingDb);
+    applyDisplayOptions();
 }
 
 void MainWindow::showHelp() {

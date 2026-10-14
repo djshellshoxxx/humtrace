@@ -66,9 +66,9 @@ include CMakeFiles/app_test_gui_autogen_timestamp_deps.dir/compiler_depend.make
 # Include the progress variables for this target.
 include CMakeFiles/app_test_gui_autogen_timestamp_deps.dir/progress.make
 
+CMakeFiles/app_test_gui_autogen_timestamp_deps: /usr/lib/qt6/libexec/moc
 CMakeFiles/app_test_gui_autogen_timestamp_deps: /usr/lib/x86_64-linux-gnu/libQt6Test.so.6.4.2
 CMakeFiles/app_test_gui_autogen_timestamp_deps: libhumtrace_app.a
-CMakeFiles/app_test_gui_autogen_timestamp_deps: /usr/lib/qt6/libexec/moc
 
 app_test_gui_autogen_timestamp_deps: CMakeFiles/app_test_gui_autogen_timestamp_deps
 app_test_gui_autogen_timestamp_deps: CMakeFiles/app_test_gui_autogen_timestamp_deps.dir/build.make

@@ -7,7 +7,7 @@ CORE_SOURCES = $(filter-out src/main.cpp,$(wildcard src/*.cpp))
 CORE_HEADERS = $(wildcard include/humtrace/*.hpp)
 TESTS = $(patsubst tests/test_%.cpp,%,$(wildcard tests/test_*.cpp))
 
-.PHONY: all test clean
+.PHONY: all test fuzz clean
 all: $(BUILD_DIR)/humtrace
 
 $(BUILD_DIR):
@@ -23,6 +23,14 @@ $(BUILD_DIR)/test_%: tests/test_%.cpp $(CORE_SOURCES) $(CORE_HEADERS) | $(BUILD_
 test: $(BUILD_DIR)/humtrace $(addprefix $(BUILD_DIR)/test_,$(TESTS))
 	@set -e; for t in $(TESTS); do $(BUILD_DIR)/test_$$t; done
 	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
+
+# 30-second randomized settings-matrix fuzz (override: make fuzz FUZZ_SECONDS=60).
+FUZZ_SECONDS ?= 30
+$(BUILD_DIR)/settings_fuzz: tests/fuzz/settings_fuzz.cpp $(CORE_SOURCES) $(CORE_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) $< -o $@
+
+fuzz: $(BUILD_DIR)/settings_fuzz
+	$(BUILD_DIR)/settings_fuzz $(FUZZ_SECONDS)
 
 clean:
 	rm -rf $(BUILD_DIR)

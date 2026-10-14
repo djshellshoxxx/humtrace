@@ -16,7 +16,7 @@ void WaveformChart::setViews(const std::vector<humtrace::ChannelView>* views, do
 
 void WaveformChart::paintData(QPainter& p, const QRect& plot) {
     if (!views_ || views_->empty() || duration_ <= 0.0) return;
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     const int lanes = static_cast<int>(views_->size());
     const int laneHeight = plot.height() / lanes;
     const auto view = state_->view();

@@ -22,6 +22,9 @@ struct TrackerSettings {
     double bin_spacing_hz{0.0};
     double bin_fraction{1.0};
     std::size_t max_gap_frames{1};
+    // Tracks observed in fewer frames are not reported (raw per-frame measurements are kept
+    // elsewhere). Suppresses single-frame noise flicker; not a validated persistence rule.
+    std::size_t min_observed_frames{3};
 };
 
 struct TrackObservation {

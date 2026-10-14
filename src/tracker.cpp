@@ -99,6 +99,7 @@ std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sam
             active.push_back(tracks.size() - 1);
         }
     }
+    std::erase_if(tracks, [&](const Track& t) { return t.observations.size() < settings.min_observed_frames; });
     for (auto& track : tracks)
         summarize(track, sample_rate_hz);
     return tracks;

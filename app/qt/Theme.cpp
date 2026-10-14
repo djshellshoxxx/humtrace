@@ -15,7 +15,11 @@ Tokens tokens(bool hc) {
             QColor("#7ED6A5"), QColor("#FF7773"), QColor("#59D8E8")};
 }
 
+namespace { bool g_highContrast = false; }
+Tokens current() { return tokens(g_highContrast); }
+
 void apply(QApplication& app, bool hc) {
+    g_highContrast = hc;
     const auto t = tokens(hc);
     QPalette p;
     p.setColor(QPalette::Window, t.canvas);

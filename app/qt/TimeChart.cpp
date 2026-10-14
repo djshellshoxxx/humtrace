@@ -41,7 +41,7 @@ double TimeChart::xAt(double seconds) const {
 
 void TimeChart::drawTimeRuler(QPainter& p) const {
     const auto r = plotRect();
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     const auto v = state_->view();
     p.setPen(t.textSecondary);
     // Pick a "nice" tick step giving roughly one tick per 90 px.
@@ -59,7 +59,7 @@ void TimeChart::drawTimeRuler(QPainter& p) const {
 
 void TimeChart::drawCursorAndSelection(QPainter& p) const {
     const auto r = plotRect();
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     if (state_->hasSelection()) {
         const int a = static_cast<int>(xAt(state_->selectionStart()));
         const int b = static_cast<int>(xAt(state_->selectionEnd()));
@@ -80,7 +80,7 @@ void TimeChart::drawCursorAndSelection(QPainter& p) const {
 
 void TimeChart::paintEvent(QPaintEvent*) {
     QPainter p(this);
-    const auto t = theme::tokens(false);
+    const auto t = theme::current();
     p.fillRect(rect(), t.surface);
     const auto r = plotRect();
     if (state_->total() <= 0.0) {

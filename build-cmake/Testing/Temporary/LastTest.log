@@ -1,10 +1,10 @@
-Start testing: Oct 14 08:40 UTC
+Start testing: Oct 14 09:02 UTC
 ----------------------------------------------------------
-1/12 Testing: test_compare
-1/12 Test: test_compare
+1/15 Testing: test_compare
+1/15 Test: test_compare
 Command: "/home/user/humtrace/build-cmake/bin/test_compare"
 Directory: /home/user/humtrace/build-cmake
-"test_compare" start time: Oct 14 08:40 UTC
+"test_compare" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All compare tests passed.
@@ -12,15 +12,15 @@ All compare tests passed.
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_compare" end time: Oct 14 08:40 UTC
+"test_compare" end time: Oct 14 09:02 UTC
 "test_compare" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/12 Testing: test_pipeline
-2/12 Test: test_pipeline
+2/15 Testing: test_pipeline
+2/15 Test: test_pipeline
 Command: "/home/user/humtrace/build-cmake/bin/test_pipeline"
 Directory: /home/user/humtrace/build-cmake
-"test_pipeline" start time: Oct 14 08:40 UTC
+"test_pipeline" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All pipeline tests passed.
@@ -28,15 +28,15 @@ All pipeline tests passed.
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"test_pipeline" end time: Oct 14 08:40 UTC
+"test_pipeline" end time: Oct 14 09:02 UTC
 "test_pipeline" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/12 Testing: test_report
-3/12 Test: test_report
+3/15 Testing: test_report
+3/15 Test: test_report
 Command: "/home/user/humtrace/build-cmake/bin/test_report"
 Directory: /home/user/humtrace/build-cmake
-"test_report" start time: Oct 14 08:40 UTC
+"test_report" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All report tests passed.
@@ -44,15 +44,31 @@ All report tests passed.
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_report" end time: Oct 14 08:40 UTC
+"test_report" end time: Oct 14 09:02 UTC
 "test_report" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/12 Testing: test_sha256
-4/12 Test: test_sha256
+4/15 Testing: test_session
+4/15 Test: test_session
+Command: "/home/user/humtrace/build-cmake/bin/test_session"
+Directory: /home/user/humtrace/build-cmake
+"test_session" start time: Oct 14 09:02 UTC
+Output:
+----------------------------------------------------------
+All session tests passed.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"test_session" end time: Oct 14 09:02 UTC
+"test_session" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/15 Testing: test_sha256
+5/15 Test: test_sha256
 Command: "/home/user/humtrace/build-cmake/bin/test_sha256"
 Directory: /home/user/humtrace/build-cmake
-"test_sha256" start time: Oct 14 08:40 UTC
+"test_sha256" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All SHA-256 tests passed.
@@ -60,31 +76,31 @@ All SHA-256 tests passed.
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"test_sha256" end time: Oct 14 08:40 UTC
+"test_sha256" end time: Oct 14 09:02 UTC
 "test_sha256" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/12 Testing: test_spectrum
-5/12 Test: test_spectrum
+6/15 Testing: test_spectrum
+6/15 Test: test_spectrum
 Command: "/home/user/humtrace/build-cmake/bin/test_spectrum"
 Directory: /home/user/humtrace/build-cmake
-"test_spectrum" start time: Oct 14 08:40 UTC
+"test_spectrum" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All spectrum tests passed.
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_spectrum" end time: Oct 14 08:40 UTC
+"test_spectrum" end time: Oct 14 09:02 UTC
 "test_spectrum" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/12 Testing: test_tracker
-6/12 Test: test_tracker
+7/15 Testing: test_tracker
+7/15 Test: test_tracker
 Command: "/home/user/humtrace/build-cmake/bin/test_tracker"
 Directory: /home/user/humtrace/build-cmake
-"test_tracker" start time: Oct 14 08:40 UTC
+"test_tracker" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All tracker tests passed.
@@ -92,31 +108,31 @@ All tracker tests passed.
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_tracker" end time: Oct 14 08:40 UTC
+"test_tracker" end time: Oct 14 09:02 UTC
 "test_tracker" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/12 Testing: test_view
-7/12 Test: test_view
+8/15 Testing: test_view
+8/15 Test: test_view
 Command: "/home/user/humtrace/build-cmake/bin/test_view"
 Directory: /home/user/humtrace/build-cmake
-"test_view" start time: Oct 14 08:40 UTC
+"test_view" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All view tests passed.
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_view" end time: Oct 14 08:40 UTC
+"test_view" end time: Oct 14 09:02 UTC
 "test_view" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/12 Testing: test_wav
-8/12 Test: test_wav
+9/15 Testing: test_wav
+9/15 Test: test_wav
 Command: "/home/user/humtrace/build-cmake/bin/test_wav"
 Directory: /home/user/humtrace/build-cmake
-"test_wav" start time: Oct 14 08:40 UTC
+"test_wav" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All WAV tests passed.
@@ -124,48 +140,83 @@ All WAV tests passed.
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"test_wav" end time: Oct 14 08:40 UTC
+"test_wav" end time: Oct 14 09:02 UTC
 "test_wav" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-9/12 Testing: test_wav_fuzz
-9/12 Test: test_wav_fuzz
+10/15 Testing: test_wav_fuzz
+10/15 Test: test_wav_fuzz
 Command: "/home/user/humtrace/build-cmake/bin/test_wav_fuzz"
 Directory: /home/user/humtrace/build-cmake
-"test_wav_fuzz" start time: Oct 14 08:40 UTC
+"test_wav_fuzz" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 WAV fuzz: 4825 accepted, 15175 rejected.
 All WAV fuzz tests passed.
 <end of output>
-Test time =   0.11 sec
+Test time =   0.07 sec
 ----------------------------------------------------------
 Test Passed.
-"test_wav_fuzz" end time: Oct 14 08:40 UTC
+"test_wav_fuzz" end time: Oct 14 09:02 UTC
 "test_wav_fuzz" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-10/12 Testing: cli_integration
-10/12 Test: cli_integration
+11/15 Testing: settings_fuzz_smoke
+11/15 Test: settings_fuzz_smoke
+Command: "/home/user/humtrace/build-cmake/bin/settings_fuzz" "3"
+Directory: /home/user/humtrace/build-cmake
+"settings_fuzz_smoke" start time: Oct 14 09:02 UTC
+Output:
+----------------------------------------------------------
+settings_fuzz: 106 randomized steps, 0 error(s) [coverage: 43 analyses verified, 10 invalid-settings rejections, 7 legitimate limit refusals, 20 cancellations]
+<end of output>
+Test time =   3.02 sec
+----------------------------------------------------------
+Test Passed.
+"settings_fuzz_smoke" end time: Oct 14 09:02 UTC
+"settings_fuzz_smoke" time elapsed: 00:00:03
+----------------------------------------------------------
+
+12/15 Testing: cli_integration
+12/15 Test: cli_integration
 Command: "/usr/bin/python3" "/home/user/humtrace/tests/test_cli.py" "/home/user/humtrace/build-cmake/bin/humtrace"
 Directory: /home/user/humtrace/build-cmake
-"cli_integration" start time: Oct 14 08:40 UTC
+"cli_integration" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All CLI integration tests passed.
 <end of output>
-Test time =   0.19 sec
+Test time =   0.77 sec
 ----------------------------------------------------------
 Test Passed.
-"cli_integration" end time: Oct 14 08:40 UTC
+"cli_integration" end time: Oct 14 09:02 UTC
 "cli_integration" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-11/12 Testing: app_test_gui
-11/12 Test: app_test_gui
+13/15 Testing: gui_settings_fuzz_smoke
+13/15 Test: gui_settings_fuzz_smoke
+Command: "/home/user/humtrace/build-cmake/bin/gui_settings_fuzz" "3"
+Directory: /home/user/humtrace/build-cmake
+"gui_settings_fuzz_smoke" start time: Oct 14 09:02 UTC
+Output:
+----------------------------------------------------------
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+gui_settings_fuzz: 33 randomized steps, 27 analyses, 0 error(s)
+<end of output>
+Test time =   3.11 sec
+----------------------------------------------------------
+Test Passed.
+"gui_settings_fuzz_smoke" end time: Oct 14 09:02 UTC
+"gui_settings_fuzz_smoke" time elapsed: 00:00:03
+----------------------------------------------------------
+
+14/15 Testing: app_test_gui
+14/15 Test: app_test_gui
 Command: "/home/user/humtrace/build-cmake/bin/app_test_gui"
 Directory: /home/user/humtrace/build-cmake
-"app_test_gui" start time: Oct 14 08:40 UTC
+"app_test_gui" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
@@ -175,6 +226,8 @@ PASS   : GuiTest::initTestCase()
 PASS   : GuiTest::startsEmptyWithDisabledActions()
 QWARN  : GuiTest::analyzesStereoFileAndShowsPerChannelFindings() This plugin does not support propagateSizeHints()
 PASS   : GuiTest::analyzesStereoFileAndShowsPerChannelFindings()
+QWARN  : GuiTest::visualStatesRenderWithoutErrors() This plugin does not support propagateSizeHints()
+PASS   : GuiTest::visualStatesRenderWithoutErrors()
 QWARN  : GuiTest::selectingFindingSynchronizesViewAndInspector() This plugin does not support propagateSizeHints()
 PASS   : GuiTest::selectingFindingSynchronizesViewAndInspector()
 QWARN  : GuiTest::keyboardOnlyNavigationMovesCursorAndZoomsWithoutReanalysis() This plugin does not support propagateSizeHints()
@@ -185,21 +238,21 @@ PASS   : GuiTest::invalidFileFailsWithoutModifyingIt()
 QWARN  : GuiTest::settingsChangeMarksResultsStaleAndExportRedactsPath() This plugin does not support propagateSizeHints()
 PASS   : GuiTest::settingsChangeMarksResultsStaleAndExportRedactsPath()
 PASS   : GuiTest::cleanupTestCase()
-Totals: 9 passed, 0 failed, 0 skipped, 0 blacklisted, 3471ms
+Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 3645ms
 ********* Finished testing of GuiTest *********
 <end of output>
-Test time =   3.49 sec
+Test time =   3.66 sec
 ----------------------------------------------------------
 Test Passed.
-"app_test_gui" end time: Oct 14 08:40 UTC
+"app_test_gui" end time: Oct 14 09:02 UTC
 "app_test_gui" time elapsed: 00:00:03
 ----------------------------------------------------------
 
-12/12 Testing: app_test_presentation
-12/12 Test: app_test_presentation
+15/15 Testing: app_test_presentation
+15/15 Test: app_test_presentation
 Command: "/home/user/humtrace/build-cmake/bin/app_test_presentation"
 Directory: /home/user/humtrace/build-cmake
-"app_test_presentation" start time: Oct 14 08:40 UTC
+"app_test_presentation" start time: Oct 14 09:02 UTC
 Output:
 ----------------------------------------------------------
 All presentation tests passed.
@@ -207,8 +260,8 @@ All presentation tests passed.
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"app_test_presentation" end time: Oct 14 08:40 UTC
+"app_test_presentation" end time: Oct 14 09:02 UTC
 "app_test_presentation" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Oct 14 08:40 UTC
+End testing: Oct 14 09:02 UTC
