@@ -21,7 +21,7 @@ void SpectrumChart::setFrame(const std::vector<float>* levels, const std::vector
     rowHz_ = rowHz;
     nyquist_ = nyquistHz;
     floor_ = floorDb;
-    ceiling_ = ceilingDb;
+    ceiling_ = std::max(ceilingDb, floorDb + 1.0); // never an empty or inverted range
     hoverRow_ = -1;
     readout_.clear();
     update();

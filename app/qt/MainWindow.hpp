@@ -62,7 +62,8 @@ private slots:
     void onFindingSelected();
     void onCursorChanged();
     void stepFinding(int delta);
-    void applyDisplayOptions();
+    void applyDisplayOptions();     // debounced (spin boxes)
+    void applyDisplayOptionsNow();
 
 private:
     void setState(humtrace::ui::JobState next);
@@ -84,6 +85,9 @@ private:
     std::unique_ptr<humtrace::AnalysisResult> result_;
     std::vector<humtrace::ui::FindingRow> findings_;
     AnalysisWorker* worker_{nullptr};
+    bool compareBusy_{false};   // a comparison's nested event loop is running
+    int restoreChannel_{0};     // channel to re-select after re-analysis
+    class QTimer* displayTimer_{nullptr};
     std::function<void(const QString&, const QString&)> errorHandler_;
 
     ViewState* view_;

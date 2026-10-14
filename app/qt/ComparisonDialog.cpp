@@ -24,12 +24,13 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
     banner->setAccessibleName(tr("Comparison method"));
     layout->addWidget(banner);
     auto* files = new QLabel(tr("A: %1 (%2 Hz, %3 s)    B: %4 (%5 Hz, %6 s)")
-        .arg(QFileInfo(QString::fromStdString(report.a.path)).fileName(), QString::number(report.a.sample_rate_hz),
+        .arg(fontMetrics().elidedText(QFileInfo(QString::fromStdString(report.a.path)).fileName(), Qt::ElideMiddle, 300), QString::number(report.a.sample_rate_hz),
              QString::number(report.a.duration_seconds, 'f', 2),
-             QFileInfo(QString::fromStdString(report.b.path)).fileName(), QString::number(report.b.sample_rate_hz),
+             fontMetrics().elidedText(QFileInfo(QString::fromStdString(report.b.path)).fileName(), Qt::ElideMiddle, 300), QString::number(report.b.sample_rate_hz),
              QString::number(report.b.duration_seconds, 'f', 2)));
     files->setTextFormat(Qt::PlainText);
     files->setWordWrap(true);
+    files->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     layout->addWidget(files);
     for (const auto& w : report.warnings) {
         auto* label = new QLabel(tr("Warning: ") + QString::fromStdString(w));

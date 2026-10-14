@@ -23,10 +23,12 @@ void AnalysisWorker::run() {
         callbacks.cancelled = [this] { return cancel_.load(); };
         auto result = std::make_shared<humtrace::AnalysisResult>(
             humtrace::analyze_file(path_.toStdString(), settings_, callbacks, true));
-        emit finished(std::move(result));
+        emit resultReady(std::move(result));
     } catch (const humtrace::AnalysisCancelled&) {
         emit cancelledByUser();
     } catch (const std::exception& error) {
         emit failed(QString::fromUtf8(error.what()));
+    } catch (...) {
+        emit failed(QStringLiteral("unexpected non-standard exception"));
     }
 }

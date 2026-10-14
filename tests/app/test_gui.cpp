@@ -7,7 +7,9 @@
 #include "humtrace/sha256.hpp"
 
 #include <QElapsedTimer>
+#include <QDoubleSpinBox>
 #include <QLabel>
+#include <QTableWidget>
 #include <QFile>
 #include <QTableView>
 #include <QTemporaryDir>
@@ -21,15 +23,16 @@ void put16(QByteArray& b, qint16 v) { b.append(char(v & 0xff)); b.append(char((v
 void put32(QByteArray& b, quint32 v) { for (int s = 0; s < 32; s += 8) b.append(char((v >> s) & 0xff)); }
 
 // Stereo 16-bit WAV: 60 Hz left, 50 Hz right.
-QString writeWav(const QString& dir, const QString& name, double seconds, double leftHz = 60.0, double rightHz = 50.0) {
+QString writeWav(const QString& dir, const QString& name, double seconds, double leftHz = 60.0, double rightHz = 50.0, int channels = 2) {
     const quint32 rate = 4096, frames = quint32(seconds * rate);
     QByteArray data;
-    for (quint32 i = 0; i < frames; ++i) {
-        put16(data, qint16(std::lround(0.5 * 32767 * std::sin(2 * std::numbers::pi * leftHz * i / rate))));
-        put16(data, qint16(std::lround(0.25 * 32767 * std::sin(2 * std::numbers::pi * rightHz * i / rate))));
-    }
+    for (quint32 i = 0; i < frames; ++i)
+        for (int c = 0; c < channels; ++c) {
+            const double hz = c == 0 ? leftHz : c == 1 ? rightHz : leftHz * (c + 1);
+            put16(data, qint16(std::lround((c == 0 ? 0.5 : 0.25) * 32767 * std::sin(2 * std::numbers::pi * hz * i / rate))));
+        }
     QByteArray body("fmt ");
-    put32(body, 16); put16(body, 1); put16(body, 2); put32(body, rate); put32(body, rate * 4); put16(body, 4); put16(body, 16);
+    put32(body, 16); put16(body, 1); put16(body, qint16(channels)); put32(body, rate); put32(body, rate * quint32(channels) * 2); put16(body, qint16(channels * 2)); put16(body, 16);
     body += "data"; put32(body, quint32(data.size())); body += data;
     QByteArray file("RIFF");
     put32(file, quint32(body.size() + 4));
@@ -113,6 +116,81 @@ private slots:
         w.openRecording(dir_.path() + "/does-not-exist.wav");
         QVERIFY(!msg.isEmpty());
         shot("error-state");
+    }
+
+    void roundTwoRegressions() {
+        // 1. Selecting a finding shows the track's FIRST observed frame, not the frame before it.
+        const auto path = writeWav(dir_.path(), "late.wav", 12.0, 60.0, 50.0, 1);
+        MainWindow w;
+        w.show();
+        w.openRecording(path);
+        humtrace::PipelineSettings s;
+        w.setPipelineSettings(s);
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        w.findingsTable()->selectRow(0);
+        QTableWidget* frameTable = nullptr;
+        for (auto* t : w.findChildren<QTableWidget*>()) if (t->accessibleName().contains("Spectrum measurement table")) frameTable = t;
+        QVERIFY(frameTable && frameTable->rowCount() > 0);
+        const auto first = w.findingsModel()->row(0).first_frame;
+        QVERIFY2(frameTable->item(0, 0)->text().startsWith(QString("Frame %1 ").arg(first)), qPrintable(frameTable->item(0, 0)->text()));
+        // 2. Floor above ceiling is normalized for every view.
+        w.setDisplayOptions(0, 0, -50, -80);
+        QDoubleSpinBox *floorBox = nullptr, *ceilBox = nullptr;
+        for (auto* b : w.findChildren<QDoubleSpinBox*>()) {
+            if (b->accessibleName() == "Spectrogram floor") floorBox = b;
+            if (b->accessibleName() == "Spectrogram ceiling") ceilBox = b;
+        }
+        QVERIFY(floorBox && ceilBox && floorBox->value() < ceilBox->value());
+        w.grab();
+        // 3. Channel selection survives re-analysis (stereo file).
+        const auto stereo = writeWav(dir_.path(), "keepch.wav", 4.0);
+        w.openRecording(stereo);
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        w.viewState()->setChannel(1);
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QCOMPARE(w.viewState()->channel(), 1);
+        // 4. Busy: opening another file during a run is refused and the run is unaffected.
+        w.startAnalysis();
+        w.openRecording(path);
+        QVERIFY(humtrace::ui::is_active(w.state()) || w.state() == humtrace::ui::JobState::Complete);
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QCOMPARE(w.report()->channels, quint16(2));
+    }
+
+    void manyChannelsAndLongNamesStayUsable() {
+        const QString longName = QString("n").repeated(200) + ".wav";
+        const auto path = writeWav(dir_.path(), longName, 2.0, 60.0, 50.0, 32);
+        MainWindow w;
+        w.show();
+        w.resize(1440, 900);
+        w.openRecording(path);
+        QVERIFY2(w.minimumSizeHint().width() < 1500, qPrintable(QString::number(w.minimumSizeHint().width())));
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 30000);
+        QCOMPARE(int(w.report()->channels), 32);
+        const auto img = w.grab(); // 32 lanes must fall back to one readable lane without crashing
+        QVERIFY(!img.isNull());
+        QVERIFY(w.minimumSizeHint().width() < 1500);
+    }
+
+    void cancelKeepsCancellingFeedback() {
+        const auto path = writeWav(dir_.path(), "cancelfb.wav", 1500.0);
+        MainWindow w;
+        w.show();
+        w.openRecording(path);
+        w.startAnalysis();
+        QTest::qWait(30);
+        QMetaObject::invokeMethod(&w, "cancelAnalysis");
+        QLabel* state = nullptr;
+        for (auto* l : w.findChildren<QLabel*>()) if (l->accessibleName() == "Job state") state = l;
+        QVERIFY(state);
+        for (int i = 0; i < 40 && humtrace::ui::is_active(w.state()); ++i) {
+            QTest::qWait(5);
+            if (w.state() == humtrace::ui::JobState::Cancelling) QVERIFY2(!state->text().startsWith("Analyzing") && !state->text().startsWith("Hashing"), qPrintable(state->text()));
+        }
     }
 
     void selectingFindingSynchronizesViewAndInspector() {

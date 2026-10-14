@@ -43,6 +43,7 @@
 #include <QTableView>
 #include <QTableWidget>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <fstream>
@@ -85,6 +86,7 @@ void MainWindow::buildUi() {
     header_ = new QLabel(tr("No recording open. Use Open Recording (Ctrl+O) or drop a WAV file here. Supported: PCM 8/16/24/32-bit and IEEE float 32/64-bit WAV. Files are opened read-only."));
     header_->setTextFormat(Qt::PlainText);
     header_->setWordWrap(true);
+    header_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); // never force the window wider
     header_->setAccessibleName(tr("Recording identity"));
     header_->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
     summary_ = new QLabel;
@@ -119,6 +121,10 @@ void MainWindow::buildUi() {
     layout->addWidget(row);
     for (QWidget* w : std::initializer_list<QWidget*>{scaleBox_, paletteBox_})
         connect(qobject_cast<QComboBox*>(w), &QComboBox::currentIndexChanged, this, &MainWindow::applyDisplayOptions);
+    displayTimer_ = new QTimer(this);
+    displayTimer_->setSingleShot(true);
+    displayTimer_->setInterval(150);
+    connect(displayTimer_, &QTimer::timeout, this, &MainWindow::applyDisplayOptionsNow);
     connect(floorBox_, &QDoubleSpinBox::valueChanged, this, &MainWindow::applyDisplayOptions);
     connect(ceilingBox_, &QDoubleSpinBox::valueChanged, this, &MainWindow::applyDisplayOptions);
 
@@ -302,7 +308,10 @@ void MainWindow::clearResults() {
 }
 
 void MainWindow::openRecording(const QString& path) {
-    if (humtrace::ui::is_active(state_)) return;
+    if (humtrace::ui::is_active(state_) || compareBusy_) {
+        statusBar()->showMessage(tr("Busy: finish or cancel the current job before opening another recording."), 5000);
+        return;
+    }
     // Validate first: a bad or missing file must not discard the current results.
     humtrace::WavMetadata m;
     try {
@@ -321,8 +330,9 @@ void MainWindow::openRecording(const QString& path) {
     clearResults();
     setState(JobState::Opening);
     path_ = path;
+    header_->setToolTip(path);
     header_->setText(tr("%1 | %2 s | %3 Hz | %4 channel(s) | %5-bit %6 | SHA-256 computed during analysis")
-        .arg(QFileInfo(path).fileName(), QString::number(double(m.frame_count) / m.sample_rate_hz, 'f', 2),
+        .arg(header_->fontMetrics().elidedText(QFileInfo(path).fileName(), Qt::ElideMiddle, 420), QString::number(double(m.frame_count) / m.sample_rate_hz, 'f', 2),
              QString::number(m.sample_rate_hz), QString::number(m.channels), QString::number(m.bit_depth),
              m.format_code == 3 ? tr("float") : tr("PCM")));
     header_->setAccessibleDescription(header_->text());
@@ -334,7 +344,8 @@ void MainWindow::openRecording(const QString& path) {
 }
 
 void MainWindow::startAnalysis() {
-    if (path_.isEmpty() || humtrace::ui::is_active(state_)) return;
+    if (path_.isEmpty() || humtrace::ui::is_active(state_) || compareBusy_) return;
+    restoreChannel_ = std::max(0, channels_->currentRow());
     clearResults();
     setState(JobState::Hashing);
     progress_->setRange(0, 1000);
@@ -344,11 +355,13 @@ void MainWindow::startAnalysis() {
         const auto next = static_cast<humtrace::Stage>(stage) == humtrace::Stage::Hashing ? JobState::Hashing
                           : static_cast<humtrace::Stage>(stage) == humtrace::Stage::Analyzing ? JobState::Analyzing
                                                                                                : JobState::Finalizing;
-        if (state_ != JobState::Cancelling && state_ != next) setState(next);
+        if (state_ == JobState::Cancelling) return; // keep showing "Cancelling" until the job stops
+        if (state_ != next) setState(next);
         progress_->setValue(int(fraction * 1000));
         stateLabel_->setText(tr("%1: %2%").arg(stageText(stage)).arg(int(fraction * 100)));
+        stateLabel_->setAccessibleDescription(stateLabel_->text());
     });
-    connect(worker_, &AnalysisWorker::finished, this, &MainWindow::onFinished);
+    connect(worker_, &AnalysisWorker::resultReady, this, &MainWindow::onFinished);
     connect(worker_, &AnalysisWorker::cancelledByUser, this, [this] {
         releaseWorker();
         setState(JobState::Cancelled);
@@ -394,7 +407,7 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
     model_->setRows(findings_);
     const double hop = double(r.hop_size_samples) / r.sample_rate_hz;
     view_->reset(r.duration_seconds, hop);
-    view_->setChannel(std::min(channels_->currentRow() < 0 ? 0 : channels_->currentRow(), int(r.channels) - 1));
+    view_->setChannel(std::min(restoreChannel_, int(r.channels) - 1));
     waveform_->setViews(&result_->views, r.duration_seconds, r.sample_rate_hz);
     spectrogram_->setData(&result_->views, &r, &findings_);
     applyDisplayOptions();
@@ -404,10 +417,22 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
     header_->setText(header_->text().replace(tr("SHA-256 computed during analysis"), tr("SHA-256 %1").arg(QString::fromStdString(r.input_sha256).left(16) + "...")));
     setState(JobState::Complete);
     updateFrameViews();
-    if (model_->rowCount() > 0) table_->selectRow(0);
+    // Auto-select the first finding on the restored channel (never switch the user's channel).
+    for (int i = 0; i < model_->rowCount(); ++i)
+        if (model_->row(i).channel == view_->channel() + 1) {
+            table_->selectRow(proxy_->mapFromSource(model_->index(i, 0)).row());
+            break;
+        }
 }
 
-void MainWindow::applyDisplayOptions() {
+void MainWindow::applyDisplayOptions() { displayTimer_->start(); }
+
+void MainWindow::applyDisplayOptionsNow() {
+    displayTimer_->stop();
+    // Keep floor < ceiling in the controls themselves so every view gets the same, valid range.
+    const QSignalBlocker blockFloor(floorBox_), blockCeiling(ceilingBox_);
+    floorBox_->setMaximum(std::min(-20.0, ceilingBox_->value() - 1.0));
+    ceilingBox_->setMinimum(std::max(-100.0, floorBox_->value() + 1.0));
     spectrogram_->setDisplay(scaleBox_->currentIndex() == 0,
                              paletteBox_->currentIndex() == 0 ? humtrace::ui::Palette::Default : humtrace::ui::Palette::Grayscale,
                              floorBox_->value(), ceilingBox_->value());
@@ -459,7 +484,7 @@ void MainWindow::onFindingSelected() {
     inspector_->setPlainText(QString::fromStdString(humtrace::ui::describe_finding(result_->report, row)));
     view_->setChannel(row.channel - 1);
     view_->setSelection(row.start_seconds, row.end_seconds);
-    view_->setCursor(row.start_seconds);
+    view_->setCursor(row.start_seconds + double(result_->report.frame_size_samples) / 2.0 / result_->report.sample_rate_hz);
     if (row.start_seconds < view_->view().start || row.end_seconds > view_->view().end)
         view_->setView({row.start_seconds - row.duration_seconds() * 0.25, row.end_seconds + row.duration_seconds() * 0.25});
     spectrogram_->setSelectedFinding(index.row());
@@ -518,7 +543,7 @@ void MainWindow::chooseAndExport() {
 }
 
 void MainWindow::chooseAndCompare() {
-    if (!result_) return;
+    if (!result_ || compareBusy_) return;
     const auto other = QFileDialog::getOpenFileName(this, tr("Compare with recording B"), {}, tr("WAV audio (*.wav *.wave)"));
     if (other.isEmpty()) return;
     QProgressDialog progress(tr("Analyzing recording B..."), tr("Cancel"), 0, 1000, this);
@@ -529,8 +554,9 @@ void MainWindow::chooseAndCompare() {
     QString failure;
     bool cancelled = false;
     QEventLoop loop;
+    compareBusy_ = true;
     connect(&worker, &AnalysisWorker::stageChanged, &progress, [&](int, double f) { progress.setValue(int(f * 1000)); });
-    connect(&worker, &AnalysisWorker::finished, &loop, [&](std::shared_ptr<humtrace::AnalysisResult> r) { done = r; loop.quit(); });
+    connect(&worker, &AnalysisWorker::resultReady, &loop, [&](std::shared_ptr<humtrace::AnalysisResult> r) { done = r; loop.quit(); });
     connect(&worker, &AnalysisWorker::cancelledByUser, &loop, [&] { cancelled = true; loop.quit(); });
     connect(&worker, &AnalysisWorker::failed, &loop, [&](QString m) { failure = m; loop.quit(); });
     connect(&progress, &QProgressDialog::canceled, &worker, &AnalysisWorker::requestCancel);
@@ -538,6 +564,7 @@ void MainWindow::chooseAndCompare() {
     loop.exec();
     worker.wait();
     progress.close();
+    compareBusy_ = false;
     if (!failure.isEmpty()) { showError(tr("Comparison"), failure); return; }
     if (cancelled || !done) return;
     const auto comparison = humtrace::compare_reports(result_->report, done->report);
@@ -623,9 +650,12 @@ void MainWindow::setPipelineSettings(const humtrace::PipelineSettings& next) {
 void MainWindow::setDisplayOptions(int scaleIndex, int paletteIndex, double floorDb, double ceilingDb) {
     scaleBox_->setCurrentIndex(scaleIndex);
     paletteBox_->setCurrentIndex(paletteIndex);
+    // Set the wider-range value first so the pair is always accepted regardless of order.
+    floorBox_->setMaximum(0.0);
+    ceilingBox_->setMinimum(-160.0);
     floorBox_->setValue(floorDb);
     ceilingBox_->setValue(ceilingDb);
-    applyDisplayOptions();
+    applyDisplayOptionsNow();
 }
 
 void MainWindow::showHelp() {

@@ -73,11 +73,16 @@ void SpectrogramChart::paintData(QPainter& p, const QRect& plot) {
     const double hopSec = static_cast<double>(report_->hop_size_samples) / rate;
     const double windowSec = static_cast<double>(report_->frame_size_samples) / rate;
     const auto view = state_->view();
-    // Draw the visible column range scaled to the plot; columns are windows starting at i * hop.
-    const double x0 = xAt(0.0), x1 = xAt(hopSec * (image_.width() - 1) + windowSec);
+    // Column i is the window [i*hop, i*hop + window); draw it centered on the window center,
+    // spanning one hop, so the column under the cursor is the frame the spectrum shows.
+    const double offset = (windowSec - hopSec) / 2.0;
+    const int columns = image_.width();
+    const int first = std::clamp(static_cast<int>(std::floor((view.start - offset) / hopSec)) - 1, 0, columns - 1);
+    const int last = std::clamp(static_cast<int>(std::ceil((view.end - offset) / hopSec)) + 1, first + 1, columns);
+    // Crop to the visible columns: stretching the whole image at high zoom would need enormous rectangles.
+    const QRectF target(xAt(offset + first * hopSec), plot.top(), xAt(offset + last * hopSec) - xAt(offset + first * hopSec), plot.height());
     p.setRenderHint(QPainter::SmoothPixmapTransform, false);
-    p.drawImage(QRectF(x0, plot.top(), x1 - x0, plot.height()), image_);
-    (void)view;
+    p.drawImage(target, image_, QRectF(first, 0, last - first, image_.height()));
 
     const double nyquist = rate / 2.0;
     const auto& rowsHz = (*views_)[static_cast<std::size_t>(state_->channel())].row_frequency_hz;

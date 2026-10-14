@@ -53,7 +53,7 @@ void TimeChart::drawTimeRuler(QPainter& p) const {
         const int x = static_cast<int>(xAt(s));
         p.drawLine(x, r.bottom(), x, r.bottom() + 4);
         p.drawText(QRect(x - 40, r.bottom() + 4, 80, kBottom - 4), Qt::AlignHCenter | Qt::AlignTop,
-                   QString::number(s, 'f', step < 1.0 ? 2 : 0) + " s");
+                   QString::number(s, 'f', std::max(0, static_cast<int>(-std::floor(std::log10(step) + 1e-9)))) + " s");
     }
 }
 

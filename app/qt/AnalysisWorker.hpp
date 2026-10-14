@@ -16,7 +16,7 @@ public:
 
 signals:
     void stageChanged(int stage, double fraction); // humtrace::Stage
-    void finished(std::shared_ptr<humtrace::AnalysisResult> result);
+    void resultReady(std::shared_ptr<humtrace::AnalysisResult> result);
     void cancelledByUser();
     void failed(QString message);
 
