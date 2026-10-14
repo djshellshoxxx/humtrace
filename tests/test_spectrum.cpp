@@ -141,9 +141,28 @@ void interpolates_frequency_between_fft_bins() {
     require(std::abs(peak.level_dbfs - (-6.0206)) < 0.25,
             "off-bin peak level is corrected for scalloping");
 }
+void finds_multiple_prominent_peaks() {
+    constexpr double rate = 4096.0;
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const auto t = static_cast<double>(i) / rate;
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * 60.0 * t) +
+                     0.25 * std::sin(2.0 * std::numbers::pi * 180.0 * t);
+    }
+    const auto spectrum = humtrace::analyze_spectrum(samples, rate);
+    const auto peaks = humtrace::find_peaks(spectrum, -60.0, 10.0, 8);
+    require(peaks.size() == 2, "exactly the two tones are reported");
+    require(std::abs(peaks[0].frequency_hz - 60.0) < 0.2 && std::abs(peaks[1].frequency_hz - 180.0) < 0.2,
+            "peaks are in ascending frequency");
+    require(humtrace::find_peaks(spectrum, -60.0, 10.0, 1).size() == 1, "max_peaks is honored");
+    bool threw = false;
+    try { (void)humtrace::find_peaks(spectrum, -60.0, -1.0, 1); } catch (const std::invalid_argument&) { threw = true; }
+    require(threw, "negative prominence is rejected");
+}
 } // namespace
 
 int main() {
+    finds_multiple_prominent_peaks();
     finds_peak_frequency_and_level_for_a_sine();
     rejects_non_power_of_two_input();
     measures_harmonic_support_without_source_attribution();

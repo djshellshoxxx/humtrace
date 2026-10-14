@@ -6,12 +6,16 @@
 
 #include <cstddef>
 #include <functional>
+#include <stdexcept>
 
 namespace humtrace {
 
 struct PipelineSettings {
     std::size_t max_interleaved_window_samples{16 * 1024 * 1024};
     TrackerSettings tracker;
+    double peak_min_level_dbfs{-80.0};
+    double peak_min_prominence_db{10.0};
+    std::size_t max_peaks_per_frame{8};
 };
 
 // Choose a power-of-two analysis window for the given metadata. Throws
@@ -21,8 +25,14 @@ struct PipelineSettings {
 
 // Stream a WAV through rolling windows (hop = window / 2), measuring each channel
 // independently, then associate each channel's strongest peaks into tracks.
-// `progress` (optional) receives the fraction complete in [0, 1].
+// `progress` (optional) receives the fraction complete in [0, 1]; `cancelled` is polled
+// once per window and throws AnalysisCancelled when it returns true.
 [[nodiscard]] AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
-                                         const std::function<void(double)>& progress = {});
+                                         const std::function<void(double)>& progress = {},
+                                         const std::function<bool()>& cancelled = {});
+
+struct AnalysisCancelled : std::runtime_error {
+    AnalysisCancelled() : std::runtime_error("analysis cancelled") {}
+};
 
 } // namespace humtrace

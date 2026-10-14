@@ -15,7 +15,7 @@ Associate per-frame spectral peaks of one channel into tracks and summarize pers
 - Deterministic greedy one-to-one assignment sorted by (distance, track id, peak index).
 - A track survives up to `max_gap_frames` consecutive empty frames; the gap is counted in `missing_frames`, never filled. Longer gaps start a new track.
 - Non-finite, zero, or negative-frequency peaks are ignored. Invalid settings throw `std::invalid_argument`.
-- Current pipeline input is the strongest non-DC peak per frame; the interface accepts any peak list.
+- Pipeline input is up to `max_peaks_per_frame` (default 8) prominent local maxima per frame from `find_peaks` (min level -80 dBFS, 10 dB over local floor), so concurrent tones form separate tracks.
 
 ## Not yet implemented
 

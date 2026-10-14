@@ -22,7 +22,8 @@ std::size_t select_window_size(const WavMetadata& metadata,
 }
 
 AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
-                           const std::function<void(double)>& progress) {
+                           const std::function<void(double)>& progress,
+                           const std::function<bool()>& cancelled) {
     const auto& metadata = reader.metadata();
     const auto frames = metadata.frame_count;
     const auto window_size = select_window_size(metadata, settings.max_interleaved_window_samples);
@@ -46,17 +47,24 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         throw std::runtime_error("could not read the first complete analysis window");
 
     std::vector<double> samples(window_size);
+    std::vector<std::vector<FramePeaks>> peaks(metadata.channels);
     std::uint64_t window_start = 0;
     while (true) {
+        if (cancelled && cancelled())
+            throw AnalysisCancelled();
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
             for (std::size_t i = 0; i < window_size; ++i)
                 samples[i] = window[i * metadata.channels + channel];
-            auto measured = analyze_interference_timeline(
-                samples, metadata.sample_rate_hz, window_size, window_size);
-            if (measured.empty())
-                throw std::runtime_error("analysis produced no complete frames");
-            measured[0].start_sample = window_start;
-            report.channel_results[channel].frames.push_back(std::move(measured[0]));
+            const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
+            report.channel_results[channel].frames.push_back(
+                measure_frame(spectrum, window_start, report.support_threshold_dbfs,
+                              10, report.minimum_prominence_db));
+            FramePeaks entry{window_start, {}};
+            for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
+                                               settings.peak_min_prominence_db,
+                                               settings.max_peaks_per_frame))
+                entry.peaks.push_back({peak.frequency_hz, peak.level_dbfs});
+            peaks[channel].push_back(std::move(entry));
         }
         if (progress)
             progress(std::min(1.0, static_cast<double>(window_start + window_size) /
@@ -75,17 +83,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     auto tracker = settings.tracker;
     tracker.bin_spacing_hz = static_cast<double>(metadata.sample_rate_hz) / static_cast<double>(window_size);
     report.tracker = tracker;
-    for (auto& channel : report.channel_results) {
-        std::vector<FramePeaks> peaks;
-        peaks.reserve(channel.frames.size());
-        for (const auto& frame : channel.frames) {
-            FramePeaks entry{frame.start_sample, {}};
-            if (frame.strongest_peak.frequency_hz > 0.0)
-                entry.peaks.push_back({frame.strongest_peak.frequency_hz, frame.strongest_peak.level_dbfs});
-            peaks.push_back(std::move(entry));
-        }
-        channel.tracks = track_peaks(peaks, metadata.sample_rate_hz, tracker);
-    }
+    for (std::size_t c = 0; c < peaks.size(); ++c)
+        report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker);
     return report;
 }
 

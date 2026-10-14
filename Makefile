@@ -30,8 +30,12 @@ $(BUILD_DIR)/test_tracker: src/tracker.cpp tests/test_tracker.cpp $(CORE_HEADERS
 $(BUILD_DIR)/test_sha256: src/sha256.cpp tests/test_sha256.cpp $(CORE_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/sha256.cpp tests/test_sha256.cpp -o $@
 
-test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report $(BUILD_DIR)/test_tracker $(BUILD_DIR)/test_sha256
+$(BUILD_DIR)/test_pipeline: $(CORE_SOURCES) tests/test_pipeline.cpp $(CORE_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) tests/test_pipeline.cpp -o $@
+
+test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_pipeline $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report $(BUILD_DIR)/test_tracker $(BUILD_DIR)/test_sha256
 	$(BUILD_DIR)/test_tracker
+	$(BUILD_DIR)/test_pipeline
 	$(BUILD_DIR)/test_sha256
 	$(BUILD_DIR)/test_spectrum
 	$(BUILD_DIR)/test_wav

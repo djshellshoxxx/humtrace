@@ -6,4 +6,4 @@ Streaming FIPS 180-4 SHA-256 over bounded 64 KiB chunks; `sha256_hex(istream&)` 
 
 ## Pipeline (`pipeline.hpp`, `src/pipeline.cpp`)
 
-`analyze_wav(WavStreamReader&, PipelineSettings, progress)` owns windowing, per-channel measurement, and tracking, returning an `AnalysisReport` without I/O or presentation. `select_window_size` picks the power-of-two window (at most one second or 65536 frames) and enforces the interleaved-window memory bound. The optional progress callback receives a fraction in [0, 1]; cancellation is not yet implemented (see [long-file workflow](../specs/long-file-workflow.md)).
+`analyze_wav(WavStreamReader&, PipelineSettings, progress)` owns windowing, per-channel measurement, and tracking, returning an `AnalysisReport` without I/O or presentation. `select_window_size` picks the power-of-two window (at most one second or 65536 frames) and enforces the interleaved-window memory bound. The optional progress callback receives a fraction in [0, 1]; an optional `cancelled` callback is polled once per window and aborts with `AnalysisCancelled`. Memory is still O(frames) for results (see [long-file workflow](../specs/long-file-workflow.md)).

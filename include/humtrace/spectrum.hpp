@@ -52,11 +52,23 @@ struct InterferenceFrame {
 // Return the strongest non-DC bin. Throws std::invalid_argument when absent.
 [[nodiscard]] SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum);
 
+// Local-maximum peaks (interpolated) at or above min_level_dbfs whose level exceeds the
+// local spectral floor by min_prominence_db; at most max_peaks strongest, ascending frequency.
+[[nodiscard]] std::vector<SpectralPeak> find_peaks(
+    const std::vector<SpectrumBin>& spectrum, double min_level_dbfs, double min_prominence_db,
+    std::size_t max_peaks);
+
 // Measure the nearest FFT bin at each integer multiple of nominal_hz through
 // Nyquist. Threshold support is a measurement aid, not a source classification.
 [[nodiscard]] HarmonicCandidate measure_harmonics(
     const std::vector<SpectrumBin>& spectrum, double nominal_hz,
     double support_threshold_dbfs, std::size_t max_harmonics,
+    double minimum_prominence_db = 10.0);
+
+// Strongest peak plus 50/60 Hz harmonic measurements for one already-computed spectrum.
+[[nodiscard]] InterferenceFrame measure_frame(
+    const std::vector<SpectrumBin>& spectrum, std::uint64_t start_sample,
+    double support_threshold_dbfs = -60.0, std::size_t max_harmonics = 10,
     double minimum_prominence_db = 10.0);
 
 // Measure the strongest non-DC component in complete, fixed-size frames.
