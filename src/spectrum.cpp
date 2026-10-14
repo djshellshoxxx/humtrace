@@ -65,6 +65,23 @@ void fft(std::vector<std::complex<double>>& values) {
         return lower;
     return (lower + upper) / 2.0;
 }
+
+[[nodiscard]] SpectralPeak interpolate_peak(const std::vector<SpectrumBin>& spectrum, std::size_t index) {
+    const auto& bin = spectrum[index];
+    if (index == 0 || index + 1 >= spectrum.size())
+        return {bin.frequency_hz, bin.level_dbfs};
+    const double left = spectrum[index - 1].level_dbfs;
+    const double center = bin.level_dbfs;
+    const double right = spectrum[index + 1].level_dbfs;
+    if (!std::isfinite(left) || !std::isfinite(center) || !std::isfinite(right))
+        return {bin.frequency_hz, bin.level_dbfs};
+    const double curvature = left - 2.0 * center + right;
+    if (curvature >= 0.0)
+        return {bin.frequency_hz, bin.level_dbfs};
+    const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
+    const double bin_width = bin.frequency_hz - spectrum[index - 1].frequency_hz;
+    return {bin.frequency_hz + offset * bin_width, center - 0.25 * (left - right) * offset};
+}
 } // namespace
 
 std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
@@ -77,15 +94,27 @@ std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
     const auto size = samples.size();
     std::vector<std::complex<double>> transformed(size);
     double window_sum = 0.0;
-    for (std::size_t i = 0; i < size; ++i) {
-        if (!std::isfinite(samples[i]))
+    double mean = 0.0;
+    for (const double sample : samples) {
+        if (!std::isfinite(sample))
             throw std::invalid_argument("samples must all be finite");
+        mean += sample;
+    }
+    // Remove the frame mean first: a recording's DC offset would otherwise leak through the Hann
+    // main lobe into bin 1 and masquerade as the strongest "non-DC" component.
+    mean /= static_cast<double>(size);
+    for (std::size_t i = 0; i < size; ++i) {
         const double window = 0.5 - 0.5 * std::cos(
             2.0 * std::numbers::pi * static_cast<double>(i) / static_cast<double>(size - 1));
         window_sum += window;
-        transformed[i] = {samples[i] * window, 0.0};
+        transformed[i] = {(samples[i] - mean) * window, 0.0};
     }
+    if (!std::isfinite(mean))
+        throw std::invalid_argument("sample magnitudes are too large to analyze");
     fft(transformed);
+    for (const auto& value : transformed)
+        if (!std::isfinite(value.real()) || !std::isfinite(value.imag()))
+            throw std::invalid_argument("sample magnitudes are too large to analyze");
 
     std::vector<SpectrumBin> result;
     result.reserve(size / 2 + 1);
@@ -106,21 +135,38 @@ SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
         [](const auto& lhs, const auto& rhs) { return lhs.level_dbfs < rhs.level_dbfs; });
     if (std::isinf(peak->level_dbfs) && peak->level_dbfs < 0.0)
         return {0.0, peak->level_dbfs};
-    const auto index = static_cast<std::size_t>(peak - spectrum.begin());
-    if (index == 0 || index + 1 >= spectrum.size())
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double left = spectrum[index - 1].level_dbfs;
-    const double center = peak->level_dbfs;
-    const double right = spectrum[index + 1].level_dbfs;
-    if (!std::isfinite(left) || !std::isfinite(center) || !std::isfinite(right))
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double curvature = left - 2.0 * center + right;
-    if (curvature >= 0.0)
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
-    const double interpolated_level = center - 0.25 * (left - right) * offset;
-    const double bin_width = spectrum[index].frequency_hz - spectrum[index - 1].frequency_hz;
-    return {peak->frequency_hz + offset * bin_width, interpolated_level};
+    return interpolate_peak(spectrum, static_cast<std::size_t>(peak - spectrum.begin()));
+}
+
+std::vector<SpectralPeak> find_peaks(const std::vector<SpectrumBin>& spectrum,
+                                     double min_level_dbfs, double min_prominence_db,
+                                     std::size_t max_peaks) {
+    if (spectrum.size() < 4 || !std::isfinite(min_level_dbfs) || !std::isfinite(min_prominence_db) ||
+        min_prominence_db < 0.0 || max_peaks == 0)
+        throw std::invalid_argument("invalid peak search settings");
+    struct Candidate { std::size_t index; double level; };
+    std::vector<Candidate> found;
+    for (std::size_t i = 1; i + 1 < spectrum.size(); ++i) {
+        const double level = spectrum[i].level_dbfs;
+        if (!std::isfinite(level) || level < min_level_dbfs ||
+            level < spectrum[i - 1].level_dbfs || level <= spectrum[i + 1].level_dbfs)
+            continue;
+        const double floor = local_spectral_floor(spectrum, i);
+        if (std::isfinite(floor) && level - floor < min_prominence_db)
+            continue;
+        found.push_back({i, level});
+    }
+    std::stable_sort(found.begin(), found.end(),
+                     [](const auto& l, const auto& r) { return l.level > r.level; });
+    if (found.size() > max_peaks)
+        found.resize(max_peaks);
+    std::sort(found.begin(), found.end(),
+              [](const auto& l, const auto& r) { return l.index < r.index; });
+    std::vector<SpectralPeak> peaks;
+    peaks.reserve(found.size());
+    for (const auto& c : found)
+        peaks.push_back(interpolate_peak(spectrum, c.index));
+    return peaks;
 }
 
 HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
@@ -135,6 +181,10 @@ HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
     if (!std::isfinite(spacing) || spacing <= 0.0)
         throw std::invalid_argument("spectrum bins must have increasing frequencies");
     HarmonicCandidate candidate{nominal_hz, 0, {}};
+    // Harmonics are only measurable when the bin spacing resolves them: with coarser bins several
+    // harmonics (and DC) collapse onto one bin and would produce fabricated "support".
+    if (spacing > nominal_hz / 2.0)
+        return candidate;
     candidate.harmonics.reserve(std::min(max_harmonics, spectrum.size()));
     const double nyquist_hz = spectrum.back().frequency_hz;
     for (std::size_t harmonic = 1; harmonic <= max_harmonics; ++harmonic) {
@@ -144,6 +194,8 @@ HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
         const auto index = static_cast<std::size_t>(std::llround(expected / spacing));
         if (index >= spectrum.size())
             break;
+        if (index == 0)
+            continue; // never treat DC as a harmonic
         const auto& bin = spectrum[index];
         const double floor = local_spectral_floor(spectrum, index);
         double prominence = bin.level_dbfs - floor;
@@ -182,6 +234,14 @@ std::vector<ToneFrame> analyze_tone_timeline(const std::vector<double>& samples,
     return result;
 }
 
+InterferenceFrame measure_frame(const std::vector<SpectrumBin>& spectrum, std::uint64_t start_sample,
+                                double support_threshold_dbfs, std::size_t max_harmonics,
+                                double minimum_prominence_db) {
+    return {start_sample, strongest_peak(spectrum),
+            measure_harmonics(spectrum, 50.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db),
+            measure_harmonics(spectrum, 60.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db)};
+}
+
 std::vector<InterferenceFrame> analyze_interference_timeline(
     const std::vector<double>& samples, double sample_rate_hz,
     std::size_t frame_size, std::size_t hop_size,
@@ -203,10 +263,8 @@ std::vector<InterferenceFrame> analyze_interference_timeline(
         const auto start = frame * hop_size;
         std::vector<double> block(samples.begin() + static_cast<std::ptrdiff_t>(start),
                                   samples.begin() + static_cast<std::ptrdiff_t>(start + frame_size));
-        const auto spectrum = analyze_spectrum(block, sample_rate_hz);
-        result.push_back({static_cast<std::uint64_t>(start), strongest_peak(spectrum),
-            measure_harmonics(spectrum, 50.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db),
-            measure_harmonics(spectrum, 60.0, support_threshold_dbfs, max_harmonics, minimum_prominence_db)});
+        result.push_back(measure_frame(analyze_spectrum(block, sample_rate_hz),
+            static_cast<std::uint64_t>(start), support_threshold_dbfs, max_harmonics, minimum_prominence_db));
     }
     return result;
 }

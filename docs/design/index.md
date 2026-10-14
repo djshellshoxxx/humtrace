@@ -31,6 +31,10 @@ Deferred from beta v0.1 but scoped for later design:
 - [Reference signature library](../specs/signature-library.md)
 - [Plugin adapters](../specs/plugin-adapter.md)
 
+Current source layout: `src/` and `include/humtrace/` hold the toolkit-free core (WAV reader, spectrum, tracker, pipeline, compare, report, session); `app/presentation/` holds toolkit-free GUI logic and `app/qt/` the Qt widgets. The `dsp/`, `analysis/`, `audio_io/`, `report/` names in the specs are logical boundaries, not directories.
+
+Implemented module notes: [tracker](../modules/tracker.md), [SHA-256 and pipeline](../modules/input-hash-and-pipeline.md), [WAV reader](../modules/wav-reader.md), [report schema](../modules/report-schema-v1.md).
+
 ## Research notes
 
 - [DSP methods](../research/dsp-algorithms.md)

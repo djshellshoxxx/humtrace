@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=HumTrace
+Comment=Measure hum and interference tones in audio recordings
+Exec=humtrace-gui %f
+Icon=humtrace
+Categories=AudioVideo;Audio;Science;
+MimeType=audio/x-wav;audio/wav;
+Terminal=false

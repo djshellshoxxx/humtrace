@@ -90,6 +90,8 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         riff_end < start + 12)
         throw std::runtime_error("truncated or invalid RIFF container");
 
+    constexpr std::size_t kMaxChunks = 1'000'000; // bounds parse time on hostile files
+    std::size_t chunk_count = 0;
     bool have_format = false;
     std::uint64_t total_data_bytes = 0;
     std::streamoff position = start + 12;
@@ -105,7 +107,13 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         if (length > static_cast<std::uint64_t>(riff_end - data_position))
             throw std::runtime_error("truncated WAVE chunk");
 
+        if (++chunk_count > kMaxChunks)
+            throw std::runtime_error("WAVE file has too many chunks");
         if (tag_is(chunk_header, "fmt ")) {
+            if (have_format)
+                throw std::runtime_error("WAVE file has more than one format chunk");
+            if (!data_chunks_.empty())
+                throw std::runtime_error("WAVE format chunk must precede the sample data");
             if (length < 16)
                 throw std::runtime_error("invalid WAVE format chunk");
             std::array<char, 16> format{};
@@ -115,21 +123,43 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
             metadata_.sample_rate_hz = read_u32(format.data() + 4);
             block_align_ = read_u16(format.data() + 12);
             metadata_.bit_depth = read_u16(format.data() + 14);
+            if (metadata_.format_code == 0xFFFE) {
+                // WAVE_FORMAT_EXTENSIBLE: cbSize(2) validBits(2) mask(4) GUID(16)
+                if (length < 40)
+                    throw std::runtime_error("invalid WAVE extensible format chunk");
+                std::array<char, 24> extension{};
+                read_exact(input, extension.data(), extension.size());
+                if (read_u16(extension.data()) < 22)
+                    throw std::runtime_error("invalid WAVE extensible format chunk");
+                if (read_u16(extension.data() + 2) != metadata_.bit_depth)
+                    throw std::runtime_error("unsupported WAVE extensible valid-bits value");
+                // Sub-format GUID: first two bytes carry the format code; the rest must be KSDATAFORMAT base.
+                static constexpr unsigned char base[14] = {0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                                                           0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+                if (std::memcmp(extension.data() + 10, base, sizeof(base)) != 0)
+                    throw std::runtime_error("unsupported WAVE extensible sub-format");
+                metadata_.format_code = read_u16(extension.data() + 8);
+            }
             have_format = true;
         } else if (tag_is(chunk_header, "data")) {
             if (length > std::numeric_limits<std::uint64_t>::max() - total_data_bytes)
                 throw std::runtime_error("WAVE sample data is too large");
-            data_chunks_.push_back({data_position, length});
-            total_data_bytes += length;
+            if (length > 0) { // empty data chunks carry nothing; skipping them bounds memory
+                data_chunks_.push_back({data_position, length});
+                total_data_bytes += length;
+            }
         }
 
-        const auto next_position = data_position + static_cast<std::streamoff>(length + (length & 1U));
+        auto next_position = data_position + static_cast<std::streamoff>(length + (length & 1U));
+        // Some writers omit the pad byte after an odd-sized final chunk; accept that one case.
+        if (next_position == riff_end + 1 && (length & 1U) != 0)
+            next_position = riff_end;
         if (next_position > riff_end)
             throw std::runtime_error("missing WAVE chunk padding");
         position = next_position;
     }
-    if (position != riff_end)
-        throw std::runtime_error("truncated WAVE chunk header");
+    // The loop only exits with fewer than 8 bytes left; such trailing bytes cannot hold a chunk
+    // header and are ignored (some writers append a short footer or stray pad).
     if (!have_format || data_chunks_.empty())
         throw std::runtime_error("WAVE file is missing format or sample data");
     if (metadata_.channels == 0 || metadata_.sample_rate_hz == 0 || block_align_ == 0)

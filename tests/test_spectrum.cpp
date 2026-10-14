@@ -141,9 +141,55 @@ void interpolates_frequency_between_fft_bins() {
     require(std::abs(peak.level_dbfs - (-6.0206)) < 0.25,
             "off-bin peak level is corrected for scalloping");
 }
+void finds_multiple_prominent_peaks() {
+    constexpr double rate = 4096.0;
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const auto t = static_cast<double>(i) / rate;
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * 60.0 * t) +
+                     0.25 * std::sin(2.0 * std::numbers::pi * 180.0 * t);
+    }
+    const auto spectrum = humtrace::analyze_spectrum(samples, rate);
+    const auto peaks = humtrace::find_peaks(spectrum, -60.0, 10.0, 8);
+    require(peaks.size() == 2, "exactly the two tones are reported");
+    require(std::abs(peaks[0].frequency_hz - 60.0) < 0.2 && std::abs(peaks[1].frequency_hz - 180.0) < 0.2,
+            "peaks are in ascending frequency");
+    require(humtrace::find_peaks(spectrum, -60.0, 10.0, 1).size() == 1, "max_peaks is honored");
+    bool threw = false;
+    try { (void)humtrace::find_peaks(spectrum, -60.0, -1.0, 1); } catch (const std::invalid_argument&) { threw = true; }
+    require(threw, "negative prominence is rejected");
+}
+void dc_offset_does_not_masquerade_as_the_strongest_component() {
+    constexpr double rate = 8000.0;
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.1 + 0.01 * std::sin(2.0 * std::numbers::pi * 50.0 * static_cast<double>(i) / rate);
+    const auto spectrum = humtrace::analyze_spectrum(samples, rate);
+    const auto peak = humtrace::strongest_peak(spectrum);
+    require(std::abs(peak.frequency_hz - 50.0) < 0.5, "50 Hz hum is strongest despite a DC offset");
+    for (const auto& p : humtrace::find_peaks(spectrum, -80.0, 10.0, 8))
+        require(p.frequency_hz > 10.0, "no leaked-DC peak near 0 Hz");
+}
+void unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected() {
+    // 64-sample block at 48 kHz: 750 Hz bins cannot resolve 50/60 Hz harmonics.
+    std::vector<double> samples(64);
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * 1500.0 * static_cast<double>(i) / 48000.0);
+    const auto spectrum = humtrace::analyze_spectrum(samples, 48000.0);
+    const auto candidate = humtrace::measure_harmonics(spectrum, 50.0, -60.0, 10);
+    require(candidate.harmonics.empty() && candidate.supporting_harmonics == 0, "no fabricated harmonic support at coarse resolution");
+    std::vector<double> huge(64, 1e308);
+    huge[1] = -1e308;
+    bool threw = false;
+    try { (void)humtrace::analyze_spectrum(huge, 48000.0); } catch (const std::invalid_argument&) { threw = true; }
+    require(threw, "overflowing sample magnitudes are rejected, not turned into NaN peaks");
+}
 } // namespace
 
 int main() {
+    unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected();
+    dc_offset_does_not_masquerade_as_the_strongest_component();
+    finds_multiple_prominent_peaks();
     finds_peak_frequency_and_level_for_a_sine();
     rejects_non_power_of_two_input();
     measures_harmonic_support_without_source_attribution();

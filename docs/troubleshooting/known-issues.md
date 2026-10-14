@@ -8,6 +8,10 @@
 
 **Workaround used:** set `ASAN_OPTIONS=detect_leaks=0` for sanitizer test runs. This does not verify memory leaks. Repeat LeakSanitizer or an equivalent leak check on a supported native CI runner before beta.
 
-## CMake is not installed in the current environment
+## Build systems
 
-The initial project uses a small Makefile and C++20 compiler because `cmake` was unavailable. If the project adopts JUCE or needs native installers, establish and verify a CMake build in CI and the developer environment rather than treating the Makefile as the final cross-platform packaging system.
+The Makefile builds and tests the dependency-free core and CLI (used for sanitizer and fuzz CI jobs). CMake builds everything including the Qt 6 app, GUI tests, and packages. Both are verified on Linux; the CMake/Qt path on Windows (MSYS2 UCRT64) is configured in CI but unverified.
+
+## Offscreen GUI tests
+
+GUI tests run with `QT_QPA_PLATFORM=offscreen`, which prints `This plugin does not support propagateSizeHints()`; the message is harmless. Offscreen rendering does not validate screen-reader behavior, native dialogs, or high-DPI scaling.

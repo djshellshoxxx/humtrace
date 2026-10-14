@@ -21,9 +21,9 @@ Detailed acceptance behavior is linked from the [design index](../design/index.m
 
 1. **Core measurement (started):** streaming RIFF/WAVE PCM/float batches, one-sided spectrum, dBFS units, parabolic peak interpolation, and test harness.
 2. **Interference measurements (partial):** local spectral-floor prominence and 50/60 harmonic-bin measurements are implemented; Welch PSD, off-nominal candidate tracking, and validated real-recording fixtures remain.
-3. **Timeline (partial):** overlapping per-channel dominant-bin timeline is implemented; persistent candidate association, drift estimates, and event intervals remain.
-4. **File workflow (partial):** streaming decode and preliminary JSON report schema are implemented; cancellation/progress and multi-file comparison remain.
-5. **Desktop application:** background analysis, responsive UI, waveform/spectrum/spectrogram/timeline, result explanation.
+3. **Timeline (implemented, unvalidated):** overlapping per-channel timeline with an end-aligned tail window, multi-peak association into tracks with gaps and drift. Split/merge lineage, event intervals, PSD and validated persistence rules remain.
+4. **File workflow (implemented, in-memory results):** streaming decode, cancellation/progress, schema 1.2 export with atomic write, and independent-summary comparison. Incremental report writing, alignment and cross-spectral comparison remain.
+5. **Desktop application (implemented; accessibility unverified):** Qt 6 app with background analysis, waveform, spectrogram, spectrum with table, findings, inspector, comparison and export. Screen-reader verification and AT-SPI/Narrator tests remain.
 6. **Release hardening:** CI, sanitizer jobs, dependency/license audit, installers, native platform verification, user guide, beta notes.
 
 Optional plugin, ENF matching, hardware troubleshooting suggestions, and signature library are outside the first release gate unless the core beta is already verified.
