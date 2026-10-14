@@ -45,7 +45,7 @@ QString writeWav(const QString& dir, std::mt19937_64& g) {
     file += "WAVE"; file += body;
     const QString path = dir + "/in.wav";
     QFile f(path);
-    f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) qFatal("cannot create fixture");
     f.write(file);
     return path;
 }

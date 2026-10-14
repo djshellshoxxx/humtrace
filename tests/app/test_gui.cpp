@@ -36,7 +36,7 @@ QString writeWav(const QString& dir, const QString& name, double seconds, double
     file += "WAVE"; file += body;
     const QString path = dir + "/" + name;
     QFile f(path);
-    f.open(QIODevice::WriteOnly);
+    if (!f.open(QIODevice::WriteOnly)) qFatal("cannot create test fixture");
     f.write(file);
     return path;
 }
@@ -181,7 +181,7 @@ private slots:
     void invalidFileFailsWithoutModifyingIt() {
         const QString bad = dir_.path() + "/bad.wav";
         QFile f(bad);
-        f.open(QIODevice::WriteOnly);
+        QVERIFY(f.open(QIODevice::WriteOnly));
         f.write("this is not audio");
         f.close();
         MainWindow w;
@@ -191,7 +191,7 @@ private slots:
         QCOMPARE(w.state(), humtrace::ui::JobState::Empty); // nothing was opened
         QVERIFY(message.contains("RIFF"));
         QFile check(bad);
-        check.open(QIODevice::ReadOnly);
+        QVERIFY(check.open(QIODevice::ReadOnly));
         QCOMPARE(check.readAll(), QByteArray("this is not audio"));
     }
 
