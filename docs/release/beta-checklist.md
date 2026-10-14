@@ -7,7 +7,7 @@ Current status: **not release-ready**. The offline streaming WAV/core/CLI and pr
 - [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
 - [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
 - [ ] Multi-file comparison is implemented and reproducible.
-- [ ] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
+- [ ] Versioned JSON measurement export is extended with input hashes (done, schema 1.1), provenance/build metadata, warnings, and schema compatibility tests (schema validation in CLI test when `jsonschema` is installed).
 - [ ] Invalid/unsupported input handling and source preservation are tested.
 - [ ] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
 - [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.

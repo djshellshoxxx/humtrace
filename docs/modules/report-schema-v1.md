@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.0
+# HumTrace JSON report schema 1.1
 
 ## Purpose
 
@@ -8,11 +8,11 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.0`.
+- `schema_version`: current string value `1.1` (additive over 1.0: `input.sha256`, `settings.tracker`, `channels[].tracks`).
 - `application`: `HumTrace`.
-- `input`: source path and decoded sample rate, channels, bit depth, format code, and duration.
+- `input`: source path, SHA-256 of the exact input bytes (`null` if not computed), and decoded sample rate, channels, bit depth, format code, and duration.
 - `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
-- `channels[]`: channel number and a `frames[]` timeline.
+- `channels[]`: channel number, a `frames[]` timeline, and `tracks[]` (per-channel persistence of the dominant peak; analysis-local `local_id`, observed/missing frame counts, median frequency/level, least-squares drift in Hz/s, and raw observations). Gaps are counted, never interpolated; tracks are descriptive, not source attribution.
 - Each frame contains start sample/time, strongest non-DC peak, and nominal 50/60 Hz measurements.
 - Each harmonic measurement contains harmonic number, expected and measured bin frequency, level, local floor, prominence, and a threshold-support boolean.
 - `interpretation`: null source classification and a statement that measurements do not prove a physical source.
@@ -26,7 +26,7 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Current gaps
 
-The report omits input hashes, decoder/library versions, software build ID, user annotations, validation status, and a full error/warning list. Do not present it as a forensic provenance record until those fields and their handling are specified and validated.
+The report omits decoder/library versions, software build ID, user annotations, validation status, and a full error/warning list. Do not present it as a forensic provenance record until those fields and their handling are specified and validated.
 
 ## Migration
 

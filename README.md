@@ -8,9 +8,11 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Reports sample rate, channels, bit depth, duration, and FFT resolution.
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
+- Records the SHA-256 of the input and groups each channel's dominant peak into persistence tracks (descriptive only; gaps are counted, not interpolated).
+- Accepts WAVE_FORMAT_EXTENSIBLE PCM/float.
 - Exports versioned JSON measurements while keeping observed energy separate from source attribution.
 
-This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The timeline reports each frame independently; it does not associate peaks into persistent tracks or compare recordings. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet.
+This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The timeline reports each frame independently; tracking follows only the strongest peak per frame and has no split/merge lineage; recordings are not compared. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet.
 
 ## Build and test
 

@@ -115,9 +115,38 @@ void streaming_reader_continues_across_data_chunks() {
     require(samples[0] > 0.49 && samples[0] < 0.51 && samples[1] == -1.0,
             "sample order is retained across data chunk boundaries");
 }
+std::string extensible_wav(std::uint16_t sub_format, std::uint16_t valid_bits) {
+    std::string body;
+    tag(body, "fmt "); u32(body, 40); u16(body, 0xFFFE); u16(body, 1);
+    u32(body, 8000); u32(body, 16000); u16(body, 2); u16(body, 16);
+    u16(body, 22); u16(body, valid_bits); u32(body, 4);
+    u16(body, sub_format);
+    const unsigned char guid_tail[14] = {0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xAA, 0, 0x38, 0x9B, 0x71};
+    body.append(reinterpret_cast<const char*>(guid_tail), sizeof(guid_tail));
+    tag(body, "data"); u32(body, 2); u16(body, 16384);
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
+void decodes_extensible_pcm_and_rejects_bad_subformat() {
+    std::istringstream good(extensible_wav(1, 16), std::ios::binary);
+    const auto audio = humtrace::decode_wav(good);
+    require(audio.format_code == 1 && audio.interleaved_samples.size() == 1,
+            "extensible PCM resolves to its sub-format");
+    std::istringstream bad(extensible_wav(0x55, 16), std::ios::binary);
+    bool threw = false;
+    try { (void)humtrace::decode_wav(bad); } catch (const std::runtime_error&) { threw = true; }
+    require(threw, "unsupported extensible sub-format is rejected");
+    std::istringstream padded(extensible_wav(1, 12), std::ios::binary);
+    threw = false;
+    try { (void)humtrace::decode_wav(padded); } catch (const std::runtime_error&) { threw = true; }
+    require(threw, "partial valid-bits extensible input is rejected");
+}
 } // namespace
 
 int main() {
+    decodes_extensible_pcm_and_rejects_bad_subformat();
     decodes_pcm16_metadata_and_samples();
     rejects_non_wave_input();
     decodes_signed_24_bit_minimum();

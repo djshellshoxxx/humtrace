@@ -35,10 +35,21 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
+    import hashlib
+    try:
+        import jsonschema
+    except ImportError:
+        jsonschema = None
+    if jsonschema:
+        schema_path = pathlib.Path(__file__).resolve().parent.parent / "schema" / "analysis-report-v1.schema.json"
+        jsonschema.validate(report, json.loads(schema_path.read_text(encoding="utf-8")))
+    assert report["input"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    for channel in report["channels"]:
+        assert len(channel["tracks"]) == 1 and channel["tracks"][0]["observed_frames"] == 3, channel["tracks"]
     assert [channel["channel_number"] for channel in report["channels"]] == [1, 2]
     assert [frame["start_sample"] for frame in report["channels"][0]["frames"]] == [0, 2048, 4096]
 

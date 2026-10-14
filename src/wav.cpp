@@ -115,6 +115,23 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
             metadata_.sample_rate_hz = read_u32(format.data() + 4);
             block_align_ = read_u16(format.data() + 12);
             metadata_.bit_depth = read_u16(format.data() + 14);
+            if (metadata_.format_code == 0xFFFE) {
+                // WAVE_FORMAT_EXTENSIBLE: cbSize(2) validBits(2) mask(4) GUID(16)
+                if (length < 40)
+                    throw std::runtime_error("invalid WAVE extensible format chunk");
+                std::array<char, 24> extension{};
+                read_exact(input, extension.data(), extension.size());
+                if (read_u16(extension.data()) < 22)
+                    throw std::runtime_error("invalid WAVE extensible format chunk");
+                if (read_u16(extension.data() + 2) != metadata_.bit_depth)
+                    throw std::runtime_error("unsupported WAVE extensible valid-bits value");
+                // Sub-format GUID: first two bytes carry the format code; the rest must be KSDATAFORMAT base.
+                static constexpr unsigned char base[14] = {0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                                                           0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+                if (std::memcmp(extension.data() + 10, base, sizeof(base)) != 0)
+                    throw std::runtime_error("unsupported WAVE extensible sub-format");
+                metadata_.format_code = read_u16(extension.data() + 8);
+            }
             have_format = true;
         } else if (tag_is(chunk_header, "data")) {
             if (length > std::numeric_limits<std::uint64_t>::max() - total_data_bytes)
