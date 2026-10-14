@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_sha256.dir/tests/test_sha256.cpp.o -o bin/test_sha256  libhumtrace_core.a 

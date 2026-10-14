@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_view.dir/tests/test_view.cpp.o -o bin/test_view  libhumtrace_core.a 

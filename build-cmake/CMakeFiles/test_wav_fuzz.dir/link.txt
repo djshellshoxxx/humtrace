@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_wav_fuzz.dir/tests/test_wav_fuzz.cpp.o -o bin/test_wav_fuzz  libhumtrace_core.a 

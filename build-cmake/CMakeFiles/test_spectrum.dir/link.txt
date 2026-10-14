@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_spectrum.dir/tests/test_spectrum.cpp.o -o bin/test_spectrum  libhumtrace_core.a 
