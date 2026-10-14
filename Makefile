@@ -3,6 +3,9 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror
 CPPFLAGS ?= -Iinclude
 BUILD_DIR ?= build
 PYTHON ?= python3
+ifeq ($(OS),Windows_NT)
+LDLIBS += -lshell32
+endif
 CORE_SOURCES = $(filter-out src/main.cpp,$(wildcard src/*.cpp))
 CORE_HEADERS = $(wildcard include/humtrace/*.hpp)
 TESTS = $(patsubst tests/test_%.cpp,%,$(wildcard tests/test_*.cpp))
@@ -14,7 +17,7 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 $(BUILD_DIR)/humtrace: $(CORE_SOURCES) src/main.cpp $(CORE_HEADERS) | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) src/main.cpp -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) src/main.cpp -o $@ $(LDLIBS)
 
 # Every C++ unit test links the whole (dependency-free) core.
 $(BUILD_DIR)/test_%: tests/test_%.cpp $(CORE_SOURCES) $(CORE_HEADERS) | $(BUILD_DIR)

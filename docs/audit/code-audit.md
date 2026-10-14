@@ -25,6 +25,26 @@ Scope: all of `src/`, `include/`, `app/`, `tests/`, build files. Method: own rev
 | 17 | Committed a CMake build directory (broke CI) | CI | removed, ignored |
 | 18 | `normalize_db` returned NaN when floor equals ceiling | Low | guard |
 
+## Round 2 (independent GUI, core and feature audits) - fixed
+
+| Finding | Severity |
+|---|---|
+| Selecting a finding showed the frame before its track; spectrogram columns not centred on their windows | Medium |
+| Spectrogram floor above ceiling broke the spectrum chart (UB clamp) | Medium |
+| Long file name widened the window past the screen; 32 channels drew unreadable/inverted lanes | Medium |
+| Cancel feedback overwritten by queued progress; channel selection lost on re-analysis; opening during a comparison | Low-Medium |
+| Zoomed spectrogram drew huge rectangles / rebuilt per keystroke | Low |
+| `compare` looped forever on 65535 channels (16-bit counter wrap) and was quadratic | Medium-Low |
+| Harmonic "support" fabricated when FFT bins are coarser than the nominal frequency (bins collapse, DC counted) | Medium |
+| Second or late `fmt ` chunk silently replaced the format | Low-Medium |
+| Millions of empty chunks: slow uncancellable parse, high memory | Low |
+| Option errors detected only after full analyses; output directory checked late | Low |
+| Result-memory estimate undercounted (~14%) and could wrap with huge row/peak counts | Low |
+| Huge finite float64 samples produced NaN spectra and a bogus 1 Hz peak | Low |
+| Report not reproducible (peak settings, versions, input size missing); CLI stored absolute paths; export preview hard-coded "Warnings: none"; clipping undetected | Medium |
+| Schema validation skippable; QA matrix not in CI; Windows package unverified; Windows ANSI argv/paths | Medium-Low |
+| Test gaps found by mutation (8-bit offset, float64 scale, NaN rejection, median, validation branches, compare tolerance/delta sign, tie-break, suppressed tracks, partial envelope bucket) | Medium |
+
 ## Open
 
 | Item | Severity |

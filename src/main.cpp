@@ -1,11 +1,20 @@
 #include "humtrace/compare.hpp"
 #include "humtrace/session.hpp"
+#include "humtrace/wav.hpp"
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
+#endif
 #include <atomic>
 #include <csignal>
+#include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -121,23 +130,72 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
 // Refuse to overwrite an input, and (unless --force) any existing file.
 void check_output(const std::string& output, const std::vector<std::string>& inputs, bool force) {
     for (const auto& input : inputs) humtrace::require_distinct_paths(output, input);
+    const auto parent = humtrace::path_from_utf8(output).parent_path();
+    if (!parent.empty() && !std::filesystem::is_directory(parent))
+        throw std::runtime_error("output directory does not exist");
     if (!force && std::filesystem::exists(humtrace::path_from_utf8(output)))
         throw std::runtime_error("output file already exists; use --force to replace it");
 }
 
 std::string display_path(const std::string& path, bool full) {
-    return full ? path : humtrace::path_from_utf8(path).filename().string();
+    if (full) return path;
+    const auto name = humtrace::path_from_utf8(path).filename().u8string(); // UTF-8 on every platform
+    return std::string(name.begin(), name.end());
 }
+
+// Number of channels in a WAV header (cheap; used to validate options before a long analysis).
+std::uint16_t channel_count(const std::string& path) {
+    std::ifstream in(humtrace::path_from_utf8(path), std::ios::binary);
+    if (!in) throw std::runtime_error("could not open input file");
+    humtrace::WavStreamReader reader(in);
+    return reader.metadata().channels;
+}
+
+#ifdef _WIN32
+// The C runtime hands narrow argv in the ANSI code page; recover exact UTF-8 arguments instead.
+std::vector<std::string> utf8_arguments() {
+    int count = 0;
+    LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
+    std::vector<std::string> out;
+    for (int i = 1; wide && i < count; ++i) {
+        const int size = WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string text(size > 1 ? static_cast<std::size_t>(size - 1) : 0, '\0');
+        if (size > 1) WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, text.data(), size, nullptr, nullptr);
+        out.push_back(std::move(text));
+    }
+    if (wide) LocalFree(wide);
+    return out;
+}
+#endif
 } // namespace
 
 int main(int argc, char** argv) {
     std::signal(SIGINT, on_interrupt);
+#ifdef _WIN32
+    (void)argc; (void)argv;
+    const std::vector<std::string> args = utf8_arguments();
+#else
     const std::vector<std::string> args(argv + 1, argv + argc);
+#endif
     try {
         if (!args.empty() && args[0] == "compare") {
             Options options;
             if (args.size() < 3 || !parse_options(args, 3, true, options)) return usage();
             if (!options.json_path.empty()) check_output(options.json_path, {args[1], args[2]}, options.force);
+            // Reject bad options before spending minutes on analysis.
+            if (!std::isfinite(options.compare.frequency_tolerance_hz) || options.compare.frequency_tolerance_hz < 0.0)
+                throw std::invalid_argument("frequency tolerance must be finite and non-negative");
+            if (!options.compare.channel_map.empty()) {
+                const auto channels_a = channel_count(args[1]);
+                const auto channels_b = channel_count(args[2]);
+                std::set<std::uint16_t> seen_a, seen_b;
+                for (const auto& [ca, cb] : options.compare.channel_map) {
+                    if (ca > channels_a || cb > channels_b)
+                        throw std::invalid_argument("--map refers to a channel the recording does not have");
+                    if (!seen_a.insert(ca).second || !seen_b.insert(cb).second)
+                        throw std::invalid_argument("channel map must pair each channel at most once");
+                }
+            }
             auto a = run(args[1]);
             auto b = run(args[2]);
             a.input_path = display_path(a.input_path, options.full_path);

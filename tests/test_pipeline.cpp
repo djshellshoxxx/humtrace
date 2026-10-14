@@ -110,5 +110,31 @@ int main() {
         require(!report.warnings.empty() && report.warnings[0].find("full scale") != std::string::npos, "clipping warning emitted");
         require(report.max_peaks_per_frame == 8 && report.peak_min_prominence_db == 10.0, "pipeline settings recorded in the report");
     }
+    { // validate_settings rejects each invalid class directly (not only via the fuzzer)
+        auto rejects = [&](auto mutate) {
+            humtrace::PipelineSettings s;
+            mutate(s);
+            try { humtrace::validate_settings(s); } catch (const std::invalid_argument&) { return true; }
+            return false;
+        };
+        require(rejects([](auto& s) { s.support_threshold_dbfs = NAN; }), "NaN threshold");
+        require(rejects([](auto& s) { s.minimum_prominence_db = -1.0; }), "negative prominence");
+        require(rejects([](auto& s) { s.tracker.relative_tolerance = -0.1; }), "negative relative tolerance");
+        require(rejects([](auto& s) { s.tracker.min_observed_frames = 0; }), "zero min frames");
+        require(rejects([](auto& s) { s.spectrogram_rows = 0; }), "zero rows");
+        require(rejects([](auto& s) { s.spectrogram_rows = std::size_t{1} << 62; }), "huge rows cannot wrap the memory estimate");
+        require(rejects([](auto& s) { s.max_peaks_per_frame = 100000; }), "huge peak count");
+        require(rejects([](auto& s) { s.spectrogram_min_hz = 0.0; }), "zero min frequency");
+        humtrace::validate_settings({}); // defaults are valid
+    }
+    { // suppressed tracks are counted and reported
+        humtrace::PipelineSettings s;
+        s.tracker.min_observed_frames = 100; // nothing can reach this
+        std::istringstream in(two_tone_wav(4096, 4096 * 3), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto report = humtrace::analyze_wav(reader, s);
+        require(report.channel_results[0].tracks.empty() && report.channel_results[0].suppressed_tracks == 2, "short tracks are counted, not silently lost");
+        require(!report.warnings.empty() && report.warnings.back().find("not listed") != std::string::npos, "suppression produces a warning");
+    }
     std::cout << "All pipeline tests passed.\n";
 }

@@ -1,5 +1,6 @@
 #include "humtrace/tracker.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -51,6 +52,24 @@ int main() {
         strict.min_observed_frames = 3;
         auto tracks = track_peaks({frame(0, {{60.0, -6}, {90.0, -6}}), frame(1, {{60.0, -6}}), frame(2, {{60.1, -6}, {200.0, -6}})}, 1000.0, strict);
         CHECK(tracks.size() == 1 && tracks[0].observed_frames == 3);
+    }
+    { // equal-distance candidates resolve by track id (older track wins), deterministically
+        auto tracks = track_peaks({frame(0, {{59.0, -6}, {61.0, -6}}), frame(1, {{60.0, -6}})}, 1000.0, settings);
+        CHECK(tracks.size() == 2);
+        CHECK(tracks[0].observed_frames == 2 && tracks[1].observed_frames == 1);
+    }
+    { // even-count medians average the two middle values
+        auto tracks = track_peaks({frame(0, {{60.0, -10}}), frame(1, {{60.2, -20}}), frame(2, {{60.4, -30}}), frame(3, {{60.6, -40}})}, 1000.0, settings);
+        CHECK(tracks.size() == 1);
+        CHECK(tracks[0].median_level_dbfs == -25.0);
+        CHECK(std::abs(tracks[0].median_frequency_hz - 60.3) < 1e-9);
+    }
+    { // suppressed count
+        TrackerSettings strict = settings;
+        strict.min_observed_frames = 2;
+        std::size_t suppressed = 99;
+        auto tracks = track_peaks({frame(0, {{60.0, -6}, {90.0, -6}}), frame(1, {{60.0, -6}})}, 1000.0, strict, &suppressed);
+        CHECK(tracks.size() == 1 && suppressed == 1);
     }
     { // an enormous gap allowance must not overflow
         TrackerSettings huge = settings;

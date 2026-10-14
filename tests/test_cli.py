@@ -133,12 +133,22 @@ def check_paths_overwrite_and_clipping(executable: pathlib.Path, directory: path
     assert bad.returncode == 1 and "at most once" in bad.stderr
 
 
+def check_early_option_validation(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    import time
+    source = directory / "two-channel tones.wav"
+    for extra in (["--tolerance", "-1"], ["--map", "1:5"], ["--map", "1:1,1:2"], ["--tolerance", "1abc"]):
+        started = time.monotonic()
+        r = subprocess.run([str(executable), "compare", str(source), str(source), *extra], capture_output=True, text=True, check=False)
+        assert r.returncode == 1 and "HumTrace:" in r.stderr, (extra, r.stderr)
+        assert time.monotonic() - started < 1.0, extra
+
+
 def check_unwritable_output_leaves_nothing(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "two-channel tones.wav"
     target = directory / "no-such-dir" / "report.json"
     result = subprocess.run([str(executable), str(source), "--json", str(target)],
                             capture_output=True, text=True, check=False)
-    assert result.returncode == 1 and "could not create output file" in result.stderr, result.stderr
+    assert result.returncode == 1 and "output directory does not exist" in result.stderr, result.stderr
     assert not target.exists() and not list(directory.rglob("*.humtrace-tmp*"))
 
 
@@ -178,6 +188,7 @@ def main() -> None:
         check_invalid_file_fails(executable, directory)
         check_compare(executable, directory)
         check_never_overwrites_input(executable, directory)
+        check_early_option_validation(executable, directory)
         check_paths_overwrite_and_clipping(executable, directory)
         check_unwritable_output_leaves_nothing(executable, directory)
         check_interrupt_cancels_without_output(executable, directory)

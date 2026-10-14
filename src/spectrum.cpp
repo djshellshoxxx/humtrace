@@ -109,7 +109,12 @@ std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
         window_sum += window;
         transformed[i] = {(samples[i] - mean) * window, 0.0};
     }
+    if (!std::isfinite(mean))
+        throw std::invalid_argument("sample magnitudes are too large to analyze");
     fft(transformed);
+    for (const auto& value : transformed)
+        if (!std::isfinite(value.real()) || !std::isfinite(value.imag()))
+            throw std::invalid_argument("sample magnitudes are too large to analyze");
 
     std::vector<SpectrumBin> result;
     result.reserve(size / 2 + 1);
@@ -176,6 +181,10 @@ HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
     if (!std::isfinite(spacing) || spacing <= 0.0)
         throw std::invalid_argument("spectrum bins must have increasing frequencies");
     HarmonicCandidate candidate{nominal_hz, 0, {}};
+    // Harmonics are only measurable when the bin spacing resolves them: with coarser bins several
+    // harmonics (and DC) collapse onto one bin and would produce fabricated "support".
+    if (spacing > nominal_hz / 2.0)
+        return candidate;
     candidate.harmonics.reserve(std::min(max_harmonics, spectrum.size()));
     const double nyquist_hz = spectrum.back().frequency_hz;
     for (std::size_t harmonic = 1; harmonic <= max_harmonics; ++harmonic) {
@@ -185,6 +194,8 @@ HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,
         const auto index = static_cast<std::size_t>(std::llround(expected / spacing));
         if (index >= spectrum.size())
             break;
+        if (index == 0)
+            continue; // never treat DC as a harmonic
         const auto& bin = spectrum[index];
         const double floor = local_spectral_floor(spectrum, index);
         double prominence = bin.level_dbfs - floor;

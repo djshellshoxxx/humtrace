@@ -16,6 +16,8 @@ void validate_settings(const PipelineSettings& s) {
         throw std::invalid_argument("prominence settings must be finite and non-negative");
     if (!finite(s.spectrogram_min_hz) || s.spectrogram_min_hz <= 0.0)
         throw std::invalid_argument("spectrogram minimum frequency must be positive");
+    if (s.max_peaks_per_frame > 1024 || s.waveform_buckets > (1U << 20) || s.spectrogram_rows > 4096)
+        throw std::invalid_argument("peaks per frame (max 1024), waveform buckets (max 1048576) or spectrogram rows (max 4096) out of range");
     if (s.max_peaks_per_frame == 0 || s.waveform_buckets == 0 || s.spectrogram_rows == 0 ||
         s.tracker.min_observed_frames == 0 || s.max_interleaved_window_samples == 0 || s.max_result_bytes == 0)
         throw std::invalid_argument("count and size settings must be at least 1");
@@ -53,9 +55,12 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     const auto hop_size = window_size / 2;
     {
         const std::uint64_t windows = (frames - window_size) / hop_size + 2; // + final aligned window
+        // Conservative per-window cost (values are bounded by validate_settings, so no overflow):
+        // frame + harmonics, spectrogram row, peaks (observation + peak entry, ~64 B each) with 1.5x
+        // vector growth, and bookkeeping.
         const std::uint64_t per_window = metadata.channels *
             (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
-             settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 3 * sizeof(double) + 64);
+             settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 64 * 3 / 2 + 128);
         if (windows > settings.max_result_bytes / per_window)
             throw std::runtime_error("recording is too long for the configured result memory limit");
     }

@@ -75,5 +75,28 @@ int main() {
         try { (void)humtrace::compare_reports(report(48000, {{50.0}, {60.0}}), report(48000, {{50.0}}), s); } catch (const std::invalid_argument&) { threw = true; }
         require(threw, "reusing a B channel rejected");
     }
+    { // 65535 channels: the identity map must not wrap or take quadratic time
+        humtrace::AnalysisReport wide;
+        wide.sample_rate_hz = 8000;
+        wide.channels = 65535;
+        wide.frame_size_samples = 4096;
+        wide.duration_seconds = 1.0;
+        wide.channel_results.resize(65535);
+        for (std::size_t i = 0; i < wide.channel_results.size(); ++i) wide.channel_results[i].channel_number = static_cast<std::uint16_t>(i + 1);
+        const auto result = humtrace::compare_reports(wide, wide);
+        require(result.settings.channel_map.size() == 65535 && result.matches.empty(), "wide recordings compare without wrapping");
+    }
+    { // tolerance boundary is inclusive; level delta is B minus A
+        auto a = report(48000, {{50.0}});
+        auto b = report(48000, {{51.0}});
+        b.channel_results[0].tracks[0].median_level_dbfs = -14.0;
+        humtrace::CompareSettings s;
+        s.frequency_tolerance_hz = 1.0;
+        const auto edge = humtrace::compare_reports(a, b, s);
+        require(edge.matches.size() == 1, "distance equal to the tolerance matches");
+        require(std::abs(edge.matches[0].delta_level_db - 6.0) < 1e-12 && std::abs(edge.matches[0].delta_frequency_hz - 1.0) < 1e-12, "deltas are B - A");
+        s.frequency_tolerance_hz = 0.999;
+        require(humtrace::compare_reports(a, b, s).matches.empty(), "just beyond the tolerance does not match");
+    }
     std::cout << "All compare tests passed.\n";
 }

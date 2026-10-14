@@ -23,6 +23,9 @@ target_include_directories(humtrace_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 add_executable(humtrace src/main.cpp)
 target_link_libraries(humtrace PRIVATE humtrace_core)
+if(WIN32)
+  target_link_libraries(humtrace PRIVATE shell32)
+endif()
 install(TARGETS humtrace RUNTIME DESTINATION bin)
 
 if(HUMTRACE_BUILD_TESTS)

@@ -170,9 +170,24 @@ void dc_offset_does_not_masquerade_as_the_strongest_component() {
     for (const auto& p : humtrace::find_peaks(spectrum, -80.0, 10.0, 8))
         require(p.frequency_hz > 10.0, "no leaked-DC peak near 0 Hz");
 }
+void unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected() {
+    // 64-sample block at 48 kHz: 750 Hz bins cannot resolve 50/60 Hz harmonics.
+    std::vector<double> samples(64);
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * 1500.0 * static_cast<double>(i) / 48000.0);
+    const auto spectrum = humtrace::analyze_spectrum(samples, 48000.0);
+    const auto candidate = humtrace::measure_harmonics(spectrum, 50.0, -60.0, 10);
+    require(candidate.harmonics.empty() && candidate.supporting_harmonics == 0, "no fabricated harmonic support at coarse resolution");
+    std::vector<double> huge(64, 1e308);
+    huge[1] = -1e308;
+    bool threw = false;
+    try { (void)humtrace::analyze_spectrum(huge, 48000.0); } catch (const std::invalid_argument&) { threw = true; }
+    require(threw, "overflowing sample magnitudes are rejected, not turned into NaN peaks");
+}
 } // namespace
 
 int main() {
+    unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected();
     dc_offset_does_not_masquerade_as_the_strongest_component();
     finds_multiple_prominent_peaks();
     finds_peak_frequency_and_level_for_a_sine();

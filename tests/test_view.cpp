@@ -39,6 +39,15 @@ int main() {
         try { humtrace::EnvelopeBuilder bad(0, 8); } catch (const std::invalid_argument&) { threw = true; }
         require(threw, "zero buckets rejected");
     }
+    { // the partial last bucket is reported and holds its own min/max
+        humtrace::EnvelopeBuilder env(4, 10); // 3 samples per bucket -> buckets of 3,3,3,1
+        const double s[10] = {0.1, 0.2, 0.3, -0.1, -0.2, -0.3, 0.9, 0.8, 0.7, -0.5};
+        env.add(s, 10);
+        std::vector<float> lo, hi;
+        env.finish(lo, hi);
+        require(lo.size() == 4 && lo[3] == -0.5F && hi[3] == -0.5F, "partial final bucket is kept");
+        require(env.samples_per_bucket() == 3, "bucket size is the ceiling of samples / buckets");
+    }
     { // pipeline views
         std::istringstream in(tone_wav(4096, 4096 * 3, 60.0, 0.5), std::ios::binary);
         humtrace::WavStreamReader reader(in);

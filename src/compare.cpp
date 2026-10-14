@@ -8,6 +8,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace humtrace {
 namespace {
@@ -15,11 +17,14 @@ ComparisonInput describe(const AnalysisReport& r) {
     return {r.input_path, r.input_sha256, r.sample_rate_hz, r.channels, r.duration_seconds};
 }
 
-const ReportChannel* find_channel(const AnalysisReport& r, std::uint16_t number) {
+using ChannelIndex = std::unordered_map<std::uint16_t, const ReportChannel*>;
+
+ChannelIndex index_channels(const AnalysisReport& r) {
+    ChannelIndex index;
+    index.reserve(r.channel_results.size());
     for (const auto& c : r.channel_results)
-        if (c.channel_number == number)
-            return &c;
-    return nullptr;
+        index.emplace(c.channel_number, &c);
+    return index;
 }
 
 TrackRef ref(std::uint16_t channel, const Track& t) {
@@ -59,8 +64,8 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
     out.settings = settings;
     auto map = settings.channel_map;
     if (map.empty())
-        for (std::uint16_t c = 1; c <= std::min(a.channels, b.channels); ++c)
-            map.emplace_back(c, c);
+        for (std::uint32_t c = 1; c <= std::min(a.channels, b.channels); ++c) // 32-bit: 65535 channels must not wrap
+            map.emplace_back(static_cast<std::uint16_t>(c), static_cast<std::uint16_t>(c));
     if (a.sample_rate_hz != b.sample_rate_hz)
         out.warnings.push_back("sample rates differ; no resampling was applied");
     if (a.frame_size_samples != b.frame_size_samples)
@@ -70,19 +75,25 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
     if (a.channels != b.channels && settings.channel_map.empty())
         out.warnings.push_back("channel counts differ; unmapped channels are reported as unmatched");
 
-    for (std::size_t i = 0; i < map.size(); ++i)
-        for (std::size_t j = i + 1; j < map.size(); ++j)
-            if (map[i].first == map[j].first || map[i].second == map[j].second)
+    {
+        std::unordered_set<std::uint16_t> seen_a, seen_b;
+        for (const auto& [ca, cb] : map)
+            if (!seen_a.insert(ca).second || !seen_b.insert(cb).second)
                 throw std::invalid_argument("channel map must pair each channel at most once");
+    }
+    const auto index_a = index_channels(a);
+    const auto index_b = index_channels(b);
     out.settings.channel_map = map; // record the resolved pairing (identity expanded)
-    std::vector<std::uint16_t> used_a, used_b;
+    std::unordered_set<std::uint16_t> used_a, used_b;
     for (const auto& [ca, cb] : map) {
-        const auto* chan_a = find_channel(a, ca);
-        const auto* chan_b = find_channel(b, cb);
-        if (!chan_a || !chan_b)
+        const auto ia = index_a.find(ca);
+        const auto ib = index_b.find(cb);
+        if (ia == index_a.end() || ib == index_b.end())
             throw std::invalid_argument("channel map references a channel that does not exist");
-        used_a.push_back(ca);
-        used_b.push_back(cb);
+        const auto* chan_a = ia->second;
+        const auto* chan_b = ib->second;
+        used_a.insert(ca);
+        used_b.insert(cb);
         std::vector<std::tuple<double, std::size_t, std::size_t>> candidates;
         for (std::size_t i = 0; i < chan_a->tracks.size(); ++i)
             for (std::size_t j = 0; j < chan_b->tracks.size(); ++j) {
@@ -109,10 +120,10 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
     }
     // Tracks on channels outside the map stay visible as unmatched.
     for (const auto& c : a.channel_results)
-        if (std::find(used_a.begin(), used_a.end(), c.channel_number) == used_a.end())
+        if (!used_a.contains(c.channel_number))
             for (const auto& t : c.tracks) out.unmatched_a.push_back(ref(c.channel_number, t));
     for (const auto& c : b.channel_results)
-        if (std::find(used_b.begin(), used_b.end(), c.channel_number) == used_b.end())
+        if (!used_b.contains(c.channel_number))
             for (const auto& t : c.tracks) out.unmatched_b.push_back(ref(c.channel_number, t));
     return out;
 }

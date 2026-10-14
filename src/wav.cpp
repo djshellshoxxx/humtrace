@@ -90,6 +90,8 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         riff_end < start + 12)
         throw std::runtime_error("truncated or invalid RIFF container");
 
+    constexpr std::size_t kMaxChunks = 1'000'000; // bounds parse time on hostile files
+    std::size_t chunk_count = 0;
     bool have_format = false;
     std::uint64_t total_data_bytes = 0;
     std::streamoff position = start + 12;
@@ -105,7 +107,13 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         if (length > static_cast<std::uint64_t>(riff_end - data_position))
             throw std::runtime_error("truncated WAVE chunk");
 
+        if (++chunk_count > kMaxChunks)
+            throw std::runtime_error("WAVE file has too many chunks");
         if (tag_is(chunk_header, "fmt ")) {
+            if (have_format)
+                throw std::runtime_error("WAVE file has more than one format chunk");
+            if (!data_chunks_.empty())
+                throw std::runtime_error("WAVE format chunk must precede the sample data");
             if (length < 16)
                 throw std::runtime_error("invalid WAVE format chunk");
             std::array<char, 16> format{};
@@ -136,8 +144,10 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
         } else if (tag_is(chunk_header, "data")) {
             if (length > std::numeric_limits<std::uint64_t>::max() - total_data_bytes)
                 throw std::runtime_error("WAVE sample data is too large");
-            data_chunks_.push_back({data_position, length});
-            total_data_bytes += length;
+            if (length > 0) { // empty data chunks carry nothing; skipping them bounds memory
+                data_chunks_.push_back({data_position, length});
+                total_data_bytes += length;
+            }
         }
 
         auto next_position = data_position + static_cast<std::streamoff>(length + (length & 1U));

@@ -93,5 +93,5 @@
 | --force replaces existing, no temp left | pass |  |
 | compare: near tones matched, others unmatched, no alignment | pass |  |
 | compare rejects negative tolerance | pass |  |
-| peak memory growth, 3 h vs 1 h recording | pass | 1 h 33 MB, 3 h 82 MB |
+| peak memory growth, 3 h vs 1 h recording | pass | 1 h 34 MB, 3 h 83 MB |
 | cancel latency < 1 s on 3 h file, no output | pass | 0.00 s |
