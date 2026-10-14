@@ -196,7 +196,7 @@ private slots:
     }
 
     void badOpenKeepsCurrentResultsAndNamesWithPercentSignsAreLiteral() {
-        const auto path = writeWav(dir_.path(), "a%2b<b>x.wav", 3.0);
+        const auto path = writeWav(dir_.path(), "a%2b&amp;x.wav", 3.0);
         MainWindow w;
         w.show();
         w.openRecording(path);
@@ -205,7 +205,7 @@ private slots:
         QLabel* header = nullptr;
         for (auto* l : w.findChildren<QLabel*>()) if (l->accessibleName() == "Recording identity") header = l;
         QVERIFY(header);
-        QVERIFY2(header->text().contains("a%2b<b>x.wav"), qPrintable(header->text()));
+        QVERIFY2(header->text().contains("a%2b&amp;x.wav"), qPrintable(header->text()));
         QCOMPARE(header->textFormat(), Qt::PlainText);
         // A missing file or a non-WAV must not discard the finished analysis.
         QString shown;
