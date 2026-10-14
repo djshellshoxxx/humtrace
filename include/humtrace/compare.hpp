@@ -47,7 +47,8 @@ struct ComparisonReport {
 };
 
 // Independent-summary comparison (no time alignment, no resampling). Pure function of
-// two analysis reports. Throws std::invalid_argument for an invalid tolerance or map.
+// two analysis reports. Throws std::invalid_argument for an invalid tolerance, an unknown
+// channel, or a map that uses a channel more than once.
 [[nodiscard]] ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& b,
                                                const CompareSettings& settings = {});
 

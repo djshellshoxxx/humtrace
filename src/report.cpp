@@ -1,39 +1,15 @@
 #include "humtrace/report.hpp"
 
+#include "humtrace/json.hpp"
+
 #include <cmath>
 #include <iomanip>
 #include <sstream>
 
 namespace humtrace {
 namespace {
-void write_string(std::ostream& output, const std::string& value) {
-    static constexpr char hex[] = "0123456789abcdef";
-    output << '"';
-    for (const unsigned char byte : value) {
-        switch (byte) {
-        case '"': output << "\\\""; break;
-        case '\\': output << "\\\\"; break;
-        case '\b': output << "\\b"; break;
-        case '\f': output << "\\f"; break;
-        case '\n': output << "\\n"; break;
-        case '\r': output << "\\r"; break;
-        case '\t': output << "\\t"; break;
-        default:
-            if (byte < 0x20)
-                output << "\\u00" << hex[byte >> 4] << hex[byte & 0x0f];
-            else
-                output << static_cast<char>(byte);
-        }
-    }
-    output << '"';
-}
-
-void write_number(std::ostream& output, double value) {
-    if (std::isfinite(value))
-        output << value;
-    else
-        output << "null";
-}
+using json::write_number;
+using json::write_string;
 
 void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
     output << "{\"nominal_frequency_hz\": ";

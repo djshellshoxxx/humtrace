@@ -143,9 +143,29 @@ void decodes_extensible_pcm_and_rejects_bad_subformat() {
     try { (void)humtrace::decode_wav(padded); } catch (const std::runtime_error&) { threw = true; }
     require(threw, "partial valid-bits extensible input is rejected");
 }
+std::string unpadded_odd_final_chunk_wav() {
+    std::string body;
+    tag(body, "fmt "); u32(body, 16); u16(body, 1); u16(body, 1);
+    u32(body, 8000); u32(body, 8000); u16(body, 1); u16(body, 8);
+    tag(body, "data"); u32(body, 3); body.append("\x80\x90\x70", 3); // odd size, no pad byte
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
+void accepts_missing_pad_on_final_odd_chunk() {
+    std::istringstream stream(unpadded_odd_final_chunk_wav(), std::ios::binary);
+    const auto audio = humtrace::decode_wav(stream);
+    require(audio.interleaved_samples.size() == 3, "all samples of an unpadded final chunk are decoded");
+    auto bytes = unpadded_odd_final_chunk_wav() + std::string("\0\0\0", 3);
+    bytes[4] = static_cast<char>(bytes[4] + 3);
+    std::istringstream trailing(bytes, std::ios::binary);
+    require(humtrace::decode_wav(trailing).interleaved_samples.size() == 3, "a few trailing bytes are ignored");
+}
 } // namespace
 
 int main() {
+    accepts_missing_pad_on_final_odd_chunk();
     decodes_extensible_pcm_and_rejects_bad_subformat();
     decodes_pcm16_metadata_and_samples();
     rejects_non_wave_input();

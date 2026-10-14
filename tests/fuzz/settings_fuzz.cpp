@@ -189,8 +189,13 @@ void check_result(const Step& s, const std::string& path, const AnalysisResult& 
     const auto& rep = res.report;
     const auto bad = [&](const std::string& m) { record(s, feature, "invariant: " + m); };
     if (rep.channels != s.channels || rep.sample_rate_hz != s.rate) bad("metadata mismatch");
-    const auto expected_frames = (rep.frame_size_samples <= static_cast<std::size_t>(s.seconds * s.rate))
-        ? (static_cast<std::size_t>(s.seconds * s.rate) - rep.frame_size_samples) / rep.hop_size_samples + 1 : 0;
+    const auto n = static_cast<std::size_t>(s.seconds * s.rate);
+    std::size_t expected_frames = 0;
+    if (rep.frame_size_samples <= n) {
+        const auto full = (n - rep.frame_size_samples) / rep.hop_size_samples + 1;
+        const auto covered = (full - 1) * rep.hop_size_samples + rep.frame_size_samples;
+        expected_frames = full + (covered < n ? 1 : 0); // one end-aligned window covers the tail
+    }
     if (rep.hop_size_samples * 2 != rep.frame_size_samples) bad("hop != window/2");
     if (rep.channel_results.size() != s.channels) bad("channel count");
     std::ifstream in(path, std::ios::binary);

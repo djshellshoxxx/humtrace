@@ -73,7 +73,7 @@ enum class Palette { Default, Grayscale };
 }
 
 [[nodiscard]] inline double normalize_db(double db, double floor_db, double ceiling_db) {
-    if (!std::isfinite(db)) return 0.0;
+    if (!std::isfinite(db) || !(ceiling_db > floor_db)) return 0.0;
     return std::clamp((db - floor_db) / (ceiling_db - floor_db), 0.0, 1.0);
 }
 

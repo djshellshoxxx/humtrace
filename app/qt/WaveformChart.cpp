@@ -8,8 +8,9 @@
 WaveformChart::WaveformChart(ViewState* state, QWidget* parent)
     : TimeChart(state, tr("Waveform overview"), parent) {}
 
-void WaveformChart::setViews(const std::vector<humtrace::ChannelView>* views, double durationSeconds) {
+void WaveformChart::setViews(const std::vector<humtrace::ChannelView>* views, double durationSeconds, double sampleRateHz) {
     views_ = views;
+    sampleRate_ = sampleRateHz > 0.0 ? sampleRateHz : 1.0;
     duration_ = durationSeconds;
     update();
 }
@@ -31,7 +32,7 @@ void WaveformChart::paintData(QPainter& p, const QRect& plot) {
         const auto& v = (*views_)[static_cast<std::size_t>(lane)];
         const auto buckets = v.waveform_min.size();
         if (buckets == 0) continue;
-        const double secondsPerBucket = duration_ / static_cast<double>(buckets);
+        const double secondsPerBucket = static_cast<double>(v.waveform_samples_per_bucket) / sampleRate_;
         for (int x = laneRect.left(); x <= laneRect.right(); ++x) {
             // Aggregate all buckets covered by this pixel column (min of mins, max of maxes).
             const double t0 = humtrace::ui::map_linear(x, laneRect.left(), laneRect.right(), view.start, view.end);

@@ -66,6 +66,17 @@ int main() {
         try { (void)humtrace::analyze_file(path, {}, cb, false); } catch (const humtrace::AnalysisCancelled&) { threw = true; }
         require(threw, "cancel before start");
     }
+    { // exports may not overwrite the recording (same path, or same file through another spelling)
+        const auto path = (dir / "keep.wav").string();
+        { std::ofstream f(path, std::ios::binary); const auto w = wav(8192); f.write(w.data(), static_cast<std::streamsize>(w.size())); }
+        bool threw = false;
+        try { humtrace::require_distinct_paths(path, path); } catch (const std::runtime_error&) { threw = true; }
+        require(threw, "identical paths refused");
+        threw = false;
+        try { humtrace::require_distinct_paths((dir / "sub" / ".." / "keep.wav").string(), path); } catch (const std::runtime_error&) { threw = true; }
+        require(threw, "alternate spelling of the same file refused");
+        humtrace::require_distinct_paths((dir / "other.json").string(), path); // distinct: no throw
+    }
     fs::remove_all(dir);
     std::cout << "All session tests passed.\n";
 }

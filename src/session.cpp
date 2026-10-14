@@ -57,6 +57,21 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
     return result;
 }
 
+void require_distinct_paths(const std::string& output, const std::string& input) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const auto out = path_from_utf8(output);
+    const auto in = path_from_utf8(input);
+    bool same = fs::exists(out, ec) && fs::exists(in, ec) && fs::equivalent(out, in, ec);
+    if (!same) {
+        const auto a = fs::weakly_canonical(out, ec);
+        const auto b = fs::weakly_canonical(in, ec);
+        same = !ec && a == b;
+    }
+    if (same)
+        throw std::runtime_error("refusing to overwrite the input recording with an export");
+}
+
 void write_file_atomically(const std::string& path, const std::string& content) {
     std::error_code error_ignored;
     const auto target = path_from_utf8(path);

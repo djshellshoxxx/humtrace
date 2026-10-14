@@ -159,9 +159,21 @@ void finds_multiple_prominent_peaks() {
     try { (void)humtrace::find_peaks(spectrum, -60.0, -1.0, 1); } catch (const std::invalid_argument&) { threw = true; }
     require(threw, "negative prominence is rejected");
 }
+void dc_offset_does_not_masquerade_as_the_strongest_component() {
+    constexpr double rate = 8000.0;
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.1 + 0.01 * std::sin(2.0 * std::numbers::pi * 50.0 * static_cast<double>(i) / rate);
+    const auto spectrum = humtrace::analyze_spectrum(samples, rate);
+    const auto peak = humtrace::strongest_peak(spectrum);
+    require(std::abs(peak.frequency_hz - 50.0) < 0.5, "50 Hz hum is strongest despite a DC offset");
+    for (const auto& p : humtrace::find_peaks(spectrum, -80.0, 10.0, 8))
+        require(p.frequency_hz > 10.0, "no leaked-DC peak near 0 Hz");
+}
 } // namespace
 
 int main() {
+    dc_offset_does_not_masquerade_as_the_strongest_component();
     finds_multiple_prominent_peaks();
     finds_peak_frequency_and_level_for_a_sine();
     rejects_non_power_of_two_input();

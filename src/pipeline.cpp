@@ -29,6 +29,8 @@ std::size_t select_window_size(const WavMetadata& metadata,
                                std::size_t max_interleaved_window_samples) {
     if (metadata.frame_count < 16)
         throw std::runtime_error("audio is too short to analyze");
+    if (metadata.sample_rate_hz < 8)
+        throw std::runtime_error("sample rate is too low to analyze");
     const auto frame_limit = std::min<std::uint64_t>(
         metadata.frame_count,
         std::max<std::uint64_t>(4, std::min<std::uint64_t>(metadata.sample_rate_hz, 65536)));
@@ -50,7 +52,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     const auto window_size = select_window_size(metadata, settings.max_interleaved_window_samples);
     const auto hop_size = window_size / 2;
     {
-        const std::uint64_t windows = (frames - window_size) / hop_size + 1;
+        const std::uint64_t windows = (frames - window_size) / hop_size + 2; // + final aligned window
         const std::uint64_t per_window = metadata.channels *
             (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
              settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 3 * sizeof(double) + 64);
@@ -78,7 +80,6 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         throw std::runtime_error("could not read the first complete analysis window");
 
     std::vector<double> samples(window_size);
-    std::vector<double> samples_new;
     std::vector<std::vector<FramePeaks>> peaks(metadata.channels);
     std::vector<ChannelView> local_views(metadata.channels);
     std::vector<EnvelopeBuilder> envelopes;
@@ -86,10 +87,9 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
         envelopes.emplace_back(settings.waveform_buckets, total_per_channel);
     std::vector<double> row_edges;
-    std::uint64_t window_start = 0;
-    while (true) {
-        if (cancelled && cancelled())
-            throw AnalysisCancelled();
+    // Measures the current `window` (all channels) as the frame starting at `start`; `new_from`
+    // is the index of the first window sample not yet fed to the waveform envelope.
+    auto analyze_window = [&](std::uint64_t start, std::size_t new_from) {
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
             for (std::size_t i = 0; i < window_size; ++i)
                 samples[i] = window[i * metadata.channels + channel];
@@ -103,34 +103,54 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             }
             local_views[channel].spectrogram_dbfs.push_back(
                 reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs));
-            // The first window contributes all samples; later windows only their new hop.
-            const auto skip = window_start == 0 ? std::size_t{0} : hop_size;
-            for (std::size_t i = skip; i < window_size; ++i)
-                samples_new.push_back(samples[i]);
-            envelopes[channel].add(samples_new.data(), samples_new.size());
-            samples_new.clear();
+            envelopes[channel].add(samples.data() + new_from, window_size - new_from);
             report.channel_results[channel].frames.push_back(
-                measure_frame(spectrum, window_start, report.support_threshold_dbfs,
-                              10, report.minimum_prominence_db));
-            FramePeaks entry{window_start, {}};
+                measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db));
+            FramePeaks entry{start, {}};
             for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
-                                               settings.peak_min_prominence_db,
-                                               settings.max_peaks_per_frame))
+                                               settings.peak_min_prominence_db, settings.max_peaks_per_frame))
                 entry.peaks.push_back({peak.frequency_hz, peak.level_dbfs});
             peaks[channel].push_back(std::move(entry));
         }
+    };
+
+    std::uint64_t window_start = 0;
+    std::size_t new_from = 0; // the first window contributes all samples, later ones their new hop
+    while (true) {
+        if (cancelled && cancelled())
+            throw AnalysisCancelled();
+        analyze_window(window_start, new_from);
         if (progress)
-            progress(std::min(1.0, static_cast<double>(window_start + window_size) /
-                                       static_cast<double>(frames)));
+            progress(std::min(1.0, static_cast<double>(window_start + window_size) / static_cast<double>(frames)));
         if (window_start + hop_size + window_size > frames)
             break;
         const auto retained = hop_size * metadata.channels;
         std::move(window.begin() + static_cast<std::ptrdiff_t>(retained), window.end(), window.begin());
         auto next = reader.read_frames(hop_size);
         if (next.size() != retained)
-            break;
+            throw std::runtime_error("WAVE data ended before the declared frame count");
         std::copy(next.begin(), next.end(), window.end() - static_cast<std::ptrdiff_t>(next.size()));
         window_start += hop_size;
+        new_from = window_size - hop_size;
+    }
+    // Final partial hop: fewer than hop_size frames remain. Analyze one extra window aligned to the
+    // end of the recording so no audio goes unmeasured (it overlaps the previous window by more
+    // than 50%); the remaining samples also feed the waveform envelope.
+    const std::uint64_t remaining = frames - (window_start + window_size);
+    if (remaining > 0) {
+        if (cancelled && cancelled())
+            throw AnalysisCancelled();
+        const auto tail = static_cast<std::size_t>(remaining);
+        auto next = reader.read_frames(tail);
+        if (next.size() != tail * metadata.channels)
+            throw std::runtime_error("WAVE data ended before the declared frame count");
+        const auto shift = tail * metadata.channels;
+        std::move(window.begin() + static_cast<std::ptrdiff_t>(shift), window.end(), window.begin());
+        std::copy(next.begin(), next.end(), window.end() - static_cast<std::ptrdiff_t>(shift));
+        window_start = frames - window_size;
+        analyze_window(window_start, window_size - tail);
+        if (progress)
+            progress(1.0);
     }
 
     auto tracker = settings.tracker;
@@ -139,7 +159,10 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     for (std::size_t c = 0; c < peaks.size(); ++c)
         report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker);
     for (std::size_t c = 0; c < local_views.size(); ++c)
+    {
         envelopes[c].finish(local_views[c].waveform_min, local_views[c].waveform_max);
+        local_views[c].waveform_samples_per_bucket = envelopes[c].samples_per_bucket();
+    }
     if (views)
         *views = std::move(local_views);
     return report;

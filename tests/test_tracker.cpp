@@ -1,5 +1,6 @@
 #include "humtrace/tracker.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -50,6 +51,11 @@ int main() {
         strict.min_observed_frames = 3;
         auto tracks = track_peaks({frame(0, {{60.0, -6}, {90.0, -6}}), frame(1, {{60.0, -6}}), frame(2, {{60.1, -6}, {200.0, -6}})}, 1000.0, strict);
         CHECK(tracks.size() == 1 && tracks[0].observed_frames == 3);
+    }
+    { // an enormous gap allowance must not overflow
+        TrackerSettings huge = settings;
+        huge.max_gap_frames = SIZE_MAX;
+        CHECK(track_peaks({frame(0, {{60.0, -6}}), frame(5, {{60.0, -6}})}, 1000.0, huge).size() == 1);
     }
     { // invalid settings rejected
         bool threw = false;

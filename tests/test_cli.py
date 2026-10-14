@@ -84,6 +84,17 @@ def check_compare(executable: pathlib.Path, directory: pathlib.Path) -> None:
     assert comparison["inputs"][0]["sha256"] == comparison["inputs"][1]["sha256"]
 
 
+def check_never_overwrites_input(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "protect me.wav"
+    source.write_bytes((directory / "two-channel tones.wav").read_bytes())
+    before = source.read_bytes()
+    result = subprocess.run([str(executable), str(source), "--json", str(source)], capture_output=True, text=True, check=False)
+    assert result.returncode == 1 and "overwrite" in result.stderr, result.stderr
+    assert source.read_bytes() == before
+    result = subprocess.run([str(executable), "compare", str(source), str(source), "--json", str(source)], capture_output=True, text=True, check=False)
+    assert result.returncode == 1 and source.read_bytes() == before
+
+
 def check_unwritable_output_leaves_nothing(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "two-channel tones.wav"
     target = directory / "no-such-dir" / "report.json"
@@ -128,6 +139,7 @@ def main() -> None:
         check_stereo_report(executable, directory)
         check_invalid_file_fails(executable, directory)
         check_compare(executable, directory)
+        check_never_overwrites_input(executable, directory)
         check_unwritable_output_leaves_nothing(executable, directory)
         check_interrupt_cancels_without_output(executable, directory)
     print("All CLI integration tests passed.")

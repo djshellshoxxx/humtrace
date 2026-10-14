@@ -78,7 +78,11 @@ int main(int argc, char** argv) {
                 if (i + 1 >= args.size())
                     return usage();
                 if (args[i] == "--json") json_path = args[i + 1];
-                else if (args[i] == "--tolerance") settings.frequency_tolerance_hz = std::stod(args[i + 1]);
+                else if (args[i] == "--tolerance") {
+                    std::size_t used = 0;
+                    settings.frequency_tolerance_hz = std::stod(args[i + 1], &used);
+                    if (used != args[i + 1].size()) throw std::invalid_argument("--tolerance needs a number");
+                }
                 else return usage();
             }
             const auto comparison = humtrace::compare_reports(run(args[1]), run(args[2]), settings);
@@ -93,6 +97,8 @@ int main(int argc, char** argv) {
                 std::cout << "Warning: " << w << '\n';
             std::cout << "Interpretation: similar frequencies do not show a common device or environment.\n";
             if (!json_path.empty()) {
+                humtrace::require_distinct_paths(json_path, args[1]);
+                humtrace::require_distinct_paths(json_path, args[2]);
                 humtrace::write_file_atomically(json_path, humtrace::serialize_comparison_json(comparison));
                 std::cout << "JSON comparison saved: " << json_path << '\n';
             }
@@ -103,6 +109,7 @@ int main(int argc, char** argv) {
         const auto report = run(args[0]);
         print_summary(report);
         if (args.size() == 3) {
+            humtrace::require_distinct_paths(args[2], args[0]);
             humtrace::write_file_atomically(args[2], humtrace::serialize_report_json(report));
             std::cout << "JSON report saved: " << args[2] << '\n';
         }

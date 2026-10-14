@@ -24,11 +24,18 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
     banner->setAccessibleName(tr("Comparison method"));
     layout->addWidget(banner);
     auto* files = new QLabel(tr("A: %1 (%2 Hz, %3 s)    B: %4 (%5 Hz, %6 s)")
-        .arg(QFileInfo(QString::fromStdString(report.a.path)).fileName()).arg(report.a.sample_rate_hz).arg(report.a.duration_seconds, 0, 'f', 2)
-        .arg(QFileInfo(QString::fromStdString(report.b.path)).fileName()).arg(report.b.sample_rate_hz).arg(report.b.duration_seconds, 0, 'f', 2));
+        .arg(QFileInfo(QString::fromStdString(report.a.path)).fileName(), QString::number(report.a.sample_rate_hz),
+             QString::number(report.a.duration_seconds, 'f', 2),
+             QFileInfo(QString::fromStdString(report.b.path)).fileName(), QString::number(report.b.sample_rate_hz),
+             QString::number(report.b.duration_seconds, 'f', 2)));
+    files->setTextFormat(Qt::PlainText);
     files->setWordWrap(true);
     layout->addWidget(files);
-    for (const auto& w : report.warnings) layout->addWidget(new QLabel(tr("Warning: ") + QString::fromStdString(w)));
+    for (const auto& w : report.warnings) {
+        auto* label = new QLabel(tr("Warning: ") + QString::fromStdString(w));
+        label->setTextFormat(Qt::PlainText);
+        layout->addWidget(label);
+    }
 
     auto* table = new QTableWidget(0, 7);
     table->setHorizontalHeaderLabels({tr("Status"), tr("Channel A"), tr("Freq A (Hz)"), tr("Channel B"), tr("Freq B (Hz)"), tr("Delta freq (Hz)"), tr("Delta level (dB)")});
@@ -59,6 +66,8 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
         const auto path = QFileDialog::getSaveFileName(this, tr("Export comparison"), "comparison.json", tr("JSON (*.json)"));
         if (path.isEmpty()) return;
         try {
+            humtrace::require_distinct_paths(path.toStdString(), report_.a.path);
+            humtrace::require_distinct_paths(path.toStdString(), report_.b.path);
             humtrace::write_file_atomically(path.toStdString(), humtrace::serialize_comparison_json(report_));
         } catch (const std::exception& e) {
             QMessageBox::warning(this, tr("HumTrace"), tr("Export failed: %1").arg(QString::fromUtf8(e.what())));

@@ -45,7 +45,8 @@ struct InterferenceFrame {
 };
 
 // Analyze a finite, power-of-two block using a Hann window and a radix-2 FFT.
-// Levels are peak-amplitude dBFS; interior one-sided bins are gain-corrected.
+// Levels are peak-amplitude dBFS; interior one-sided bins are gain-corrected. The block mean
+// (DC offset) is removed before windowing, so bin 0 is ~0 and DC cannot leak into bin 1.
 [[nodiscard]] std::vector<SpectrumBin> analyze_spectrum(
     const std::vector<double>& samples, double sample_rate_hz);
 

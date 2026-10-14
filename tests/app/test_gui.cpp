@@ -7,6 +7,7 @@
 #include "humtrace/sha256.hpp"
 
 #include <QElapsedTimer>
+#include <QLabel>
 #include <QFile>
 #include <QTableView>
 #include <QTemporaryDir>
@@ -187,11 +188,38 @@ private slots:
         QString stage, message;
         w.setErrorHandler([&](const QString& s, const QString& m) { stage = s; message = m; });
         w.openRecording(bad);
-        QCOMPARE(w.state(), humtrace::ui::JobState::Failed);
+        QCOMPARE(w.state(), humtrace::ui::JobState::Empty); // nothing was opened
         QVERIFY(message.contains("RIFF"));
         QFile check(bad);
         check.open(QIODevice::ReadOnly);
         QCOMPARE(check.readAll(), QByteArray("this is not audio"));
+    }
+
+    void badOpenKeepsCurrentResultsAndNamesWithPercentSignsAreLiteral() {
+        const auto path = writeWav(dir_.path(), "a%2b<b>x.wav", 3.0);
+        MainWindow w;
+        w.show();
+        w.openRecording(path);
+        w.startAnalysis();
+        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QLabel* header = nullptr;
+        for (auto* l : w.findChildren<QLabel*>()) if (l->accessibleName() == "Recording identity") header = l;
+        QVERIFY(header);
+        QVERIFY2(header->text().contains("a%2b<b>x.wav"), qPrintable(header->text()));
+        QCOMPARE(header->textFormat(), Qt::PlainText);
+        // A missing file or a non-WAV must not discard the finished analysis.
+        QString shown;
+        w.setErrorHandler([&](const QString&, const QString& m) { shown = m; });
+        w.openRecording(dir_.path() + "/missing.wav");
+        QVERIFY(!shown.isEmpty());
+        QCOMPARE(w.state(), humtrace::ui::JobState::Complete);
+        QVERIFY(w.report() != nullptr);
+        QVERIFY(w.findingsModel()->rowCount() > 0);
+        // Export may not overwrite the recording itself.
+        QVERIFY(!w.exportReport(path, true).isEmpty());
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(f.read(4) == "RIFF");
     }
 
     void settingsChangeMarksResultsStaleAndExportRedactsPath() {

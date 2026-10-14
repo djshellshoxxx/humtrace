@@ -73,5 +73,25 @@ int main() {
         try { (void)humtrace::analyze_wav(reader, tight); } catch (const std::runtime_error&) { threw = true; }
         require(threw, "result memory limit is enforced up front");
     }
+    { // the final partial hop is analyzed (end-aligned window) and the waveform covers the whole file
+        std::istringstream in(two_tone_wav(4096, 10000), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        double last = 0.0;
+        std::vector<humtrace::ChannelView> views;
+        const auto report = humtrace::analyze_wav(reader, {}, [&](double f) { last = f; }, {}, &views);
+        const auto& frames = report.channel_results[0].frames;
+        require(frames.size() == 4 && frames.back().start_sample == 10000 - 4096, "tail window ends at the last sample");
+        require(last == 1.0, "progress completes");
+        require(views[0].waveform_min.size() * views[0].waveform_samples_per_bucket >= 10000 &&
+                (views[0].waveform_min.size() - 1) * views[0].waveform_samples_per_bucket < 10000,
+                "envelope spans every sample, not just analyzed windows");
+    }
+    { // unusably low sample rates are a clean runtime error
+        std::istringstream in(two_tone_wav(4, 64), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        bool threw = false;
+        try { (void)humtrace::analyze_wav(reader, {}); } catch (const std::runtime_error& e) { threw = std::string(e.what()).find("sample rate") != std::string::npos; }
+        require(threw, "very low sample rate rejected clearly");
+    }
     std::cout << "All pipeline tests passed.\n";
 }

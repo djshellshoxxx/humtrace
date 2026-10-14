@@ -11,6 +11,7 @@ namespace humtrace {
 struct ChannelView {
     std::vector<float> waveform_min; // fixed-bucket min/max envelope of the whole file
     std::vector<float> waveform_max;
+    std::uint64_t waveform_samples_per_bucket{1}; // time of bucket i = i * this / sample_rate
     std::vector<std::vector<float>> spectrogram_dbfs; // [frame][row], log-spaced rows
     std::vector<double> row_frequency_hz;             // lower edge of each row
 };
@@ -21,6 +22,7 @@ public:
     EnvelopeBuilder(std::size_t buckets, std::uint64_t total_samples);
     void add(const double* samples, std::size_t count);
     void finish(std::vector<float>& min_out, std::vector<float>& max_out) const;
+    [[nodiscard]] std::uint64_t samples_per_bucket() const { return samples_per_bucket_; }
 
 private:
     std::size_t buckets_;

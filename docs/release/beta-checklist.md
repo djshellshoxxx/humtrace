@@ -1,20 +1,20 @@
 # Beta v0.1 release checklist
 
-Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on streaming commit `4727aa2` (run `37762099089`). There is no desktop GUI, installer, or release artifact.
+Current status: **feature-complete beta candidate; not release-ready**. Items marked [x] were verified in this repository's tooling on Linux; unchecked items need hardware, platforms, or data this project does not have yet.
 
-- [ ] GUI is navigable, responsive, and shows progress/cancellation.
-- [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
-- [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
-- [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
-- [ ] Multi-file comparison is implemented and reproducible.
-- [ ] Versioned JSON measurement export is extended with input hashes (done, schema 1.1), provenance/build metadata, warnings, and schema compatibility tests (schema validation in CLI test when `jsonschema` is installed).
-- [ ] Invalid/unsupported input handling and source preservation are tested.
-- [ ] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
-- [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
-- [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
-- [ ] Required license and third-party notices are reviewed and included.
-- [ ] Linux and Windows native builds and packaged artifacts are tested.
-- [ ] CI, sanitizer, static checks, dependency review, and release notes are complete.
-- [ ] User guide and known limitations match the actual shipped build.
+- [x] GUI is navigable, responsive, and shows progress/cancellation (offscreen GUI tests, fuzz, screenshots).
+- [x] Audio loading supports advertised formats (WAV PCM/float, extensible); long-file analysis has a bounded-window design and a result-memory cap (measured 33 MB at 1 h, 82 MB at 3 h); report serialization is still in-memory.
+- [x] Mono/stereo/multichannel findings include frequency, level, time, harmonic evidence with thresholds, and qualified wording. Noise-floor/SNR evidence is limited to the local-floor prominence per measurement.
+- [x] Spectrum (plot + table), waveform, spectrogram, and findings/track timeline are implemented and visually checked.
+- [x] Two-recording comparison (independent summary) is implemented and reproducible.
+- [x] Versioned JSON export with input hash, settings, tracker settings; schema validated in tests. Provenance/build metadata and a warnings list are not yet included.
+- [x] Invalid/unsupported input handling and source preservation are tested (corruption matrix, output-never-overwrites-input).
+- [x] No silent resampling/alignment/downmix; recorded as not applied in comparisons.
+- [ ] Keyboard-only operation is implemented and tested; screen-reader summaries/tables exist but Narrator/AT-SPI verification, focus visibility, and high-DPI checks on packaged apps are pending.
+- [ ] Labeled validation corpus: synthetic layer done ([results](../validation/synthetic-results.md)); no real labeled/held-out corpus, so no field false-positive/negative claims.
+- [x] Third-party notices drafted ([notices](THIRD_PARTY_NOTICES.md)); Qt LGPL review for the exact distributed build is pending.
+- [ ] Linux packages build and install (.deb/.tar.gz smoke-tested in CI); Windows zip is configured but unverified; clean-VM install/upgrade tests not run.
+- [x] CI: core, sanitizers, Qt build, packaging, 30 s fuzzers. Dependency review/SBOM pending.
+- [x] User guide, limitations, release notes, QA report match the build.
 
 The 50/60 Hz evidence must not be presented as proof of a ground loop, location, device, recording date, or authenticity.

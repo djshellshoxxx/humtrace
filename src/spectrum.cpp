@@ -94,13 +94,20 @@ std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
     const auto size = samples.size();
     std::vector<std::complex<double>> transformed(size);
     double window_sum = 0.0;
-    for (std::size_t i = 0; i < size; ++i) {
-        if (!std::isfinite(samples[i]))
+    double mean = 0.0;
+    for (const double sample : samples) {
+        if (!std::isfinite(sample))
             throw std::invalid_argument("samples must all be finite");
+        mean += sample;
+    }
+    // Remove the frame mean first: a recording's DC offset would otherwise leak through the Hann
+    // main lobe into bin 1 and masquerade as the strongest "non-DC" component.
+    mean /= static_cast<double>(size);
+    for (std::size_t i = 0; i < size; ++i) {
         const double window = 0.5 - 0.5 * std::cos(
             2.0 * std::numbers::pi * static_cast<double>(i) / static_cast<double>(size - 1));
         window_sum += window;
-        transformed[i] = {samples[i] * window, 0.0};
+        transformed[i] = {(samples[i] - mean) * window, 0.0};
     }
     fft(transformed);
 

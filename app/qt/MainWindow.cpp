@@ -83,10 +83,12 @@ void MainWindow::buildUi() {
     layout->setContentsMargins(6, 4, 6, 4);
 
     header_ = new QLabel(tr("No recording open. Use Open Recording (Ctrl+O) or drop a WAV file here. Supported: PCM 8/16/24/32-bit and IEEE float 32/64-bit WAV. Files are opened read-only."));
+    header_->setTextFormat(Qt::PlainText);
     header_->setWordWrap(true);
     header_->setAccessibleName(tr("Recording identity"));
     header_->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
     summary_ = new QLabel;
+    summary_->setTextFormat(Qt::PlainText);
     summary_->setWordWrap(true);
     summary_->setAccessibleName(tr("Analysis summary"));
     layout->addWidget(header_);
@@ -301,33 +303,34 @@ void MainWindow::clearResults() {
 
 void MainWindow::openRecording(const QString& path) {
     if (humtrace::ui::is_active(state_)) return;
-    path_.clear();
-    clearResults();
-    setState(JobState::Opening);
+    // Validate first: a bad or missing file must not discard the current results.
+    humtrace::WavMetadata m;
     try {
         std::ifstream in(humtrace::path_from_utf8(path.toStdString()), std::ios::binary);
         if (!in) throw std::runtime_error("could not open input file");
         humtrace::WavStreamReader reader(in);
-        const auto& m = reader.metadata();
-        path_ = path;
-        header_->setText(tr("%1 | %2 s | %3 Hz | %4 channel(s) | %5-bit %6 | SHA-256 computed during analysis")
-            .arg(QFileInfo(path).fileName())
-            .arg(double(m.frame_count) / m.sample_rate_hz, 0, 'f', 2)
-            .arg(m.sample_rate_hz).arg(m.channels).arg(m.bit_depth)
-            .arg(m.format_code == 3 ? tr("float") : tr("PCM")));
-        header_->setAccessibleDescription(header_->text());
-        channels_->clear();
-        for (int c = 1; c <= m.channels; ++c) channels_->addItem(tr("Channel %1").arg(c));
-        channels_->setCurrentRow(0);
-        addRecent(path);
-        setState(JobState::Ready);
+        m = reader.metadata();
     } catch (const std::exception& e) {
-        setState(JobState::Failed);
-        header_->setText(tr("Could not open \"%1\".").arg(QFileInfo(path).fileName()));
+        const auto previous = path_;
+        path_ = path; // so the error names the file the user tried to open
         showError(tr("Opening"), QString::fromUtf8(e.what()));
-        path_.clear();
-        updateActions();
+        path_ = previous;
+        return;
     }
+    path_.clear();
+    clearResults();
+    setState(JobState::Opening);
+    path_ = path;
+    header_->setText(tr("%1 | %2 s | %3 Hz | %4 channel(s) | %5-bit %6 | SHA-256 computed during analysis")
+        .arg(QFileInfo(path).fileName(), QString::number(double(m.frame_count) / m.sample_rate_hz, 'f', 2),
+             QString::number(m.sample_rate_hz), QString::number(m.channels), QString::number(m.bit_depth),
+             m.format_code == 3 ? tr("float") : tr("PCM")));
+    header_->setAccessibleDescription(header_->text());
+    channels_->clear();
+    for (int c = 1; c <= m.channels; ++c) channels_->addItem(tr("Channel %1").arg(c));
+    channels_->setCurrentRow(0);
+    addRecent(path);
+    setState(JobState::Ready);
 }
 
 void MainWindow::startAnalysis() {
@@ -382,12 +385,17 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
     }
     result_ = std::make_unique<humtrace::AnalysisResult>(std::move(*result));
     const auto& r = result_->report;
+    // The file may have changed since it was opened: trust the analyzed channel count.
+    if (channels_->count() != int(r.channels)) {
+        channels_->clear();
+        for (int c = 1; c <= int(r.channels); ++c) channels_->addItem(tr("Channel %1").arg(c));
+    }
     findings_ = humtrace::ui::build_findings(r);
     model_->setRows(findings_);
     const double hop = double(r.hop_size_samples) / r.sample_rate_hz;
     view_->reset(r.duration_seconds, hop);
     view_->setChannel(std::min(channels_->currentRow() < 0 ? 0 : channels_->currentRow(), int(r.channels) - 1));
-    waveform_->setViews(&result_->views, r.duration_seconds);
+    waveform_->setViews(&result_->views, r.duration_seconds, r.sample_rate_hz);
     spectrogram_->setData(&result_->views, &r, &findings_);
     applyDisplayOptions();
     const auto text = QString::fromStdString(humtrace::ui::summarize_report(r, findings_));
@@ -409,6 +417,7 @@ void MainWindow::applyDisplayOptions() {
 int MainWindow::currentFrame() const {
     if (!result_) return -1;
     const auto& r = result_->report;
+    if (view_->channel() < 0 || view_->channel() >= int(r.channel_results.size())) return -1;
     const auto& frames = r.channel_results[std::size_t(view_->channel())].frames;
     if (frames.empty()) return -1;
     const double center = view_->cursor() * r.sample_rate_hz - double(r.frame_size_samples) / 2.0;
@@ -422,6 +431,7 @@ void MainWindow::updateFrameViews() {
     const int f = currentFrame();
     if (f < 0 || !result_) return;
     const auto& r = result_->report;
+    if (view_->channel() < 0 || view_->channel() >= int(result_->views.size())) return;
     const auto ch = std::size_t(view_->channel());
     const auto& v = result_->views[ch];
     spectrum_->setFrame(&v.spectrogram_dbfs[std::size_t(f)], &v.row_frequency_hz, r.sample_rate_hz / 2.0, floorBox_->value(), ceilingBox_->value());
@@ -472,6 +482,7 @@ QString MainWindow::exportReport(const QString& path, bool redactPath) {
     auto report = result_->report;
     if (redactPath) report.input_path = QFileInfo(path_).fileName().toStdString();
     try {
+        humtrace::require_distinct_paths(path.toStdString(), path_.toStdString());
         humtrace::write_file_atomically(path.toStdString(), humtrace::serialize_report_json(report));
     } catch (const std::exception& e) {
         return QString::fromUtf8(e.what());

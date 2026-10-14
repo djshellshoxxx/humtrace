@@ -1,5 +1,7 @@
 #include "humtrace/compare.hpp"
 
+#include "humtrace/json.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -24,27 +26,8 @@ TrackRef ref(std::uint16_t channel, const Track& t) {
     return {channel, t.id, t.median_frequency_hz, t.median_level_dbfs};
 }
 
-void write_text(std::ostream& out, const std::string& value) {
-    static constexpr char hex[] = "0123456789abcdef";
-    out << '"';
-    for (const unsigned char byte : value) {
-        switch (byte) {
-        case '"': out << "\\\""; break;
-        case '\\': out << "\\\\"; break;
-        case '\n': out << "\\n"; break;
-        case '\r': out << "\\r"; break;
-        case '\t': out << "\\t"; break;
-        default:
-            if (byte < 0x20) out << "\\u00" << hex[byte >> 4] << hex[byte & 0x0f];
-            else out << static_cast<char>(byte);
-        }
-    }
-    out << '"';
-}
-
-void write_number(std::ostream& out, double v) {
-    if (std::isfinite(v)) out << v; else out << "null";
-}
+using json::write_number;
+void write_text(std::ostream& out, const std::string& value) { json::write_string(out, value); }
 
 void write_input(std::ostream& out, const ComparisonInput& in) {
     out << "{\"path\": ";
@@ -87,6 +70,10 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
     if (a.channels != b.channels && settings.channel_map.empty())
         out.warnings.push_back("channel counts differ; unmapped channels are reported as unmatched");
 
+    for (std::size_t i = 0; i < map.size(); ++i)
+        for (std::size_t j = i + 1; j < map.size(); ++j)
+            if (map[i].first == map[j].first || map[i].second == map[j].second)
+                throw std::invalid_argument("channel map must pair each channel at most once");
     std::vector<std::uint16_t> used_a, used_b;
     for (const auto& [ca, cb] : map) {
         const auto* chan_a = find_channel(a, ca);

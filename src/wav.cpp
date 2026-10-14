@@ -140,13 +140,16 @@ WavStreamReader::WavStreamReader(std::istream& input) : input_(&input) {
             total_data_bytes += length;
         }
 
-        const auto next_position = data_position + static_cast<std::streamoff>(length + (length & 1U));
+        auto next_position = data_position + static_cast<std::streamoff>(length + (length & 1U));
+        // Some writers omit the pad byte after an odd-sized final chunk; accept that one case.
+        if (next_position == riff_end + 1 && (length & 1U) != 0)
+            next_position = riff_end;
         if (next_position > riff_end)
             throw std::runtime_error("missing WAVE chunk padding");
         position = next_position;
     }
-    if (position != riff_end)
-        throw std::runtime_error("truncated WAVE chunk header");
+    // The loop only exits with fewer than 8 bytes left; such trailing bytes cannot hold a chunk
+    // header and are ignored (some writers append a short footer or stray pad).
     if (!have_format || data_chunks_.empty())
         throw std::runtime_error("WAVE file is missing format or sample data");
     if (metadata_.channels == 0 || metadata_.sample_rate_hz == 0 || block_align_ == 0)

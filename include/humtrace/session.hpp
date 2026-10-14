@@ -29,6 +29,10 @@ struct AnalysisResult {
 [[nodiscard]] AnalysisResult analyze_file(const std::string& path, const PipelineSettings& settings,
                                           const SessionCallbacks& callbacks, bool want_views);
 
+// Throws std::runtime_error if `output` and `input` name the same file (exports must never
+// overwrite a recording). Safe when either path does not exist yet.
+void require_distinct_paths(const std::string& output, const std::string& input);
+
 // Write text to `path` by writing a sibling temp file then renaming, so a failed export
 // never leaves a truncated report. Throws std::runtime_error on failure.
 void write_file_atomically(const std::string& path, const std::string& content);

@@ -50,9 +50,19 @@ void encodes_non_finite_measurements_as_json_null() {
     require(json.find("\"level_dbfs\": null") != std::string::npos,
             "negative infinity is represented with valid JSON null");
 }
+void invalid_utf8_paths_still_yield_valid_json() {
+    humtrace::AnalysisReport report;
+    report.input_path = std::string("bad\xff\xfe.wav \xc3\xa9 \xed\xa0\x80");
+    report.sample_rate_hz = 8000;
+    report.channels = 1;
+    const auto json = humtrace::serialize_report_json(report);
+    require(json.find("\xff") == std::string::npos && json.find("\xEF\xBF\xBD") != std::string::npos, "invalid bytes replaced with U+FFFD");
+    require(json.find("\xc3\xa9") != std::string::npos, "valid UTF-8 preserved");
+}
 } // namespace
 
 int main() {
+    invalid_utf8_paths_still_yield_valid_json();
     emits_versioned_report_with_escaped_path_and_measurements();
     encodes_non_finite_measurements_as_json_null();
     std::cout << "All report tests passed.\n";

@@ -65,6 +65,15 @@ int main() {
         s.frequency_tolerance_hz = -1.0;
         try { (void)humtrace::compare_reports(report(48000, {{50.0}}), report(48000, {{50.0}}), s); } catch (const std::invalid_argument&) { threw = true; }
         require(threw, "negative tolerance rejected");
+        threw = false;
+        s = {};
+        s.channel_map = {{1, 1}, {1, 1}};
+        try { (void)humtrace::compare_reports(report(48000, {{50.0}}), report(48000, {{50.0}}), s); } catch (const std::invalid_argument&) { threw = true; }
+        require(threw, "duplicate channel pairs rejected");
+        threw = false;
+        s.channel_map = {{1, 1}, {2, 1}};
+        try { (void)humtrace::compare_reports(report(48000, {{50.0}, {60.0}}), report(48000, {{50.0}}), s); } catch (const std::invalid_argument&) { threw = true; }
+        require(threw, "reusing a B channel rejected");
     }
     std::cout << "All compare tests passed.\n";
 }

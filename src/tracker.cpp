@@ -60,7 +60,7 @@ std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sam
     std::vector<std::size_t> active; // indices into tracks, ascending id
     for (std::size_t frame = 0; frame < frames.size(); ++frame) {
         std::erase_if(active, [&](std::size_t t) {
-            return frame - tracks[t].observations.back().frame_index > settings.max_gap_frames + 1;
+            return frame - tracks[t].observations.back().frame_index - 1 > settings.max_gap_frames;
         });
         const auto& peaks = frames[frame].peaks;
         std::vector<std::tuple<double, std::size_t, std::size_t>> candidates; // distance, track, peak
