@@ -13,6 +13,7 @@ void require(bool condition, const char* message) {
     if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); }
 }
 void u16(std::string& b, std::uint16_t v) { b.push_back(static_cast<char>(v & 0xff)); b.push_back(static_cast<char>(v >> 8)); }
+void put_s16(std::string& b, int v) { u16(b, static_cast<std::uint16_t>(static_cast<std::int16_t>(v))); }
 void u32(std::string& b, std::uint32_t v) { for (unsigned s = 0; s < 32; s += 8) b.push_back(static_cast<char>((v >> s) & 0xff)); }
 
 // Mono 16-bit WAV containing 50 Hz and 120 Hz tones.
@@ -92,6 +93,22 @@ int main() {
         bool threw = false;
         try { (void)humtrace::analyze_wav(reader, {}); } catch (const std::runtime_error& e) { threw = std::string(e.what()).find("sample rate") != std::string::npos; }
         require(threw, "very low sample rate rejected clearly");
+    }
+    { // clipping is counted and warned about; suppressed tracks are reported
+        std::string data;
+        for (int i = 0; i < 4096 * 3; ++i) put_s16(data, std::sin(2.0 * std::numbers::pi * 60.0 * i / 4096.0) >= 0 ? 32767 : -32768);
+        std::string body = "fmt ";
+        u32(body, 16); u16(body, 1); u16(body, 1); u32(body, 4096); u32(body, 8192); u16(body, 2); u16(body, 16);
+        body += "data"; u32(body, static_cast<std::uint32_t>(data.size())); body += data;
+        std::string wav = "RIFF";
+        u32(wav, static_cast<std::uint32_t>(body.size() + 4));
+        wav += "WAVE" + body;
+        std::istringstream in(wav, std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto report = humtrace::analyze_wav(reader, {});
+        require(report.channel_results[0].clipped_samples > 10000, "full-scale samples counted");
+        require(!report.warnings.empty() && report.warnings[0].find("full scale") != std::string::npos, "clipping warning emitted");
+        require(report.max_peaks_per_frame == 8 && report.peak_min_prominence_db == 10.0, "pipeline settings recorded in the report");
     }
     std::cout << "All pipeline tests passed.\n";
 }

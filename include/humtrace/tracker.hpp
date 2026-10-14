@@ -48,9 +48,11 @@ struct Track {
 
 // Associate peaks across ordered frames of ONE channel. Deterministic: greedy
 // one-to-one matching by (distance, track id, peak index). Throws
-// std::invalid_argument on invalid settings or sample rate.
+// std::invalid_argument on invalid settings or sample rate. If `suppressed` is given it
+// receives the number of tracks dropped for having fewer than min_observed_frames frames.
 [[nodiscard]] std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames,
                                              double sample_rate_hz,
-                                             const TrackerSettings& settings);
+                                             const TrackerSettings& settings,
+                                             std::size_t* suppressed = nullptr);
 
 } // namespace humtrace

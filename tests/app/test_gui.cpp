@@ -6,6 +6,7 @@
 #include "WaveformChart.hpp"
 #include "humtrace/sha256.hpp"
 
+#include <QDir>
 #include <QElapsedTimer>
 #include <QDoubleSpinBox>
 #include <QLabel>
@@ -314,8 +315,8 @@ private slots:
         const auto json = f.readAll();
         QVERIFY(json.contains("\"path\": \"export.wav\""));
         QVERIFY(!json.contains(dir_.path().toUtf8()));
-        QVERIFY(json.contains("\"schema_version\": \"1.1\""));
-        QVERIFY(!QFile::exists(out + ".humtrace-tmp"));
+        QVERIFY(json.contains("\"schema_version\": \"1.2\""));
+        QVERIFY(QDir(dir_.path()).entryList({"*.humtrace-tmp*"}).isEmpty());
         // Unwritable destination reports an error and leaves no temp file.
         QVERIFY(!w.exportReport(dir_.path() + "/missing-dir/report.json", false).isEmpty());
     }

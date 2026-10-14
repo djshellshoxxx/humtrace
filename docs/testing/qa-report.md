@@ -7,8 +7,8 @@ Environment: Linux x86-64, g++ 13, Qt 6.4.2, offscreen Qt platform. Everything b
 | Area | Method | Result |
 |---|---|---|
 | Unit/integration | `make test`, `ctest` (15 suites incl. WAV mutation fuzz of 20,000 inputs, offscreen GUI tests) | pass |
-| Sanitizers | whole suite and 30 s fuzz under ASan+UBSan | clean |
-| Format matrix | `tools/qa_run.py`: 6 encodings x 1-3 channels x plain/extensible x 8/48 kHz = 72 files; each checked for exit code, source SHA unchanged, report SHA equal, per-channel tone at the injected frequency, schema validity | 72/72 |
+| Sanitizers | core suite and 30 s core fuzz under ASan+UBSan (the Qt/GUI tests are not sanitized) | clean |
+| Format matrix | `tools/qa_run.py`: 6 encodings x 1-3 channels x plain/extensible x 8/48 kHz = 72 files; each checked for exit code, source SHA unchanged, report SHA equal, per-channel tone at the injected frequency, schema validity | 90/90 (the matrix now includes the output-safety, comparison and cancellation checks) |
 | Corrupt files | 9 hostile inputs (empty, garbage, truncated, bad sizes, zero channels/rate, unsupported codec, too short) | clean exit 1, message, no output, source intact |
 | Output safety | unwritable destination, overwrite, output == input | no partial/temp files; input never overwritten |
 | Determinism | 3 runs, byte-identical JSON | pass |

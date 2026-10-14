@@ -1,6 +1,7 @@
 #include "humtrace/report.hpp"
 
 #include "humtrace/json.hpp"
+#include "humtrace/version.hpp"
 
 #include <cmath>
 #include <iomanip>
@@ -38,14 +39,16 @@ void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
 std::string serialize_report_json(const AnalysisReport& report) {
     std::ostringstream output;
     output << std::setprecision(17)
-           << "{\n  \"schema_version\": \"1.1\",\n  \"application\": \"HumTrace\",\n  \"input\": {\n    \"path\": ";
+           << "{\n  \"schema_version\": \"" << kReportSchemaVersion << "\",\n  \"application\": \"HumTrace\",\n  \"generator\": {\"application_version\": \"" << kApplicationVersion
+           << "\", \"method_version\": \"" << kMethodVersion << "\"},\n  \"input\": {\n    \"path\": ";
     write_string(output, report.input_path);
     output << ",\n    \"sha256\": ";
     if (report.input_sha256.empty())
         output << "null";
     else
         write_string(output, report.input_sha256);
-    output << ",\n    \"sample_rate_hz\": " << report.sample_rate_hz
+    output << ",\n    \"bytes\": " << report.input_bytes
+           << ",\n    \"sample_rate_hz\": " << report.sample_rate_hz
            << ",\n    \"channels\": " << report.channels
            << ",\n    \"bit_depth\": " << report.bit_depth
            << ",\n    \"format_code\": " << report.format_code
@@ -67,7 +70,18 @@ std::string serialize_report_json(const AnalysisReport& report) {
     write_number(output, report.tracker.bin_fraction);
     output << ", \"max_gap_frames\": " << report.tracker.max_gap_frames
            << ", \"min_observed_frames\": " << report.tracker.min_observed_frames;
-    output << "}\n  },\n  \"channels\": [";
+    output << "},\n    \"pipeline\": {\"peak_min_level_dbfs\": ";
+    write_number(output, report.peak_min_level_dbfs);
+    output << ", \"peak_min_prominence_db\": ";
+    write_number(output, report.peak_min_prominence_db);
+    output << ", \"max_peaks_per_frame\": " << report.max_peaks_per_frame
+           << ", \"max_harmonics\": " << report.max_harmonics
+           << ", \"dc_removed\": true, \"hop_fraction\": 0.5, \"tail_window\": \"end-aligned\"}\n  },\n  \"warnings\": [";
+    for (std::size_t i = 0; i < report.warnings.size(); ++i) {
+        if (i != 0) output << ", ";
+        write_string(output, report.warnings[i]);
+    }
+    output << "],\n  \"channels\": [";
     for (std::size_t channel_index = 0; channel_index < report.channel_results.size(); ++channel_index) {
         const auto& channel = report.channel_results[channel_index];
         if (channel_index != 0) output << ',';
@@ -91,7 +105,8 @@ std::string serialize_report_json(const AnalysisReport& report) {
             output << '}';
         }
         if (!channel.frames.empty()) output << '\n' << "    ";
-        output << "], \"tracks\": [";
+        output << "], \"suppressed_tracks\": " << channel.suppressed_tracks << ", \"clipped_samples\": " << channel.clipped_samples
+               << ", \"tracks\": [";
         for (std::size_t t = 0; t < channel.tracks.size(); ++t) {
             const auto& track = channel.tracks[t];
             if (t != 0) output << ", ";

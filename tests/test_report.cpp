@@ -25,7 +25,7 @@ void emits_versioned_report_with_escaped_path_and_measurements() {
         0, {60.25, -18.0}, {50.0, 0, {}}, {60.0, 1, {{1, 60.0, 60.0, -18.0, -70.0, 52.0, true}}}});
 
     const auto json = humtrace::serialize_report_json(report);
-    require(json.find("\"schema_version\": \"1.1\"") != std::string::npos,
+    require(json.find("\"schema_version\": \"1.2\"") != std::string::npos,
             "report carries a schema version");
     require(json.find("field\\\"mic.wav") != std::string::npos,
             "quotes in the input path are escaped");

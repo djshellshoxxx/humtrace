@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.1
+# HumTrace JSON report schema 1.2
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.1` (additive over 1.0: `input.sha256`, `settings.tracker` (including `min_observed_frames`), `channels[].tracks`).
+- `schema_version`: current string value `1.2` (1.2 adds `generator`, `input.bytes`, `settings.pipeline`, `warnings`, and per-channel `suppressed_tracks`/`clipped_samples`; additive over 1.0: `input.sha256`, `settings.tracker` (including `min_observed_frames`), `channels[].tracks`).
 - `application`: `HumTrace`.
 - `input`: source path, SHA-256 of the exact input bytes (`null` if not computed), and decoded sample rate, channels, bit depth, format code, and duration.
 - `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.

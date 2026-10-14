@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
                 const auto err = w.exportReport(out, integer(0, 1) == 1);
                 if (!err.isEmpty()) fail("export", err);
                 QFile f(out);
-                if (!f.open(QIODevice::ReadOnly) || !f.readAll().contains("\"schema_version\": \"1.1\"")) fail("export", "report missing or malformed");
+                if (!f.open(QIODevice::ReadOnly) || !f.readAll().contains("\"schema_version\": \"1.2\"")) fail("export", "report missing or malformed");
                 break;
             }
             case 1: { // navigation: channel, cursor, zoom, selection

@@ -72,7 +72,7 @@ def main():
                         failures.append(f"missed {hz} Hz at {peak} dBFS (rate {rate}, noise {noise})")
                     elif ferr > 0.25 * spacing or lerr > 0.6:
                         failures.append(f"error too large for {hz} Hz at {peak} dBFS: {ferr:.3f} Hz, {lerr:.2f} dB")
-        # Negative set: noise only, silence, and a non-mains tone must not produce mains harmonic support.
+        # Negative set: noise only and silence must not produce mains harmonic support.
         negatives = []
         for label, samples, rate in (
             ("white noise -50 dBFS", [rng.gauss(0, 10 ** (-50 / 20)) for _ in range(8000 * 20)], 8000),

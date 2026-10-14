@@ -139,9 +139,11 @@ def main():
         record("unwritable destination", r.returncode == 1 and not list(d.glob("missing*")))
         existing = d / "existing.json"
         existing.write_text("OLD")
-        run([path, "--json", existing])
-        record("overwrite replaces existing, no temp left",
-               existing.read_text().startswith("{") and not (d / "existing.json.humtrace-tmp").exists())
+        refused = run([path, "--json", existing])
+        record("existing output refused without --force", refused.returncode == 1 and existing.read_text() == "OLD")
+        run([path, "--json", existing, "--force"])
+        record("--force replaces existing, no temp left",
+               existing.read_text().startswith("{") and not list(d.glob("existing.json.humtrace-tmp*")))
         # 5. Comparison semantics.
         a, b = d / "a.wav", d / "b.wav"
         a.write_bytes(wav_bytes(8000, 1, "pcm16", 4.0, [50.0, 150.0]))

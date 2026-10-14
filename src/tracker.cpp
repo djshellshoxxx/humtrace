@@ -48,7 +48,7 @@ void summarize(Track& track, double sample_rate_hz) {
 } // namespace
 
 std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sample_rate_hz,
-                               const TrackerSettings& settings) {
+                               const TrackerSettings& settings, std::size_t* suppressed) {
     if (!std::isfinite(sample_rate_hz) || sample_rate_hz <= 0.0 ||
         !std::isfinite(settings.fixed_hz_tolerance) || settings.fixed_hz_tolerance < 0.0 ||
         !std::isfinite(settings.relative_tolerance) || settings.relative_tolerance < 0.0 ||
@@ -99,7 +99,9 @@ std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sam
             active.push_back(tracks.size() - 1);
         }
     }
+    const auto before = tracks.size();
     std::erase_if(tracks, [&](const Track& t) { return t.observations.size() < settings.min_observed_frames; });
+    if (suppressed) *suppressed = before - tracks.size();
     for (auto& track : tracks)
         summarize(track, sample_rate_hz);
     return tracks;

@@ -68,6 +68,9 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     report.duration_seconds = static_cast<double>(frames) / metadata.sample_rate_hz;
     report.frame_size_samples = window_size;
     report.hop_size_samples = hop_size;
+    report.peak_min_level_dbfs = settings.peak_min_level_dbfs;
+    report.peak_min_prominence_db = settings.peak_min_prominence_db;
+    report.max_peaks_per_frame = settings.max_peaks_per_frame;
     report.support_threshold_dbfs = settings.support_threshold_dbfs;
     report.minimum_prominence_db = settings.minimum_prominence_db;
     report.channel_results.resize(metadata.channels);
@@ -87,6 +90,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
         envelopes.emplace_back(settings.waveform_buckets, total_per_channel);
     std::vector<double> row_edges;
+    // Full scale for the stored bit depth (integer PCM tops out one step below 1.0).
+    const double clip_threshold = metadata.format_code == 3 ? 1.0 : 1.0 - 1.5 * std::ldexp(1.0, -(metadata.bit_depth - 1));
     // Measures the current `window` (all channels) as the frame starting at `start`; `new_from`
     // is the index of the first window sample not yet fed to the waveform envelope.
     auto analyze_window = [&](std::uint64_t start, std::size_t new_from) {
@@ -104,6 +109,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             local_views[channel].spectrogram_dbfs.push_back(
                 reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs));
             envelopes[channel].add(samples.data() + new_from, window_size - new_from);
+            for (std::size_t i = new_from; i < window_size; ++i)
+                if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
             report.channel_results[channel].frames.push_back(
                 measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db));
             FramePeaks entry{start, {}};
@@ -157,7 +164,17 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     tracker.bin_spacing_hz = static_cast<double>(metadata.sample_rate_hz) / static_cast<double>(window_size);
     report.tracker = tracker;
     for (std::size_t c = 0; c < peaks.size(); ++c)
-        report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker);
+        report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker,
+                                                       &report.channel_results[c].suppressed_tracks);
+    for (const auto& channel : report.channel_results) {
+        if (channel.clipped_samples >= 10)
+            report.warnings.push_back("channel " + std::to_string(channel.channel_number) + ": " +
+                std::to_string(channel.clipped_samples) + " samples at or beyond full scale (possible clipping; levels near 0 dBFS are unreliable)");
+        if (channel.suppressed_tracks > 0)
+            report.warnings.push_back("channel " + std::to_string(channel.channel_number) + ": " +
+                std::to_string(channel.suppressed_tracks) + " track(s) seen in fewer than " +
+                std::to_string(tracker.min_observed_frames) + " frames are not listed");
+    }
     for (std::size_t c = 0; c < local_views.size(); ++c)
     {
         envelopes[c].finish(local_views[c].waveform_min, local_views[c].waveform_max);

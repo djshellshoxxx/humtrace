@@ -1,6 +1,6 @@
 # CLI QA matrix results
 
-90/90 checks passed.
+91/91 checks passed.
 
 | Check | Result | Detail |
 |---|---|---|
@@ -89,7 +89,8 @@
 | usage error | pass |  |
 | deterministic reports | pass |  |
 | unwritable destination | pass |  |
-| overwrite replaces existing, no temp left | pass |  |
+| existing output refused without --force | pass |  |
+| --force replaces existing, no temp left | pass |  |
 | compare: near tones matched, others unmatched, no alignment | pass |  |
 | compare rejects negative tolerance | pass |  |
 | peak memory growth, 3 h vs 1 h recording | pass | 1 h 33 MB, 3 h 82 MB |

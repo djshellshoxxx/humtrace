@@ -142,6 +142,11 @@ void MainWindow::buildUi() {
     tabs->setAccessibleName(tr("Selected-frame spectrum views"));
     layout->addWidget(waveform_, 2);
     layout->addWidget(spectrogram_, 4);
+    spectrumInfo_ = new QLabel;
+    spectrumInfo_->setTextFormat(Qt::PlainText);
+    spectrumInfo_->setWordWrap(true);
+    spectrumInfo_->setAccessibleName(tr("Spectrum method and resolution"));
+    layout->addWidget(spectrumInfo_);
     layout->addWidget(tabs, 3);
     setCentralWidget(central);
 
@@ -201,7 +206,7 @@ void MainWindow::buildUi() {
     rl2->addWidget(inspector_, 3);
     right->setWidget(rw);
     addDockWidget(Qt::RightDockWidgetArea, right);
-    right->setMinimumWidth(420);
+    right->setMinimumWidth(340);
     connect(table_->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::onFindingSelected);
     connect(view_, &ViewState::cursorChanged, this, &MainWindow::onCursorChanged);
 
@@ -403,6 +408,11 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
         channels_->clear();
         for (int c = 1; c <= int(r.channels); ++c) channels_->addItem(tr("Channel %1").arg(c));
     }
+    spectrumInfo_->setText(tr("Spectrum: Hann window, %1 samples (%2 s), FFT length %1, bin spacing %3 Hz, peak-amplitude dBFS, "
+                              "parabolic peak interpolation, frame mean removed. Plot rows show the maximum bin per log-frequency row.")
+        .arg(QString::number(r.frame_size_samples), QString::number(double(r.frame_size_samples) / r.sample_rate_hz, 'f', 3),
+             QString::number(double(r.sample_rate_hz) / double(r.frame_size_samples), 'f', 3)));
+    spectrumInfo_->setAccessibleDescription(spectrumInfo_->text());
     findings_ = humtrace::ui::build_findings(r);
     model_->setRows(findings_);
     const double hop = double(r.hop_size_samples) / r.sample_rate_hz;
@@ -521,9 +531,10 @@ void MainWindow::chooseAndExport() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Export preview"));
     auto* layout = new QVBoxLayout(&dialog);
-    auto* info = new QLabel(tr("Schema version 1.1 (JSON)\nInput SHA-256: %1\nStatus: complete, %2 frames per channel, %3 track(s)\n"
-                               "Warnings: none\nThis file records measurements only; it is not a chain-of-custody record.")
-                                .arg(QString::fromStdString(r.input_sha256)).arg(r.channel_results.empty() ? 0 : r.channel_results[0].frames.size()).arg(findings_.size()));
+    auto* info = new QLabel(tr("Schema version 1.2 (JSON)\nInput SHA-256: %1\nStatus: complete, %2 frames per channel, %3 track(s)\n"
+                               "Warnings: %4\nThis file records measurements only; it is not a chain-of-custody record.")
+                                .arg(QString::fromStdString(r.input_sha256)).arg(r.channel_results.empty() ? 0 : r.channel_results[0].frames.size()).arg(findings_.size())
+                                .arg(r.warnings.empty() ? tr("none recorded (clipping and hidden short tracks are checked)") : [&] { QStringList l; for (const auto& w : r.warnings) l << QString::fromStdString(w); return l.join("; "); }()));
     info->setWordWrap(true);
     info->setTextInteractionFlags(Qt::TextSelectableByKeyboard);
     auto* redact = new QCheckBox(tr("Store the file name only (omit the directory path)"));

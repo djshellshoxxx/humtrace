@@ -74,6 +74,7 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
         for (std::size_t j = i + 1; j < map.size(); ++j)
             if (map[i].first == map[j].first || map[i].second == map[j].second)
                 throw std::invalid_argument("channel map must pair each channel at most once");
+    out.settings.channel_map = map; // record the resolved pairing (identity expanded)
     std::vector<std::uint16_t> used_a, used_b;
     for (const auto& [ca, cb] : map) {
         const auto* chan_a = find_channel(a, ca);

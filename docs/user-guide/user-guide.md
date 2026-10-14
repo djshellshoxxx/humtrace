@@ -17,19 +17,23 @@ HumTrace measures narrowband tones and 50/60 Hz harmonic patterns in WAV recordi
 
 Levels are peak-amplitude dBFS from decoded samples, not SPL or voltage.
 
+## Recent files
+
+The left rail lists recently opened recordings (stored locally in the application settings); **Clear recent list** removes them.
+
 ## Settings
 
-**Settings** (Ctrl+,) are analysis settings; changing them marks results stale until you re-run Analyze. Tracks seen in fewer than *Minimum frames per track* (default 3) frames are hidden to suppress noise flicker. This is not a validated persistence rule.
+**Settings** (Ctrl+,) are analysis settings; changing them marks results stale until you re-run Analyze. Tracks seen in fewer than *Minimum frames per track* (default 3) frames are not listed, to suppress noise flicker; the report records how many were left out (`suppressed_tracks`) and adds a warning. This is not a validated persistence rule. The app lists clipping (samples at full scale) and left-out tracks as warnings in the export preview and the report.
 
 ## Export and compare
 
 - **Export** (Ctrl+E) shows a preview (schema version, input SHA-256, track count). The default stores the file name only, not the directory. Saving is atomic: a failed export never leaves a partial file.
 - **Compare** (Ctrl+Shift+C) analyzes a second recording and lists matched and unmatched tracks. No time alignment or resampling is applied (shown in a banner and recorded in the exported comparison). Unmatched tracks stay unmatched; absence is not scored as zero.
-- CLI: `humtrace file.wav --json report.json`, `humtrace compare a.wav b.wav --tolerance 1.0 --json c.json`. Ctrl+C cancels. On Windows the CLI expects ASCII paths; use the GUI for other names.
+- CLI: `humtrace file.wav --json report.json [--quiet] [--full-path] [--force]`, `humtrace compare a.wav b.wav --tolerance 1.0 --map 1:2,2:1 --json c.json`. Reports store only the input file name unless `--full-path` is given; an existing output file is refused unless `--force`; an output may never be the input. Ctrl+C cancels. On Windows the CLI expects ASCII paths; use the GUI for other names.
 
 ## Keyboard
 
-Ctrl+Down / Ctrl+Up next/previous finding. In a chart: Left/Right cursor (Ctrl = 10x, Shift extends the selection), +/- zoom, 0 reset zoom, Home/End, Esc clears the selection. The mouse wheel zooms, horizontal scroll pans, dragging selects. **View > High-contrast theme** switches the theme. F1 shows this list and the limitations.
+Ctrl+Down / Ctrl+Up next/previous finding. In a chart: Left/Right move the cursor by one analysis hop (Ctrl = 10 hops; Shift extends the selection), +/- zoom, 0 reset zoom, Home/End, Esc clears the selection. The mouse wheel zooms, horizontal scroll pans, dragging selects. **View > High-contrast theme** switches the theme. F1 shows this list and the limitations.
 
 ## Limits
 

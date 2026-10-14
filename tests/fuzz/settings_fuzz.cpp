@@ -278,7 +278,8 @@ void feature_compare_export(const Step& s, const std::string& path, const fs::pa
         std::ifstream f(out, std::ios::binary);
         std::stringstream ss; ss << f.rdbuf();
         if (ss.str() != serialize_report_json(a.report)) record(s, "export", "exported bytes differ from serialized report");
-        if (fs::exists(out + ".humtrace-tmp")) record(s, "export", "temp file left behind");
+        for (const auto& entry : fs::directory_iterator(dir))
+            if (entry.path().string().find(".humtrace-tmp") != std::string::npos) record(s, "export", "temp file left behind");
     } catch (const std::runtime_error& e) {
         const std::string m = e.what();
         if (m.find("too long") == std::string::npos && m.find("too many channels") == std::string::npos && m.find("too short") == std::string::npos)

@@ -7,7 +7,7 @@ Current status: **feature-complete beta candidate; not release-ready**. Items ma
 - [x] Mono/stereo/multichannel findings include frequency, level, time, harmonic evidence with thresholds, and qualified wording. Noise-floor/SNR evidence is limited to the local-floor prominence per measurement.
 - [x] Spectrum (plot + table), waveform, spectrogram, and findings/track timeline are implemented and visually checked.
 - [x] Two-recording comparison (independent summary) is implemented and reproducible.
-- [x] Versioned JSON export with input hash, settings, tracker settings; schema validated in tests. Provenance/build metadata and a warnings list are not yet included.
+- [x] Versioned JSON export (schema 1.2): input hash and byte length, all result-affecting settings, application/method versions, warnings (clipping, left-out tracks); schema validated in CI (`jsonschema` required). No timestamp by design (byte-identical reruns); no report digest or importer yet.
 - [x] Invalid/unsupported input handling and source preservation are tested (corruption matrix, output-never-overwrites-input).
 - [x] No silent resampling/alignment/downmix; recorded as not applied in comparisons.
 - [ ] Keyboard-only operation is implemented and tested; screen-reader summaries/tables exist but Narrator/AT-SPI verification, focus visibility, and high-DPI checks on packaged apps are pending.

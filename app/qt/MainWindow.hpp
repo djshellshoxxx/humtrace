@@ -101,6 +101,7 @@ private:
     QTextBrowser* inspector_{nullptr};
     QLabel* header_{nullptr};
     QLabel* summary_{nullptr};
+    QLabel* spectrumInfo_{nullptr};
     QLabel* stateLabel_{nullptr};
     QProgressBar* progress_{nullptr};
     QListWidget* channels_{nullptr};

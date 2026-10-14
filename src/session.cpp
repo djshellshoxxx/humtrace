@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <stdexcept>
 
 namespace humtrace {
@@ -52,6 +53,7 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
         std::filesystem::last_write_time(native, ec_after) != time_before)
         throw std::runtime_error("input file changed during analysis; results discarded");
     result.report.input_path = path;
+    result.report.input_bytes = size_before;
     result.report.input_sha256 = digest;
     report_progress(Stage::Done, 1.0);
     return result;
@@ -75,8 +77,10 @@ void require_distinct_paths(const std::string& output, const std::string& input)
 void write_file_atomically(const std::string& path, const std::string& content) {
     std::error_code error_ignored;
     const auto target = path_from_utf8(path);
+    // Unique temp name in the destination directory so concurrent exports cannot collide.
+    std::random_device entropy;
     auto temp = target;
-    temp += ".humtrace-tmp";
+    temp += ".humtrace-tmp-" + std::to_string(entropy());
     {
         std::ofstream out(temp, std::ios::binary | std::ios::trunc);
         if (!out)

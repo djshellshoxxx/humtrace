@@ -10,10 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and unit/CLI tests
+      - name: Install schema validator and numpy tools
+        run: pip install jsonschema
+      - name: Build and unit/CLI tests (schema validation is mandatory here)
         run: make test
+        env:
+          HUMTRACE_REQUIRE_JSONSCHEMA: "1"
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
+      - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
+        run: python3 tools/qa_run.py build/humtrace
       - name: Settings-matrix fuzz (30 s)
         run: make fuzz FUZZ_SECONDS=30
   sanitizers:
@@ -35,7 +41,7 @@ jobs:
       - name: Configure and build
         run: cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build-cmake
       - name: Test (offscreen GUI tests and smoke fuzzers included)
-        run: cd build-cmake && ctest --output-on-failure
+        run: pip install jsonschema && cd build-cmake && HUMTRACE_REQUIRE_JSONSCHEMA=1 ctest --output-on-failure
       - name: GUI settings-matrix fuzz (30 s)
         run: QT_QPA_PLATFORM=offscreen build-cmake/bin/gui_settings_fuzz 30
       - name: Package
@@ -75,7 +81,7 @@ jobs:
           update: true
           install: >-
             mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make
-            mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base zip
+            mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base zip unzip
       - name: Core build and tests
         run: make test
       - name: Qt build, tests, and package
@@ -83,8 +89,23 @@ jobs:
           cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
-          cd bin && windeployqt6 humtrace-gui.exe && cp ../../docs/release/THIRD_PARTY_NOTICES.md . && zip -r ../humtrace-0.1.0-windows.zip humtrace.exe humtrace-gui.exe '*.dll' platforms styles imageformats THIRD_PARTY_NOTICES.md
+          cd bin && windeployqt6 humtrace-gui.exe && cp ../../docs/release/THIRD_PARTY_NOTICES.md . && cp ../../docs/user-guide/limitations.md . && zip -r ../humtrace-0.1.0-windows.zip humtrace.exe humtrace-gui.exe '*.dll' platforms styles imageformats THIRD_PARTY_NOTICES.md limitations.md
+      - name: Windows smoke test (extracted package runs on a generated WAV)
+        run: |
+          cd build-cmake
+          python3 -c "
+          import math, struct, wave
+          with wave.open('smoke.wav','wb') as o:
+              o.setnchannels(1); o.setsampwidth(2); o.setframerate(4096)
+              o.writeframes(b''.join(struct.pack('<h', round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
+          "
+          mkdir -p pkgtest && cd pkgtest && unzip -o -q ../humtrace-0.1.0-windows.zip
+          ./humtrace.exe ../smoke.wav --json ../smoke.json --quiet
+          python3 -c "import json; d=json.load(open('../smoke.json')); assert d['channels'][0]['tracks'], d"
+          cd .. && sha256sum humtrace-0.1.0-windows.zip | tee SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: build-cmake/humtrace-*.zip
+          path: |
+            build-cmake/humtrace-*.zip
+            build-cmake/SHA256SUMS
