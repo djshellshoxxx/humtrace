@@ -1,15 +1,18 @@
-#include "humtrace/pipeline.hpp"
-#include "humtrace/report.hpp"
-#include "humtrace/sha256.hpp"
-#include "humtrace/wav.hpp"
+#include "humtrace/compare.hpp"
+#include "humtrace/session.hpp"
 
-#include <fstream>
+#include <atomic>
+#include <csignal>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
+std::atomic<bool> g_cancel{false};
+extern "C" void on_interrupt(int) { g_cancel = true; }
+
 void print_summary(const humtrace::AnalysisReport& report) {
     const auto rate = static_cast<double>(report.sample_rate_hz);
     const auto window = static_cast<double>(report.frame_size_samples);
@@ -48,36 +51,64 @@ void print_summary(const humtrace::AnalysisReport& report) {
     }
     std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
 }
+
+humtrace::AnalysisReport run(const std::string& path) {
+    humtrace::SessionCallbacks callbacks;
+    callbacks.cancelled = [] { return g_cancel.load(); };
+    return humtrace::analyze_file(path, {}, callbacks, false).report;
+}
+
+int usage() {
+    std::cerr << "Usage: humtrace <input.wav> [--json <report.json>]\n"
+                 "       humtrace compare <a.wav> <b.wav> [--tolerance <Hz>] [--json <comparison.json>]\n";
+    return 2;
+}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2 && (argc != 4 || std::string(argv[2]) != "--json")) {
-        std::cerr << "Usage: humtrace <input.wav> [--json <report.json>]\n";
-        return 2;
-    }
+    std::signal(SIGINT, on_interrupt);
+    const std::vector<std::string> args(argv + 1, argv + argc);
     try {
-        std::ifstream input(argv[1], std::ios::binary);
-        if (!input)
-            throw std::runtime_error("could not open input file");
-        const auto digest = humtrace::sha256_hex(input);
-        input.clear();
-        input.seekg(0);
-        humtrace::WavStreamReader reader(input);
-        auto report = humtrace::analyze_wav(reader, humtrace::PipelineSettings{});
-        report.input_path = argv[1];
-        report.input_sha256 = digest;
-        print_summary(report);
-        if (argc == 4) {
-            const std::string report_path = argv[3];
-            const auto json = humtrace::serialize_report_json(report);
-            std::ofstream report_file(report_path, std::ios::binary | std::ios::trunc);
-            if (!report_file)
-                throw std::runtime_error("could not create JSON report");
-            report_file << json;
-            if (!report_file)
-                throw std::runtime_error("failed while writing JSON report");
-            std::cout << "JSON report saved: " << report_path << '\n';
+        if (!args.empty() && args[0] == "compare") {
+            if (args.size() < 3)
+                return usage();
+            humtrace::CompareSettings settings;
+            std::string json_path;
+            for (std::size_t i = 3; i < args.size(); i += 2) {
+                if (i + 1 >= args.size())
+                    return usage();
+                if (args[i] == "--json") json_path = args[i + 1];
+                else if (args[i] == "--tolerance") settings.frequency_tolerance_hz = std::stod(args[i + 1]);
+                else return usage();
+            }
+            const auto comparison = humtrace::compare_reports(run(args[1]), run(args[2]), settings);
+            std::cout << "Matched tracks: " << comparison.matches.size() << ", unmatched in A: "
+                      << comparison.unmatched_a.size() << ", unmatched in B: "
+                      << comparison.unmatched_b.size() << '\n';
+            for (const auto& m : comparison.matches)
+                std::cout << "  ch" << m.a.channel << " " << m.a.median_frequency_hz << " Hz <-> ch"
+                          << m.b.channel << " " << m.b.median_frequency_hz << " Hz (delta "
+                          << m.delta_frequency_hz << " Hz, " << m.delta_level_db << " dB)\n";
+            for (const auto& w : comparison.warnings)
+                std::cout << "Warning: " << w << '\n';
+            std::cout << "Interpretation: similar frequencies do not show a common device or environment.\n";
+            if (!json_path.empty()) {
+                humtrace::write_file_atomically(json_path, humtrace::serialize_comparison_json(comparison));
+                std::cout << "JSON comparison saved: " << json_path << '\n';
+            }
+            return 0;
         }
+        if (args.size() != 1 && !(args.size() == 3 && args[1] == "--json"))
+            return usage();
+        const auto report = run(args[0]);
+        print_summary(report);
+        if (args.size() == 3) {
+            humtrace::write_file_atomically(args[2], humtrace::serialize_report_json(report));
+            std::cout << "JSON report saved: " << args[2] << '\n';
+        }
+    } catch (const humtrace::AnalysisCancelled&) {
+        std::cerr << "HumTrace: analysis cancelled; no output written\n";
+        return 130;
     } catch (const std::exception& error) {
         std::cerr << "HumTrace: " << error.what() << '\n';
         return 1;

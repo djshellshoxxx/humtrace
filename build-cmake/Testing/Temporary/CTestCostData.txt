@@ -1,0 +1,13 @@
+test_compare 3 0.00116092
+test_pipeline 3 0.0018176
+test_report 3 0.00102744
+test_sha256 3 0.00308269
+test_spectrum 3 0.00222974
+test_tracker 3 0.000899639
+test_view 3 0.00180009
+test_wav 3 0.000880157
+test_wav_fuzz 3 0.037681
+cli_integration 3 0.0622505
+app_test_gui 1 3.48672
+app_test_presentation 3 0.000906792
+---

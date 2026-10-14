@@ -1,0 +1,2 @@
+/usr/bin/ar qc libhumtrace_core.a CMakeFiles/humtrace_core.dir/src/compare.cpp.o CMakeFiles/humtrace_core.dir/src/pipeline.cpp.o CMakeFiles/humtrace_core.dir/src/report.cpp.o CMakeFiles/humtrace_core.dir/src/session.cpp.o CMakeFiles/humtrace_core.dir/src/sha256.cpp.o CMakeFiles/humtrace_core.dir/src/spectrum.cpp.o CMakeFiles/humtrace_core.dir/src/tracker.cpp.o CMakeFiles/humtrace_core.dir/src/view.cpp.o CMakeFiles/humtrace_core.dir/src/wav.cpp.o
+/usr/bin/ranlib libhumtrace_core.a
