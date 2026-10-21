@@ -9,7 +9,8 @@ namespace {
 void write_string(std::ostream& output, const std::string& value) {
     static constexpr char hex[] = "0123456789abcdef";
     output << '"';
-    for (const unsigned char byte : value) {
+    for (const char ch : value) {
+        const auto byte = static_cast<unsigned char>(ch);
         switch (byte) {
         case '"': output << "\\\""; break;
         case '\\': output << "\\\\"; break;
