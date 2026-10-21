@@ -1,4 +1,5 @@
 #include "humtrace/spectrum.hpp"
+#include "humtrace/psd.hpp"
 #include "humtrace/report.hpp"
 #include "humtrace/tracks.hpp"
 #include "humtrace/wav.hpp"
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -25,12 +27,16 @@ struct Options {
     bool write_json = false;
     humtrace::PeakPickingSettings peak_picking;
     humtrace::TrackSettings tracks;
+    // 0 selects the defaults: the timeline frame size, and half of the segment for hop.
+    std::size_t psd_segment_size = 0;
+    std::size_t psd_hop_size = 0;
 };
 
 void usage() {
     std::cerr << "Usage: humtrace <input.wav> [--json <report.json>]\n"
               << "       [--peaks-per-frame N] [--track-tolerance-hz HZ]\n"
-              << "       [--track-max-gap-frames N] [--track-min-frames N]\n";
+              << "       [--track-max-gap-frames N] [--track-min-frames N]\n"
+              << "       [--psd-segment-size N] [--psd-hop-size N]\n";
 }
 
 std::size_t parse_count(const std::string& text, const char* name, std::size_t minimum,
@@ -61,6 +67,14 @@ double parse_hz(const std::string& text, const char* name) {
     return value;
 }
 
+std::size_t parse_power_of_two(const std::string& text, const char* name, std::size_t minimum,
+                               std::size_t maximum) {
+    const auto value = parse_count(text, name, minimum, maximum);
+    if ((value & (value - 1)) != 0)
+        throw std::invalid_argument(std::string(name) + " must be a power of two");
+    return value;
+}
+
 Options parse_options(int argc, char** argv) {
     if (argc < 2)
         throw std::invalid_argument("missing input file");
@@ -85,6 +99,12 @@ Options parse_options(int argc, char** argv) {
             options.tracks.max_gap_frames = parse_count(value, "--track-max-gap-frames", 0, 1000);
         } else if (flag == "--track-min-frames") {
             options.tracks.min_observed_frames = parse_count(value, "--track-min-frames", 1, 1000000);
+        } else if (flag == "--psd-segment-size") {
+            options.psd_segment_size = parse_power_of_two(value, "--psd-segment-size", 4,
+                                                          humtrace::max_welch_segment_size);
+        } else if (flag == "--psd-hop-size") {
+            options.psd_hop_size = parse_count(value, "--psd-hop-size", 1,
+                                               humtrace::max_welch_segment_size);
         } else {
             throw std::invalid_argument("unknown option " + flag);
         }
@@ -136,6 +156,11 @@ int main(int argc, char** argv) {
         report.peak_picking = options.peak_picking;
         report.track_settings = options.tracks;
 
+        humtrace::WelchSettings welch_settings;
+        welch_settings.segment_size = options.psd_segment_size != 0 ? options.psd_segment_size : window_size;
+        welch_settings.hop_size = options.psd_hop_size != 0 ? options.psd_hop_size : welch_settings.segment_size / 2;
+        report.welch_psd = welch_settings;
+
         std::cout << std::fixed << std::setprecision(3)
                   << "HumTrace analysis (" << static_cast<double>(window_size) /
                          metadata.sample_rate_hz << " s per frame)\n"
@@ -150,10 +175,24 @@ int main(int argc, char** argv) {
         std::vector<std::vector<humtrace::PeakFrame>> peak_timelines(metadata.channels);
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
             channel_results[channel].channel_number = static_cast<std::uint16_t>(channel + 1);
+        std::vector<humtrace::WelchPsd> psd_estimators;
+        psd_estimators.reserve(metadata.channels);
+        for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
+            psd_estimators.emplace_back(static_cast<double>(metadata.sample_rate_hz), welch_settings);
+        // Every interleaved sample read from the file is fed to the per-channel PSD estimators once, in order.
+        const auto push_to_psd = [&](const std::vector<double>& interleaved) {
+            std::vector<double> channel_samples(interleaved.size() / metadata.channels);
+            for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
+                for (std::size_t frame = 0; frame < channel_samples.size(); ++frame)
+                    channel_samples[frame] = interleaved[frame * metadata.channels + channel];
+                psd_estimators[channel].push(channel_samples);
+            }
+        };
         auto interleaved_window = reader.read_frames(window_size);
         const auto samples_per_window = window_size * metadata.channels;
         if (interleaved_window.size() != samples_per_window)
             throw std::runtime_error("could not read the first complete analysis window");
+        push_to_psd(interleaved_window);
         std::uint64_t window_start = 0;
         while (true) {
             for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
@@ -177,6 +216,7 @@ int main(int argc, char** argv) {
             std::move(interleaved_window.begin() + static_cast<std::ptrdiff_t>(retained_samples),
                       interleaved_window.end(), interleaved_window.begin());
             auto next_samples = reader.read_frames(hop_size);
+            push_to_psd(next_samples);
             if (next_samples.size() != retained_samples)
                 break;
             std::copy(next_samples.begin(), next_samples.end(),
@@ -184,11 +224,21 @@ int main(int argc, char** argv) {
             window_start += hop_size;
         }
 
+        // The timeline loop stops before the last partial hop; the PSD consumes the rest of the file.
+        while (true) {
+            const auto rest = reader.read_frames(65536);
+            if (rest.empty())
+                break;
+            push_to_psd(rest);
+        }
+
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
             auto& channel_result = channel_results[channel];
             channel_result.tracks = humtrace::associate_peak_tracks(
                 peak_timelines[channel], metadata.sample_rate_hz, options.tracks,
                 channel_result.channel_number);
+            channel_result.psd = humtrace::summarize_welch_psd(
+                psd_estimators[channel].finish(), report.psd_noise_floor);
         }
 
         for (const auto& channel : channel_results) {
@@ -214,6 +264,21 @@ int main(int argc, char** argv) {
                       << ", tolerance " << options.tracks.frequency_tolerance_hz << " Hz, max gap "
                       << options.tracks.max_gap_frames << " frames, min " << options.tracks.min_observed_frames
                       << " observed frames)\n";
+            if (channel.psd) {
+                const auto& psd = *channel.psd;
+                std::cout << "Channel " << channel.channel_number << " Welch PSD (Hann, "
+                          << welch_settings.segment_size << "-sample segments, hop " << welch_settings.hop_size
+                          << ", " << psd.segments_averaged << " segments, bin " << psd.bin_width_hz
+                          << " Hz, dBFS^2/Hz): broadband median " << psd.broadband_median_dbfs2_per_hz << '\n'
+                          << "  50 Hz PSD harmonics over " << report.psd_noise_floor.minimum_prominence_db
+                          << " dB local prominence: " << psd.mains_50.prominent_harmonics << '/'
+                          << psd.mains_50.harmonics.size()
+                          << "; 60 Hz: " << psd.mains_60.prominent_harmonics << '/'
+                          << psd.mains_60.harmonics.size() << '\n';
+            } else {
+                std::cout << "Channel " << channel.channel_number
+                          << " Welch PSD: no complete segment (file shorter than the PSD segment)\n";
+            }
             for (const auto& track : channel.tracks) {
                 const auto start_seconds = static_cast<double>(track.start_sample) / metadata.sample_rate_hz;
                 const auto end_seconds = static_cast<double>(track.end_sample) / metadata.sample_rate_hz;

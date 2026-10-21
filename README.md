@@ -9,7 +9,8 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
 - Associates up to N spectral peaks per frame (default 8) into per-channel tracks by nearest-frequency matching, with a frequency tolerance, a bounded frame gap, and a minimum-persistence threshold. Each track reports observed and missing frames, frequency and level statistics, and first-to-last drift.
-- Exports versioned JSON measurements (schema 1.1) while keeping observed energy and tracks separate from source attribution.
+- Estimates a per-channel Welch PSD (Hann, configurable segment and 50% default overlap, streaming and bounded memory) in dBFS^2/Hz, with a median local noise floor and prominence flags for nominal 50/60 Hz harmonics. The PSD unit differs from the peak-amplitude dBFS used elsewhere.
+- Exports versioned JSON measurements (schema 1.2) while keeping observed energy, PSD summaries and tracks separate from source attribution.
 
 This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. Track association is a synthetic-tested prototype: its settings are not validated against labeled recordings, and it does not compare recordings or define event boundaries beyond observed spans. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet. The build instructions below apply to the command-line prototype, not to the proposed GUI or plugin.
 
@@ -23,6 +24,7 @@ make test
 build/humtrace recording.wav
 build/humtrace recording.wav --json analysis.json
 build/humtrace recording.wav --peaks-per-frame 8 --track-tolerance-hz 1 --track-max-gap-frames 1 --track-min-frames 3
+build/humtrace recording.wav --psd-segment-size 8192 --psd-hop-size 4096
 ```
 
 ## Design notes
@@ -38,4 +40,4 @@ build/humtrace recording.wav --peaks-per-frame 8 --track-tolerance-hz 1 --track-
 
 ## Measurement interpretation
 
-Levels are peak-amplitude dBFS calculated from normalized decoded samples. They are not SPL or voltage measurements. Similarity to 50/60 Hz harmonic patterns does not prove a ground loop or identify a device, location, or recording origin.
+Levels are peak-amplitude dBFS calculated from normalized decoded samples. PSD densities are dBFS^2/Hz (power per hertz) and are a different scale from peak dBFS; they are not SPL or voltage measurements. Similarity to 50/60 Hz harmonic patterns does not prove a ground loop or identify a device, location, or recording origin.

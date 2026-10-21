@@ -1,4 +1,5 @@
 #include "humtrace/spectrum.hpp"
+#include "fft.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,33 +10,6 @@
 
 namespace humtrace {
 namespace {
-void fft(std::vector<std::complex<double>>& values) {
-    const std::size_t size = values.size();
-    for (std::size_t i = 1, j = 0; i < size; ++i) {
-        std::size_t bit = size >> 1;
-        for (; j & bit; bit >>= 1)
-            j ^= bit;
-        j ^= bit;
-        if (i < j)
-            std::swap(values[i], values[j]);
-    }
-
-    for (std::size_t length = 2; length <= size; length <<= 1) {
-        const auto angle = -2.0 * std::numbers::pi / static_cast<double>(length);
-        const std::complex<double> root(std::cos(angle), std::sin(angle));
-        for (std::size_t start = 0; start < size; start += length) {
-            std::complex<double> factor(1.0, 0.0);
-            for (std::size_t offset = 0; offset < length / 2; ++offset) {
-                const auto even = values[start + offset];
-                const auto odd = values[start + offset + length / 2] * factor;
-                values[start + offset] = even + odd;
-                values[start + offset + length / 2] = even - odd;
-                factor *= root;
-            }
-        }
-    }
-}
-
 [[nodiscard]] double to_dbfs(double amplitude) {
     return amplitude <= 0.0 ? -std::numeric_limits<double>::infinity()
                             : 20.0 * std::log10(amplitude);
@@ -103,7 +77,7 @@ std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
         window_sum += window;
         transformed[i] = {samples[i] * window, 0.0};
     }
-    fft(transformed);
+    detail::fft_radix2(transformed);
 
     std::vector<SpectrumBin> result;
     result.reserve(size / 2 + 1);

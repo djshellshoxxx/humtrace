@@ -35,7 +35,7 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.1"
+    assert report["schema_version"] == "1.2"
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
@@ -53,6 +53,33 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
         assert abs(peak["frequency_hz"] - frequency_hz) < 0.2, peak
         assert abs(peak["level_dbfs"] - level_dbfs) < 0.15, peak
 
+    # Default PSD: segment equals the timeline frame (4096), hop is half of it, and every
+    # sample of the file is consumed (8192 frames -> 3 complete segments).
+    welch = report["settings"]["welch_psd"]
+    assert welch["window"] == "hann" and welch["density_unit"] == "dBFS^2/Hz"
+    assert welch["segment_size_samples"] == 4096 and welch["hop_size_samples"] == 2048
+    for channel in report["channels"]:
+        psd = channel["psd"]
+        assert psd["samples_processed"] == 8192, psd
+        assert psd["segments_averaged"] == 3, psd
+        assert abs(psd["bin_width_hz"] - 1.0) < 1e-9, psd
+        assert psd["source_classification"] is None
+    assert report["channels"][0]["psd"]["mains_60_hz_psd"]["harmonics"][0]["prominent"] is True
+    assert report["channels"][1]["psd"]["mains_50_hz_psd"]["harmonics"][0]["prominent"] is True
+
+    # Custom PSD segment and hop: 1 + (8192 - 1024) / 256 = 29 segments.
+    custom_path = directory / "custom psd.json"
+    result = subprocess.run(
+        [str(executable), str(source), "--json", str(custom_path),
+         "--psd-segment-size", "1024", "--psd-hop-size", "256"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Welch PSD (Hann, 1024-sample segments, hop 256, 29 segments" in result.stdout, result.stdout
+    custom = json.loads(custom_path.read_text(encoding="utf-8"))
+    assert custom["settings"]["welch_psd"]["segment_size_samples"] == 1024
+    assert custom["channels"][0]["psd"]["segments_averaged"] == 29
+
 
 def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "not audio.wav"
@@ -64,6 +91,16 @@ def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) 
     assert "not a RIFF/WAVE file" in result.stderr
 
 
+def check_invalid_psd_segment_fails(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "two-channel tones.wav"
+    result = subprocess.run(
+        [str(executable), str(source), "--psd-segment-size", "1000"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 2, result.returncode
+    assert "--psd-segment-size must be a power of two" in result.stderr, result.stderr
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_cli.py <humtrace executable>")
@@ -72,6 +109,7 @@ def main() -> None:
         directory = pathlib.Path(temporary)
         check_stereo_report(executable, directory)
         check_invalid_file_fails(executable, directory)
+        check_invalid_psd_segment_fails(executable, directory)
     print("All CLI integration tests passed.")
 
 
