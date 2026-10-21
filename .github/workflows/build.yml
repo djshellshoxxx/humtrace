@@ -34,7 +34,7 @@ jobs:
         if: runner.os == 'Windows'
         with:
           msystem: UCRT64
-          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make zip
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make
       - name: Build and test
         run: |
           make clean
@@ -49,11 +49,10 @@ jobs:
           git rev-parse HEAD > "dist/$name/SOURCE_COMMIT"
           cd dist
           if [ "${{ runner.os }}" = "Windows" ]; then
-            find "$name" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
-            find "$name" | LC_ALL=C sort | zip -X -@ "$name.zip" >/dev/null
+            python3 ../shared/scripts/package_artifact.py "$name" "$name.zip" --zip
             archive="$name.zip"
           else
-            tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$SOURCE_DATE_EPOCH" -cf - "$name" | gzip -n > "$name.tar.gz"
+            python3 ../shared/scripts/package_artifact.py "$name" "$name.tar.gz"
             archive="$name.tar.gz"
           fi
           if command -v sha256sum >/dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi
@@ -64,7 +63,7 @@ jobs:
           cd dist
           name="humtrace-${{ matrix.name }}"
           mkdir -p ../verify && cd ../verify
-          if [ "${{ runner.os }}" = "Windows" ]; then unzip -q "../dist/$name.zip"; else tar -xzf "../dist/$name.tar.gz"; fi
+          if [ "${{ runner.os }}" = "Windows" ]; then python3 -m zipfile -e "../dist/$name.zip" .; else tar -xzf "../dist/$name.tar.gz"; fi
           python3 ../tests/smoke_artifact.py "./$name/${{ matrix.exe }}" || python ../tests/smoke_artifact.py "./$name/${{ matrix.exe }}"
       - uses: actions/upload-artifact@v4
         with:
