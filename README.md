@@ -8,9 +8,13 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Reports sample rate, channels, bit depth, duration, and FFT resolution.
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
-- Exports versioned JSON measurements while keeping observed energy separate from source attribution.
+- Associates local spectral peaks across frames into persistent per-channel tracks (explicit gaps, drift estimate) and labels each frequency with its nearest equal-tempered note and cents offset (`--a4` sets the reference pitch).
+- Records the input SHA-256 and byte size, detects a file changing during analysis, and writes JSON reports atomically (basename-only path unless `--full-path`).
+- Compares track summaries of two recordings (`--compare ref.wav`) without alignment or resampling; unmatched tracks are listed, never scored as zero.
+- Supports progress output (`--progress`) and cancellation (Ctrl-C leaves no report).
+- Exports versioned JSON (schema 1.1) measurements while keeping observed energy separate from source attribution.
 
-This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The timeline reports each frame independently; it does not associate peaks into persistent tracks or compare recordings. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet. The build instructions below apply to the command-line prototype, not to the proposed GUI or plugin.
+This is an engineering prototype, not beta v0.1. Not yet implemented: GUI, waveform/spectrogram views, Welch PSD, non-WAV formats, ENF, signature library, plugin adapter, and a labeled validation corpus. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. Track association and comparison are uncalibrated descriptive measurements. A SHA-256 digest identifies a byte sequence only. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet. The build instructions below apply to the command-line prototype, not to the proposed GUI or plugin.
 
 ## Build and test
 
@@ -21,6 +25,7 @@ make
 make test
 build/humtrace recording.wav
 build/humtrace recording.wav --json analysis.json
+build/humtrace recording.wav --compare other.wav --compare-tolerance 1.0 --progress
 ```
 
 ## Design notes
