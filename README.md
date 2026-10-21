@@ -8,9 +8,10 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Reports sample rate, channels, bit depth, duration, and FFT resolution.
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
-- Exports versioned JSON measurements while keeping observed energy separate from source attribution.
+- Associates up to N spectral peaks per frame (default 8) into per-channel tracks by nearest-frequency matching, with a frequency tolerance, a bounded frame gap, and a minimum-persistence threshold. Each track reports observed and missing frames, frequency and level statistics, and first-to-last drift.
+- Exports versioned JSON measurements (schema 1.1) while keeping observed energy and tracks separate from source attribution.
 
-This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The timeline reports each frame independently; it does not associate peaks into persistent tracks or compare recordings. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet. The build instructions below apply to the command-line prototype, not to the proposed GUI or plugin.
+This is an engineering prototype, not beta v0.1. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. Track association is a synthetic-tested prototype: its settings are not validated against labeled recordings, and it does not compare recordings or define event boundaries beyond observed spans. JSON output is a measurement export, not a forensic chain-of-custody report. There is no desktop GUI or plugin yet. The build instructions below apply to the command-line prototype, not to the proposed GUI or plugin.
 
 ## Build and test
 
@@ -21,6 +22,7 @@ make
 make test
 build/humtrace recording.wav
 build/humtrace recording.wav --json analysis.json
+build/humtrace recording.wav --peaks-per-frame 8 --track-tolerance-hz 1 --track-max-gap-frames 1 --track-min-frames 3
 ```
 
 ## Design notes

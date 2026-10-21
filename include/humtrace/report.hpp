@@ -1,6 +1,7 @@
 #pragma once
 
 #include "humtrace/spectrum.hpp"
+#include "humtrace/tracks.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +13,7 @@ namespace humtrace {
 struct ReportChannel {
     std::uint16_t channel_number{};
     std::vector<InterferenceFrame> frames;
+    std::vector<PeakTrack> tracks;
 };
 
 struct AnalysisReport {
@@ -25,6 +27,9 @@ struct AnalysisReport {
     std::size_t hop_size_samples{};
     double support_threshold_dbfs{-60.0};
     double minimum_prominence_db{10.0};
+    // Shared with support_threshold_dbfs and minimum_prominence_db above.
+    PeakPickingSettings peak_picking;
+    TrackSettings track_settings;
     std::vector<ReportChannel> channel_results;
 };
 

@@ -35,12 +35,17 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
     assert [channel["channel_number"] for channel in report["channels"]] == [1, 2]
     assert [frame["start_sample"] for frame in report["channels"][0]["frames"]] == [0, 2048, 4096]
+
+    assert report["settings"]["peak_tracking"]["peaks_per_frame"] == 8
+    assert report["channels"][0]["tracks"] == [] or all(
+        track["observed_frames"] >= 3 for track in report["channels"][0]["tracks"]
+    )
 
     expected = ((60.0, -6.02), (50.0, -12.04))
     for channel, (frequency_hz, level_dbfs) in zip(report["channels"], expected):
