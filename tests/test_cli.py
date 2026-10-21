@@ -178,6 +178,25 @@ def check_interrupt_cancels_without_output(executable: pathlib.Path, directory: 
     assert "cancelled" in stderr and not report.exists()
 
 
+def check_csv_and_notes(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "notes tones.wav"
+    write_stereo_tones(source)
+    csv_path = directory / "tracks.csv"
+    result = subprocess.run([str(executable), str(source), "--csv", str(csv_path), "--a4", "440"],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert "(B1 " in result.stdout, result.stdout  # 60 Hz track labelled with its nearest note
+    rows = csv_path.read_text(encoding="utf-8").splitlines()
+    assert rows[0].startswith("channel,track_id,start_seconds"), rows[0]
+    assert any(r.startswith("1,") and ",B1," in r for r in rows[1:]), rows
+    assert any(r.startswith("2,") and ",G1," in r for r in rows[1:]), rows
+    again = subprocess.run([str(executable), str(source), "--csv", str(csv_path)],
+                           capture_output=True, text=True, check=False)
+    assert again.returncode != 0, "CSV must not silently overwrite an existing file"
+    bad = subprocess.run([str(executable), str(source), "--a4", "10"], capture_output=True, text=True, check=False)
+    assert bad.returncode != 0 and "--a4" in bad.stderr, bad.stderr
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_cli.py <humtrace executable>")
@@ -192,6 +211,7 @@ def main() -> None:
         check_paths_overwrite_and_clipping(executable, directory)
         check_unwritable_output_leaves_nothing(executable, directory)
         check_interrupt_cancels_without_output(executable, directory)
+        check_csv_and_notes(executable, directory)
     print("All CLI integration tests passed.")
 
 

@@ -31,3 +31,7 @@ Everything incl. the Qt 6 app and packages (CMake 3.22+, Qt 6.4+): `cmake -S . -
 ## Measurement interpretation
 
 Levels are peak-amplitude dBFS calculated from normalized decoded samples. They are not SPL or voltage measurements. Similarity to 50/60 Hz harmonic patterns does not prove a ground loop or identify a device, location, or recording origin.
+
+## Musical labels and CSV
+
+`humtrace in.wav --csv tracks.csv --a4 440` adds nearest-note names and cents (e.g. 60 Hz ≈ B1 −49c) to console output and a per-track CSV. See the [feature note](docs/specs/musical-features.md). Prebuilt Linux, Windows and macOS (Apple silicon) packages are attached to GitHub [releases](../../releases).

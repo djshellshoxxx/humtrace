@@ -1,4 +1,5 @@
 #include "findings.hpp"
+#include "humtrace/music.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -48,6 +49,9 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             std::to_string(row.spanned_frames) + " frames.\n\n";
     text += "Measurements\n";
     text += fmt("  Median frequency: %.3f Hz\n", row.median_frequency_hz);
+    if (row.median_frequency_hz > 0.0)
+        text += "  Nearest equal-tempered note (A4 = 440 Hz): " +
+                format_note(nearest_note(row.median_frequency_hz)) + " (a label, not evidence of musical content)\n";
     text += fmt("  Median peak level: %.2f dBFS (peak amplitude, not SPL)\n", row.median_level_dbfs);
     text += fmt("  Drift (least-squares): %.4f Hz/s\n", row.drift_hz_per_second);
     text += fmt("  Interval: %.3f s to %.3f s\n", row.start_seconds, row.end_seconds);

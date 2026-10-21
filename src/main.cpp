@@ -1,4 +1,6 @@
 #include "humtrace/compare.hpp"
+#include "humtrace/export.hpp"
+#include "humtrace/music.hpp"
 #include "humtrace/session.hpp"
 #include "humtrace/wav.hpp"
 
@@ -24,6 +26,7 @@
 
 namespace {
 std::atomic<bool> g_cancel{false};
+double g_a4_hz = 440.0; // note-name tuning reference (--a4)
 extern "C" void on_interrupt(int) { g_cancel = true; }
 
 void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
@@ -60,7 +63,11 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
         for (const auto& track : channel.tracks)
             std::cout << "  Track " << track.id << ": observed in " << track.observed_frames << " of "
                       << track.observed_frames + track.missing_frames << " frames, median "
-                      << track.median_frequency_hz << " Hz, drift " << track.drift_hz_per_second
+                      << track.median_frequency_hz << " Hz ("
+                      << (track.median_frequency_hz > 0.0
+                              ? humtrace::format_note(humtrace::nearest_note(track.median_frequency_hz, g_a4_hz))
+                              : std::string("-"))
+                      << "), drift " << track.drift_hz_per_second
                       << " Hz/s\n";
     }
     for (const auto& w : report.warnings)
@@ -75,9 +82,11 @@ humtrace::AnalysisReport run(const std::string& path) {
 }
 
 int usage() {
-    std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--quiet] [--full-path] [--force]\n"
+    std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--csv <tracks.csv>] [--a4 <Hz>] [--quiet] [--full-path] [--force]\n"
                  "       humtrace compare <a.wav> <b.wav> [--tolerance <Hz>] [--map <a:b[,a:b...]>]\n"
                  "                        [--json <comparison.json>] [--full-path] [--force]\n"
+                 "  --csv        write one CSV row per track (with note name and cents)\n"
+                 "  --a4 <Hz>    tuning reference for note names, 400-480 (default 440)\n"
                  "  --quiet      omit the per-frame lines\n"
                  "  --full-path  store input paths as typed (default: file name only)\n"
                  "  --force      replace an existing output file (default: refuse)\n";
@@ -86,6 +95,8 @@ int usage() {
 
 struct Options {
     std::string json_path;
+    std::string csv_path;
+    double a4_hz{440.0};
     bool quiet{false};
     bool full_path{false};
     bool force{false};
@@ -101,6 +112,14 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             return args[++i];
         };
         if (a == "--json") out.json_path = value();
+        else if (a == "--csv") out.csv_path = value();
+        else if (a == "--a4") {
+            const auto& v = value();
+            std::size_t used = 0;
+            try { out.a4_hz = std::stod(v, &used); } catch (const std::exception&) { used = 0; }
+            if (used != v.size() || !(out.a4_hz >= 400.0 && out.a4_hz <= 480.0))
+                throw std::invalid_argument("--a4 needs a number between 400 and 480");
+        }
         else if (a == "--quiet") out.quiet = true;
         else if (a == "--full-path") out.full_path = true;
         else if (a == "--force") out.force = true;
@@ -222,12 +241,18 @@ int main(int argc, char** argv) {
         Options options;
         if (args.empty() || args[0].rfind("--", 0) == 0 || !parse_options(args, 1, false, options)) return usage();
         if (!options.json_path.empty()) check_output(options.json_path, {args[0]}, options.force);
+        if (!options.csv_path.empty()) check_output(options.csv_path, {args[0]}, options.force);
+        g_a4_hz = options.a4_hz;
         auto report = run(args[0]);
         report.input_path = display_path(report.input_path, options.full_path);
         print_summary(report, options.quiet);
         if (!options.json_path.empty()) {
             humtrace::write_file_atomically(options.json_path, humtrace::serialize_report_json(report));
             std::cout << "JSON report saved: " << options.json_path << '\n';
+        }
+        if (!options.csv_path.empty()) {
+            humtrace::write_file_atomically(options.csv_path, humtrace::serialize_tracks_csv(report, options.a4_hz));
+            std::cout << "CSV track list saved: " << options.csv_path << '\n';
         }
     } catch (const humtrace::AnalysisCancelled&) {
         std::cerr << "HumTrace: analysis cancelled; no output written\n";

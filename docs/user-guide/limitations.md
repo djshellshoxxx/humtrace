@@ -13,3 +13,4 @@
 - Not implemented from the analysis-engine spec: RMS, PSD, per-track noise-floor/SNR evidence, measurement uncertainty, and a below-numeric-floor flag. Clipping is counted and warned about; a non-finite float sample aborts the analysis.
 - The report has no generation timestamp (so identical inputs give byte-identical reports); it records application and method versions, input byte length, and all result-affecting settings.
 - Not implemented: ENF analysis, diagnostic guidance, signature library, plugins, playback.
+- Note names and cents are equal-tempered labels computed from the measured frequency; they say nothing about the source. Release binaries are unsigned; macOS builds are Apple silicon only and not notarized.
