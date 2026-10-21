@@ -63,9 +63,11 @@ int main() {
     const auto out = (dir / "report.json").string();
     humtrace::write_file_atomically(out, "first");
     humtrace::write_file_atomically(out, "second");
-    std::ifstream in(out);
     std::string text;
-    std::getline(in, text);
+    {
+        std::ifstream in(out);  // closed before remove_all (Windows forbids deleting open files)
+        std::getline(in, text);
+    }
     require(text == "second", "atomic write replaces an existing report");
     require(!fs::exists(out + ".tmp"), "no temp file remains");
     bool failed = false;
