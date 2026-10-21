@@ -46,7 +46,7 @@ jobs:
           mkdir -p "dist/$name"
           cp "build/${{ matrix.exe }}" README.md "dist/$name/"
           cp -r schema "dist/$name/schema"
-          git rev-parse HEAD > "dist/$name/SOURCE_COMMIT"
+          echo "$GITHUB_SHA" > "dist/$name/SOURCE_COMMIT"
           cd dist
           if [ "${{ runner.os }}" = "Windows" ]; then
             python3 ../shared/scripts/package_artifact.py "$name" "$name.zip" --zip
