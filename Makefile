@@ -1,6 +1,7 @@
 CXX ?= c++
 CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror
 CPPFLAGS ?= -Iinclude
+LDFLAGS ?=
 BUILD_DIR ?= build
 PYTHON ?= python3
 CORE_SOURCES = src/spectrum.cpp src/wav.cpp src/report.cpp
@@ -13,16 +14,16 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 $(BUILD_DIR)/humtrace: $(CORE_SOURCES) src/main.cpp $(CORE_HEADERS) | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) src/main.cpp -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) src/main.cpp -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/test_spectrum: src/spectrum.cpp tests/test_spectrum.cpp $(CORE_HEADERS) | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/spectrum.cpp tests/test_spectrum.cpp -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/spectrum.cpp tests/test_spectrum.cpp -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/test_wav: src/wav.cpp tests/test_wav.cpp $(CORE_HEADERS) | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/wav.cpp tests/test_wav.cpp -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/wav.cpp tests/test_wav.cpp -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/test_report: src/report.cpp tests/test_report.cpp $(CORE_HEADERS) | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/report.cpp tests/test_report.cpp -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/report.cpp tests/test_report.cpp -o $@ $(LDFLAGS)
 
 test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
 	$(BUILD_DIR)/test_spectrum
