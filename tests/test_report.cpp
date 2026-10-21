@@ -23,8 +23,20 @@ void emits_versioned_report_with_escaped_path_and_measurements() {
     report.channel_results[0].frames.push_back({
         0, {60.25, -18.0}, {50.0, 0, {}}, {60.0, 1, {{1, 60.0, 60.0, -18.0, -70.0, 52.0, true}}}});
 
+    report.input_sha256 = std::string(64, 'a');
+    report.input_size_bytes = 1234;
+    humtrace::Track track;
+    track.id = 1;
+    track.observations.push_back({0, 60.0, -20.0, 30.0});
+    track.median_frequency_hz = 60.0;
+    track.end_reason = "end_of_input";
+    report.channel_results[0].tracks.push_back(track);
     const auto json = humtrace::serialize_report_json(report);
-    require(json.find("\"schema_version\": \"1.0\"") != std::string::npos,
+    require(json.find("\"sha256\": \"aaaaaaaa") != std::string::npos, "input digest is exported");
+    require(json.find("\"size_bytes\": 1234") != std::string::npos, "input size is exported");
+    require(json.find("\"nearest_note\": {\"name\": \"B1\"") != std::string::npos, "track note is exported");
+    require(json.find("\"end_reason\": \"end_of_input\"") != std::string::npos, "track end reason is exported");
+    require(json.find("\"schema_version\": \"1.1\"") != std::string::npos,
             "report carries a schema version");
     require(json.find("field\\\"mic.wav") != std::string::npos,
             "quotes in the input path are escaped");

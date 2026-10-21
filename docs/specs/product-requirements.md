@@ -21,8 +21,8 @@ Detailed acceptance behavior is linked from the [design index](../design/index.m
 
 1. **Core measurement (started):** streaming RIFF/WAVE PCM/float batches, one-sided spectrum, dBFS units, parabolic peak interpolation, and test harness.
 2. **Interference measurements (partial):** local spectral-floor prominence and 50/60 harmonic-bin measurements are implemented; Welch PSD, off-nominal candidate tracking, and validated real-recording fixtures remain.
-3. **Timeline (partial):** overlapping per-channel dominant-bin timeline is implemented; persistent candidate association, drift estimates, and event intervals remain.
-4. **File workflow (partial):** streaming decode and preliminary JSON report schema are implemented; cancellation/progress and multi-file comparison remain.
+3. **Timeline (partial):** overlapping per-channel dominant-bin timeline is implemented; event intervals remain. Greedy persistent peak association with explicit gaps and drift estimates is implemented (uncalibrated).
+4. **File workflow (partial):** streaming decode, JSON report schema 1.1 with input SHA-256 and atomic writes, CLI progress/cancellation, and independent-summary two-file comparison are implemented; explicit alignment, cross-spectral comparison, and multi-file (>2) comparison remain.
 5. **Desktop application:** background analysis, responsive UI, waveform/spectrum/spectrogram/timeline, result explanation.
 6. **Release hardening:** CI, sanitizer jobs, dependency/license audit, installers, native platform verification, user guide, beta notes.
 

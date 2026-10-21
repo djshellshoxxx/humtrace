@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install schema validator
+        run: python3 -m pip install jsonschema
       - name: Build
         run: make
       - name: Test
