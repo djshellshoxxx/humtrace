@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.0
+# HumTrace JSON report schema 1.1
 
 ## Purpose
 
@@ -8,14 +8,15 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.0`.
+- `schema_version`: current string value `1.1`. Version 1.1 adds `settings.peak_tracking` and `channels[].tracks[]`; all 1.0 fields are unchanged.
 - `application`: `HumTrace`.
 - `input`: source path and decoded sample rate, channels, bit depth, format code, and duration.
-- `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
-- `channels[]`: channel number and a `frames[]` timeline.
+- `settings`: Hann window, frame size, hop, absolute dBFS threshold, local prominence threshold, and `peak_tracking` (peaks per frame, dynamic range, leakage exclusion bins, frequency tolerance, maximum gap frames, minimum observed frames).
+- `channels[]`: channel number, a `frames[]` timeline, and `tracks[]`.
 - Each frame contains start sample/time, strongest non-DC peak, and nominal 50/60 Hz measurements.
 - Each harmonic measurement contains harmonic number, expected and measured bin frequency, level, local floor, prominence, and a threshold-support boolean.
-- `interpretation`: null source classification and a statement that measurements do not prove a physical source.
+- `tracks[]`: track number, first and last observed frame start (sample and seconds), observed and missing frame counts, mean/min/max frequency, mean/max level, first-to-last frequency change, and first-to-last drift rate (`null` when the span is zero). Each track lists its observations (frame start, frequency, level, prominence). Missing frames are counted, not interpolated. Each track carries a null `source_classification`.
+- `interpretation`: null source classification and a statement that measurements, including tracks, do not prove a physical source.
 
 ## Encoding rules
 

@@ -141,9 +141,52 @@ void interpolates_frequency_between_fft_bins() {
     require(std::abs(peak.level_dbfs - (-6.0206)) < 0.25,
             "off-bin peak level is corrected for scalloping");
 }
+
+void picks_multiple_peaks_strongest_first_without_window_leakage() {
+    constexpr double rate = 4096.0;
+    constexpr std::size_t count = 4096;
+    std::vector<double> samples(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        const double time = static_cast<double>(i) / rate;
+        samples[i] = 0.5 * std::sin(2.0 * std::numbers::pi * 60.4 * time) +
+                     0.1 * std::sin(2.0 * std::numbers::pi * 150.0 * time);
+    }
+    const auto spectrum = humtrace::analyze_spectrum(samples, rate);
+    const auto peaks = humtrace::find_spectral_peaks(spectrum, {});
+    require(peaks.size() == 2, "two tones yield two peaks; window sidelobes are suppressed");
+    require(std::abs(peaks[0].frequency_hz - 60.4) < 0.1, "strongest peak is the 60.4 Hz tone");
+    require(std::abs(peaks[1].frequency_hz - 150.0) < 0.1, "weaker peak is the 150 Hz tone");
+    require(peaks[0].level_dbfs > peaks[1].level_dbfs, "peaks are ordered by level");
+    require(peaks[0].prominence_db > 10.0 && peaks[1].prominence_db > 10.0,
+            "reported peaks carry their local prominence");
+
+    humtrace::PeakPickingSettings limited;
+    limited.max_peaks = 1;
+    require(humtrace::find_spectral_peaks(spectrum, limited).size() == 1, "max_peaks bounds the output");
+
+    humtrace::PeakPickingSettings narrow;
+    narrow.dynamic_range_db = 10.0;
+    require(humtrace::find_spectral_peaks(spectrum, narrow).size() == 1,
+            "peaks beyond the dynamic range of the strongest are ignored");
+}
+
+void silence_yields_no_peaks() {
+    const auto spectrum = humtrace::analyze_spectrum(std::vector<double>(4096, 0.0), 4096.0);
+    require(humtrace::find_spectral_peaks(spectrum, {}).empty(), "silence yields no peaks");
+    bool threw = false;
+    humtrace::PeakPickingSettings invalid;
+    invalid.max_peaks = 0;
+    try {
+        (void)humtrace::find_spectral_peaks(spectrum, invalid);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    require(threw, "zero max_peaks is rejected");
+}
 } // namespace
 
 int main() {
+
     finds_peak_frequency_and_level_for_a_sine();
     rejects_non_power_of_two_input();
     measures_harmonic_support_without_source_attribution();
@@ -152,5 +195,7 @@ int main() {
     represents_silence_without_inventing_a_peak_frequency();
     harmonic_support_requires_prominence_over_local_noise();
     interpolates_frequency_between_fft_bins();
+    picks_multiple_peaks_strongest_first_without_window_leakage();
+    silence_yields_no_peaks();
     std::cout << "All spectrum tests passed.\n";
 }
