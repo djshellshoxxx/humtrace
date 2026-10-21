@@ -103,12 +103,48 @@ void write_track(std::ostream& output, const PeakTrack& track, std::uint32_t sam
     }
     output << "]}";
 }
+void write_psd_harmonics(std::ostream& output, const PsdHarmonicCandidate& candidate) {
+    output << "{\"nominal_frequency_hz\": ";
+    write_number(output, candidate.nominal_frequency_hz);
+    output << ", \"prominent_harmonics\": " << candidate.prominent_harmonics
+           << ", \"harmonics\": [";
+    for (std::size_t i = 0; i < candidate.harmonics.size(); ++i) {
+        const auto& harmonic = candidate.harmonics[i];
+        if (i != 0) output << ", ";
+        output << "{\"number\": " << harmonic.harmonic_number << ", \"expected_frequency_hz\": ";
+        write_number(output, harmonic.expected_frequency_hz);
+        output << ", \"measured_bin_hz\": ";
+        write_number(output, harmonic.measured_bin_hz);
+        output << ", \"level_dbfs2_per_hz\": ";
+        write_number(output, harmonic.level_dbfs2_per_hz);
+        output << ", \"local_floor_dbfs2_per_hz\": ";
+        write_number(output, harmonic.local_floor_dbfs2_per_hz);
+        output << ", \"prominence_db\": ";
+        write_number(output, harmonic.prominence_db);
+        output << ", \"prominent\": " << (harmonic.prominent ? "true" : "false") << '}';
+    }
+    output << "]}";
+}
+
+void write_psd_summary(std::ostream& output, const PsdSummary& summary) {
+    output << "{\"segments_averaged\": " << summary.segments_averaged
+           << ", \"samples_processed\": " << summary.samples_processed
+           << ", \"bin_width_hz\": ";
+    write_number(output, summary.bin_width_hz);
+    output << ", \"density_unit\": \"dBFS^2/Hz\", \"broadband_median_dbfs2_per_hz\": ";
+    write_number(output, summary.broadband_median_dbfs2_per_hz);
+    output << ", \"source_classification\": null, \"mains_50_hz_psd\": ";
+    write_psd_harmonics(output, summary.mains_50);
+    output << ", \"mains_60_hz_psd\": ";
+    write_psd_harmonics(output, summary.mains_60);
+    output << '}';
+}
 } // namespace
 
 std::string serialize_report_json(const AnalysisReport& report) {
     std::ostringstream output;
     output << std::setprecision(17)
-           << "{\n  \"schema_version\": \"1.1\",\n  \"application\": \"HumTrace\",\n  \"input\": {\n    \"path\": ";
+           << "{\n  \"schema_version\": \"1.2\",\n  \"application\": \"HumTrace\",\n  \"input\": {\n    \"path\": ";
     write_string(output, report.input_path);
     output << ",\n    \"sample_rate_hz\": " << report.sample_rate_hz
            << ",\n    \"channels\": " << report.channels
@@ -130,7 +166,22 @@ std::string serialize_report_json(const AnalysisReport& report) {
     write_number(output, report.track_settings.frequency_tolerance_hz);
     output << ", \"max_gap_frames\": " << report.track_settings.max_gap_frames
            << ", \"min_observed_frames\": " << report.track_settings.min_observed_frames
-           << "}\n  },\n  \"channels\": [";
+           << "}";
+    if (report.welch_psd) {
+        const auto& welch = *report.welch_psd;
+        output << ",\n    \"welch_psd\": {\"window\": \"hann\", \"density_unit\": \"dBFS^2/Hz\""
+               << ", \"segment_size_samples\": " << welch.segment_size
+               << ", \"hop_size_samples\": " << welch.hop_size
+               << ", \"guard_bins\": " << report.psd_noise_floor.guard_bins
+               << ", \"radius_bins\": " << report.psd_noise_floor.radius_bins
+               << ", \"max_harmonics\": " << report.psd_noise_floor.max_harmonics
+               << ", \"minimum_prominence_db\": ";
+        write_number(output, report.psd_noise_floor.minimum_prominence_db);
+        output << "}";
+    } else {
+        output << ",\n    \"welch_psd\": null";
+    }
+    output << "\n  },\n  \"channels\": [";
     for (std::size_t channel_index = 0; channel_index < report.channel_results.size(); ++channel_index) {
         const auto& channel = report.channel_results[channel_index];
         if (channel_index != 0) output << ',';
@@ -159,11 +210,16 @@ std::string serialize_report_json(const AnalysisReport& report) {
             if (track_index != 0) output << ", ";
             write_track(output, channel.tracks[track_index], report.sample_rate_hz);
         }
-        output << "]}";
+        output << "], \"psd\": ";
+        if (channel.psd)
+            write_psd_summary(output, *channel.psd);
+        else
+            output << "null";
+        output << '}';
     }
     if (!report.channel_results.empty()) output << '\n' << "  ";
     output << "],\n  \"interpretation\": {\n    \"source_classification\": null,\n"
-           << "    \"note\": \"Frequency, harmonic, and track measurements do not prove a physical source or cause. Tracks summarize repeated spectral peaks only.\"\n  }\n}\n";
+           << "    \"note\": \"Frequency, harmonic, PSD, and track measurements do not prove a physical source or cause. Tracks summarize repeated spectral peaks only; PSD prominence flags summarize averaged spectral density only.\"\n  }\n}\n";
     return output.str();
 }
 

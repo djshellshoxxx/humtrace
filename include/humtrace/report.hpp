@@ -1,10 +1,12 @@
 #pragma once
 
+#include "humtrace/psd.hpp"
 #include "humtrace/spectrum.hpp"
 #include "humtrace/tracks.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -14,6 +16,8 @@ struct ReportChannel {
     std::uint16_t channel_number{};
     std::vector<InterferenceFrame> frames;
     std::vector<PeakTrack> tracks;
+    // Absent when the Welch PSD has no complete segment.
+    std::optional<PsdSummary> psd;
 };
 
 struct AnalysisReport {
@@ -31,6 +35,9 @@ struct AnalysisReport {
     PeakPickingSettings peak_picking;
     TrackSettings track_settings;
     std::vector<ReportChannel> channel_results;
+    // Absent when no Welch PSD was computed for this report.
+    std::optional<WelchSettings> welch_psd;
+    PsdNoiseFloorSettings psd_noise_floor;
 };
 
 [[nodiscard]] std::string serialize_report_json(const AnalysisReport& report);

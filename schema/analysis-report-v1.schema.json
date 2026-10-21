@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.1",
-  "title": "HumTrace Analysis Report 1.1",
+  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.2",
+  "title": "HumTrace Analysis Report 1.2",
   "type": "object",
   "required": [
     "schema_version",
@@ -13,7 +13,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.1"
+      "const": "1.2"
     },
     "application": {
       "const": "HumTrace"
@@ -67,7 +67,8 @@
         "hop_size_samples",
         "support_threshold_dbfs",
         "minimum_prominence_db",
-        "peak_tracking"
+        "peak_tracking",
+        "welch_psd"
       ],
       "properties": {
         "window": {
@@ -136,6 +137,58 @@
               "minimum": 1
             }
           }
+        },
+        "welch_psd": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "window",
+                "density_unit",
+                "segment_size_samples",
+                "hop_size_samples",
+                "guard_bins",
+                "radius_bins",
+                "max_harmonics",
+                "minimum_prominence_db"
+              ],
+              "properties": {
+                "window": {
+                  "const": "hann"
+                },
+                "density_unit": {
+                  "const": "dBFS^2/Hz"
+                },
+                "segment_size_samples": {
+                  "type": "integer",
+                  "minimum": 4
+                },
+                "hop_size_samples": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "guard_bins": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "radius_bins": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "max_harmonics": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minimum_prominence_db": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -146,7 +199,8 @@
         "required": [
           "channel_number",
           "frames",
-          "tracks"
+          "tracks",
+          "psd"
         ],
         "properties": {
           "channel_number": {
@@ -212,6 +266,16 @@
             "items": {
               "$ref": "#/$defs/peakTrack"
             }
+          },
+          "psd": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/psdSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       }
@@ -457,6 +521,134 @@
               }
             }
           }
+        }
+      }
+    },
+    "psdHarmonic": {
+      "type": "object",
+      "required": [
+        "number",
+        "expected_frequency_hz",
+        "measured_bin_hz",
+        "level_dbfs2_per_hz",
+        "local_floor_dbfs2_per_hz",
+        "prominence_db",
+        "prominent"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "measured_bin_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "level_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "local_floor_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "psdHarmonicCandidate": {
+      "type": "object",
+      "required": [
+        "nominal_frequency_hz",
+        "prominent_harmonics",
+        "harmonics"
+      ],
+      "properties": {
+        "nominal_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "prominent_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "harmonics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/psdHarmonic"
+          }
+        }
+      }
+    },
+    "psdSummary": {
+      "type": "object",
+      "required": [
+        "segments_averaged",
+        "samples_processed",
+        "bin_width_hz",
+        "density_unit",
+        "broadband_median_dbfs2_per_hz",
+        "source_classification",
+        "mains_50_hz_psd",
+        "mains_60_hz_psd"
+      ],
+      "properties": {
+        "segments_averaged": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "samples_processed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bin_width_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "density_unit": {
+          "const": "dBFS^2/Hz"
+        },
+        "broadband_median_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_classification": {
+          "type": "null"
+        },
+        "mains_50_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
+        },
+        "mains_60_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
         }
       }
     }

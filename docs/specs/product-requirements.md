@@ -20,7 +20,7 @@ Detailed acceptance behavior is linked from the [design index](../design/index.m
 ## Staged build order
 
 1. **Core measurement (started):** streaming RIFF/WAVE PCM/float batches, one-sided spectrum, dBFS units, parabolic peak interpolation, and test harness.
-2. **Interference measurements (partial):** local spectral-floor prominence and 50/60 harmonic-bin measurements are implemented; Welch PSD, off-nominal candidate tracking, and validated real-recording fixtures remain.
+2. **Interference measurements (partial):** local spectral-floor prominence, 50/60 harmonic-bin measurements, and a Welch PSD estimator (Hann, dBFS^2/Hz) with a median local noise floor and nominal 50/60 Hz PSD prominence are implemented. The PSD path is covered by synthetic tests only. Off-nominal candidate tracking and validated real-recording fixtures remain.
 3. **Timeline (partial):** the overlapping per-channel dominant-bin timeline and a prototype peak-track association are implemented: bounded top-N peaks per frame, nearest-frequency matching with configurable tolerance, maximum frame gap and minimum persistence, plus first-to-last drift. Track association is covered by synthetic tests only. Validated persistence thresholds, coverage/evidence rules, event intervals, split/merge lineage, and evaluation on labeled recordings remain.
 4. **File workflow (partial):** streaming decode and preliminary JSON report schema are implemented; cancellation/progress and multi-file comparison remain.
 5. **Desktop application:** background analysis, responsive UI, waveform/spectrum/spectrogram/timeline, result explanation.
