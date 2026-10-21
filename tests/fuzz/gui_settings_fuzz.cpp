@@ -38,7 +38,7 @@ QString writeWav(const QString& dir, std::mt19937_64& g) {
         for (int c = 0; c < channels; ++c)
             put16(data, qint16(std::lround(0.4 * 32767 * std::sin(2 * std::numbers::pi * f0 * (c + 1) * i / rate))));
     QByteArray body("fmt ");
-    put32(body, 16); put16(body, 1); put16(body, qint16(channels)); put32(body, rate); put32(body, rate * channels * 2); put16(body, qint16(channels * 2)); put16(body, 16);
+    put32(body, 16); put16(body, 1); put16(body, qint16(channels)); put32(body, rate); put32(body, rate * quint32(channels) * 2); put16(body, qint16(channels * 2)); put16(body, 16);
     body += "data"; put32(body, quint32(data.size())); body += data;
     QByteArray file("RIFF");
     put32(file, quint32(body.size() + 4));
