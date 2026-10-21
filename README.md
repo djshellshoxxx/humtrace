@@ -37,3 +37,7 @@ build/humtrace recording.wav --json analysis.json
 ## Measurement interpretation
 
 Levels are peak-amplitude dBFS calculated from normalized decoded samples. They are not SPL or voltage measurements. Similarity to 50/60 Hz harmonic patterns does not prove a ground loop or identify a device, location, or recording origin.
+
+## Wiki
+
+Wiki source pages are in [docs/wiki/](docs/wiki/Home.md): user guide, developer guide, architecture rationale and codebase map. The `docs/` tree remains the authority.
