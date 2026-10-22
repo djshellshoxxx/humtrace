@@ -266,7 +266,7 @@ int main(int argc, char** argv) {
             auto b = run(args[2], options.pipeline);
             a.input_path = display_path(a.input_path, options.full_path);
             b.input_path = display_path(b.input_path, options.full_path);
-            const auto comparison = humtrace::compare_reports(a, b, options.compare);
+            const auto comparison = humtrace::compare_reports(a, b, options.compare, [] { return g_cancel.load(); });
             std::cout << "Matched tracks: " << comparison.matches.size() << ", unmatched in A: "
                       << comparison.unmatched_a.size() << ", unmatched in B: "
                       << comparison.unmatched_b.size() << '\n';

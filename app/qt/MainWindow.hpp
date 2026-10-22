@@ -4,13 +4,17 @@
 #include "../presentation/job_state.hpp"
 #include "humtrace/pipeline.hpp"
 #include "humtrace/session.hpp"
+#include "humtrace/streaming.hpp"
 
 #include <QMainWindow>
 #include <functional>
 #include <memory>
 
 class AnalysisWorker;
+class QThread;
 class FindingsModel;
+class PagedData;
+class QPushButton;
 class QAction;
 class QComboBox;
 class QDoubleSpinBox;
@@ -35,6 +39,11 @@ public:
     // Test/automation hooks (the same code paths the UI actions use).
     void openRecording(const QString& path);
     void startAnalysis();
+    void setPagedAnalysis(bool enabled) { forcePaged_ = enabled; }
+    [[nodiscard]] bool hasPagedResults() const { return bool(paged_); }
+    [[nodiscard]] std::size_t pagedCacheBytes() const;
+    void startStreamingExport(const QString& path, bool replaceExisting = false);
+    void setStreamingLimits(const humtrace::StreamingLimits& limits) { streamLimits_ = limits; }
     [[nodiscard]] humtrace::ui::JobState state() const { return state_; }
     [[nodiscard]] const humtrace::AnalysisReport* report() const { return result_ ? &result_->report : nullptr; }
     [[nodiscard]] ViewState* viewState() const { return view_; }
@@ -56,6 +65,7 @@ private slots:
     void chooseAndOpen();
     void cancelAnalysis();
     void chooseAndExport();
+    void chooseAndStreamExport();
     void chooseAndCompare();
     void showSettings();
     void showHelp();
@@ -76,15 +86,29 @@ private:
     void loadRecent();
     void clearResults();
     void releaseWorker();
+    void startWorker(AnalysisWorker* worker, bool preserveResults = false);
+    void loadFindingPage(std::uint64_t first);
+    void dataReadFailed(const QString& message);
     int currentFrame() const;
     void updateFrameViews();
 
     humtrace::ui::JobState state_{humtrace::ui::JobState::Empty};
     QString path_;
     humtrace::PipelineSettings settings_;
+    humtrace::StreamingLimits streamLimits_;
     std::unique_ptr<humtrace::AnalysisResult> result_;
     std::vector<humtrace::ui::FindingRow> findings_;
+    std::unique_ptr<PagedData> paged_;
+    std::vector<float> selectedRow_;
+    std::uint64_t findingPage_{0};
+    bool forcePaged_{false};
+    std::uint64_t jobGeneration_{0};
+    QLabel* findingPageLabel_{nullptr};
+    QPushButton* prevPage_{nullptr};
+    QPushButton* nextPage_{nullptr};
     AnalysisWorker* worker_{nullptr};
+    AnalysisWorker* comparisonAnalysis_{nullptr};
+    QThread* comparisonThread_{nullptr};
     bool compareBusy_{false};   // a comparison's nested event loop is running
     int restoreChannel_{0};     // channel to re-select after re-analysis
     class QTimer* displayTimer_{nullptr};
@@ -115,6 +139,7 @@ private:
     QAction* cancelAct_{nullptr};
     QAction* compareAct_{nullptr};
     QAction* exportAct_{nullptr};
+    QAction* streamExportAct_{nullptr};
     QAction* settingsAct_{nullptr};
     QAction* nextAct_{nullptr};
     QAction* prevAct_{nullptr};

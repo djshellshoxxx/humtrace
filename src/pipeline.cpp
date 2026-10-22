@@ -51,7 +51,8 @@ std::size_t select_window_size(const WavMetadata& metadata,
 AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
                            const std::function<void(double)>& progress,
                            const std::function<bool()>& cancelled,
-                           std::vector<ChannelView>* views, FrameSink* sink) {
+                           std::vector<ChannelView>* views, FrameSink* sink,
+                           const std::function<void()>& finalizing) {
     validate_settings(settings);
     if (views && sink) throw std::invalid_argument("streaming sink cannot retain presentation views");
     const auto& metadata = reader.metadata();
@@ -108,10 +109,11 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         estimators.emplace_back(metadata.sample_rate_hz, settings.welch);
     std::vector<double> samples(window_size);
     std::vector<std::vector<FramePeaks>> peaks(metadata.channels);
-    std::vector<ChannelView> local_views(views ? metadata.channels : 0);
+    const bool build_views = views || (sink && sink->wants_views());
+    std::vector<ChannelView> local_views(build_views ? metadata.channels : 0);
     std::vector<EnvelopeBuilder> envelopes;
     const auto total_per_channel = metadata.frame_count;
-    if (views) {
+    if (build_views) {
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
             envelopes.emplace_back(settings.waveform_buckets, total_per_channel);
     }
@@ -127,7 +129,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             // Overlapping FFT windows revisit samples; Welch receives only the new suffix.
             estimators[channel].push(std::span<const double>(samples).subspan(new_from));
             const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
-            if (views) {
+            if (build_views) {
                 if (row_edges.empty()) {
                     // Keep the lowest row below Nyquist for very low sample rates.
                     row_edges = log_row_edges(spectrum, settings.spectrogram_rows,
@@ -135,8 +137,9 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                     for (auto& view : local_views)
                         view.row_frequency_hz.assign(row_edges.begin(), row_edges.end() - 1);
                 }
-                local_views[channel].spectrogram_dbfs.push_back(
-                    reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs));
+                auto row = reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs);
+                if (sink) sink->view_row(channel, row);
+                else local_views[channel].spectrogram_dbfs.push_back(std::move(row));
                 envelopes[channel].add(samples.data() + new_from, window_size - new_from);
             }
             for (std::size_t i = new_from; i < window_size; ++i)
@@ -194,6 +197,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             progress(1.0);
     }
 
+    if (finalizing) finalizing();
     auto tracker = settings.tracker;
     tracker.bin_spacing_hz = static_cast<double>(metadata.sample_rate_hz) / static_cast<double>(window_size);
     report.tracker = tracker;
@@ -218,6 +222,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     {
         envelopes[c].finish(local_views[c].waveform_min, local_views[c].waveform_max);
         local_views[c].waveform_samples_per_bucket = envelopes[c].samples_per_bucket();
+        if (sink) sink->envelope(c, std::move(local_views[c]));
     }
     if (views)
         *views = std::move(local_views);

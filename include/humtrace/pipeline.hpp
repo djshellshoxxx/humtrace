@@ -35,6 +35,9 @@ class FrameSink {
 public:
     virtual ~FrameSink() = default;
     virtual void begin(const WavMetadata&, const PipelineSettings&) {}
+    [[nodiscard]] virtual bool wants_views() const { return false; }
+    virtual void view_row(std::size_t, const std::vector<float>&) {}
+    virtual void envelope(std::size_t, ChannelView&&) {}
     virtual void frame(std::size_t channel, const InterferenceFrame& frame, const FramePeaks& peaks) = 0;
     virtual void finish(std::size_t channel, ReportChannel& summary) = 0;
 };
@@ -56,7 +59,8 @@ void validate_settings(const PipelineSettings& settings);
 [[nodiscard]] AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
                                          const std::function<void(double)>& progress = {},
                                          const std::function<bool()>& cancelled = {},
-                                         std::vector<ChannelView>* views = nullptr, FrameSink* sink = nullptr);
+                                         std::vector<ChannelView>* views = nullptr, FrameSink* sink = nullptr,
+                                         const std::function<void()>& finalizing = {});
 
 struct AnalysisCancelled : std::runtime_error {
     AnalysisCancelled() : std::runtime_error("analysis cancelled") {}

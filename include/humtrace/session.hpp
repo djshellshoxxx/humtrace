@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <iosfwd>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,8 +18,11 @@ struct SessionCallbacks {
     std::function<bool()> cancelled;
 };
 
+class DiskAnalysis;
+
 struct AnalysisResult {
     AnalysisReport report;
+    std::shared_ptr<DiskAnalysis> storage; // optional immutable disk-backed timeline
     std::vector<ChannelView> views; // filled only when want_views is true
 };
 

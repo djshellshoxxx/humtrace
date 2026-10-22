@@ -53,6 +53,8 @@ jobs:
         run: cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build-cmake
       - name: Test (offscreen GUI tests and smoke fuzzers included)
         run: pip install jsonschema && cd build-cmake && HUMTRACE_REQUIRE_JSONSCHEMA=1 ctest --output-on-failure
+      - name: Paged GUI long-file memory and heartbeat acceptance
+        run: python3 tools/validate_paged_gui_memory.py build-cmake/bin/app_test_paged_memory
       - name: GUI settings-matrix fuzz (30 s)
         run: QT_QPA_PLATFORM=offscreen build-cmake/bin/gui_settings_fuzz 30
       - name: Package

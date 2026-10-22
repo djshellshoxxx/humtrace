@@ -20,7 +20,7 @@ enum class JobState { Empty, Opening, Ready, Hashing, Analyzing, Finalizing, Com
     case S::Opening: return to == S::Ready || to == S::Failed || to == S::Empty;
     case S::Ready: case S::Cancelled: case S::Failed: case S::Complete: case S::Invalidated:
         return to == S::Opening || to == S::Hashing || to == S::Empty ||
-               (from == S::Complete && to == S::Invalidated);
+               (from == S::Complete && (to == S::Invalidated || to == S::Finalizing || to == S::Failed));
     case S::Hashing: return to == S::Analyzing || to == S::Cancelling || to == S::Failed;
     case S::Analyzing: return to == S::Finalizing || to == S::Cancelling || to == S::Failed;
     case S::Finalizing: return to == S::Complete || to == S::Cancelling || to == S::Failed;

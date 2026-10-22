@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
+#include <algorithm>
 
 ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWidget* parent)
     : QDialog(parent), report_(report) {
@@ -38,25 +39,18 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
         layout->addWidget(label);
     }
 
-    auto* table = new QTableWidget(0, 7);
-    table->setHorizontalHeaderLabels({tr("Status"), tr("Channel A"), tr("Freq A (Hz)"), tr("Channel B"), tr("Freq B (Hz)"), tr("Delta freq (Hz)"), tr("Delta level (dB)")});
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setAccessibleName(tr("Comparison table"));
-    auto add = [&](const QString& status, const QString& ca, const QString& fa, const QString& cb, const QString& fb, const QString& df, const QString& dl) {
-        const int r = table->rowCount();
-        table->insertRow(r);
-        const QString cells[] = {status, ca, fa, cb, fb, df, dl};
-        for (int c = 0; c < 7; ++c) table->setItem(r, c, new QTableWidgetItem(cells[c]));
-    };
-    for (const auto& m : report.matches)
-        add(tr("Matched"), QString::number(m.a.channel), QString::number(m.a.median_frequency_hz, 'f', 3), QString::number(m.b.channel),
-            QString::number(m.b.median_frequency_hz, 'f', 3), QString::number(m.delta_frequency_hz, 'f', 3), QString::number(m.delta_level_db, 'f', 2));
-    for (const auto& u : report.unmatched_a)
-        add(tr("Only in A"), QString::number(u.channel), QString::number(u.median_frequency_hz, 'f', 3), "-", "-", "-", "-");
-    for (const auto& u : report.unmatched_b)
-        add(tr("Only in B"), "-", "-", QString::number(u.channel), QString::number(u.median_frequency_hz, 'f', 3), "-", "-");
-    table->resizeColumnsToContents();
-    layout->addWidget(table, 1);
+    table_ = new QTableWidget(0, 7);
+    table_->setHorizontalHeaderLabels({tr("Status"), tr("Channel A"), tr("Freq A (Hz)"), tr("Channel B"), tr("Freq B (Hz)"), tr("Delta freq (Hz)"), tr("Delta level (dB)")});
+    table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_->setAccessibleName(tr("Comparison table"));
+    page_ = new QLabel;
+    page_->setAccessibleName(tr("Comparison page and total count"));
+    previous_ = new QPushButton(tr("Previous rows")); next_ = new QPushButton(tr("Next rows"));
+    connect(previous_, &QPushButton::clicked, this, [this] { if (first_ >= 256) setPage(first_ - 256); });
+    connect(next_, &QPushButton::clicked, this, [this] { setPage(first_ + 256); });
+    auto* pages = new QHBoxLayout; pages->addWidget(previous_); pages->addWidget(page_); pages->addWidget(next_);
+    layout->addLayout(pages); layout->addWidget(table_, 1);
+    setPage(0);
     layout->addWidget(new QLabel(tr("Similar frequencies do not show a common device, environment, or location.")));
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
@@ -74,4 +68,31 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
             QMessageBox::warning(this, tr("HumTrace"), tr("Export failed: %1").arg(QString::fromUtf8(e.what())));
         }
     });
+}
+
+void ComparisonDialog::setPage(std::size_t first) {
+    const auto total = report_.matches.size() + report_.unmatched_a.size() + report_.unmatched_b.size();
+    first_ = std::min(first, total ? ((total - 1) / 256) * 256 : 0);
+    const auto end = std::min(total, first_ + 256);
+    table_->setRowCount(0);
+    auto add = [&](const QStringList& cells) {
+        const int row = table_->rowCount(); table_->insertRow(row);
+        for (int c = 0; c < 7; ++c) table_->setItem(row, c, new QTableWidgetItem(cells[c]));
+    };
+    for (auto i = first_; i < end; ++i) {
+        if (i < report_.matches.size()) {
+            const auto& m = report_.matches[i];
+            add({tr("Matched"), QString::number(m.a.channel), QString::number(m.a.median_frequency_hz, 'f', 3), QString::number(m.b.channel),
+                QString::number(m.b.median_frequency_hz, 'f', 3), QString::number(m.delta_frequency_hz, 'f', 3), QString::number(m.delta_level_db, 'f', 2)});
+        } else if (i - report_.matches.size() < report_.unmatched_a.size()) {
+            const auto& u = report_.unmatched_a[i - report_.matches.size()];
+            add({tr("Only in A"), QString::number(u.channel), QString::number(u.median_frequency_hz, 'f', 3), "-", "-", "-", "-"});
+        } else {
+            const auto& u = report_.unmatched_b[i - report_.matches.size() - report_.unmatched_a.size()];
+            add({tr("Only in B"), "-", "-", QString::number(u.channel), QString::number(u.median_frequency_hz, 'f', 3), "-", "-"});
+        }
+    }
+    table_->resizeColumnsToContents();
+    page_->setText(tr("Rows %1–%2 of %3").arg(total ? first_ + 1 : 0).arg(end).arg(total));
+    previous_->setEnabled(first_ > 0); next_->setEnabled(end < total);
 }

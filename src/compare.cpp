@@ -1,6 +1,7 @@
 #include "humtrace/compare.hpp"
 
 #include "humtrace/json.hpp"
+#include "humtrace/streaming.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -55,9 +56,21 @@ void write_ref(std::ostream& out, const TrackRef& t) {
 } // namespace
 
 ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& b,
-                                 const CompareSettings& settings) {
+                                 const CompareSettings& settings, const std::function<bool()>& cancelled) {
     if (!std::isfinite(settings.frequency_tolerance_hz) || settings.frequency_tolerance_hz < 0.0)
         throw std::invalid_argument("frequency tolerance must be finite and non-negative");
+    auto checkpoint = [&] { if (cancelled && cancelled()) throw AnalysisCancelled(); };
+    checkpoint();
+    constexpr std::uint64_t max_tracks = 131072, max_search_pairs = 16 * 1024 * 1024;
+    for (const auto* report : {&a, &b}) {
+        std::uint64_t count = 0;
+        for (const auto& channel : report->channel_results) {
+            if (channel.tracks.size() > max_tracks - count)
+                throw std::runtime_error("comparison track-summary memory limit exceeded");
+            count += channel.tracks.size();
+        }
+    }
+    std::uint64_t work = 0;
     ComparisonReport out;
     out.a = describe(a);
     out.b = describe(b);
@@ -94,15 +107,27 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
         const auto* chan_b = ib->second;
         used_a.insert(ca);
         used_b.insert(cb);
+        checkpoint();
+        if (!chan_b->tracks.empty() && chan_a->tracks.size() > (max_search_pairs - work) / chan_b->tracks.size())
+            throw std::runtime_error("comparison search work limit exceeded");
+        const auto pairs = chan_a->tracks.size() * chan_b->tracks.size();
+        work += pairs;
         std::vector<std::tuple<double, std::size_t, std::size_t>> candidates;
-        for (std::size_t i = 0; i < chan_a->tracks.size(); ++i)
+        candidates.reserve(std::min(pairs, std::size_t{1} << 20));
+        for (std::size_t i = 0; i < chan_a->tracks.size(); ++i) {
+            checkpoint();
             for (std::size_t j = 0; j < chan_b->tracks.size(); ++j) {
                 const double d = std::abs(chan_b->tracks[j].median_frequency_hz -
                                           chan_a->tracks[i].median_frequency_hz);
-                if (d <= settings.frequency_tolerance_hz)
+                if (d <= settings.frequency_tolerance_hz) {
+                    if (candidates.size() >= (std::size_t{1} << 20))
+                        throw std::runtime_error("comparison candidate memory limit exceeded");
                     candidates.emplace_back(d, i, j);
+                }
             }
+        }
         std::sort(candidates.begin(), candidates.end());
+        checkpoint();
         std::vector<bool> taken_a(chan_a->tracks.size()), taken_b(chan_b->tracks.size());
         for (const auto& [d, i, j] : candidates) {
             if (taken_a[i] || taken_b[j]) continue;
@@ -126,6 +151,35 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
         if (!used_b.contains(c.channel_number))
             for (const auto& t : c.tracks) out.unmatched_b.push_back(ref(c.channel_number, t));
     return out;
+}
+
+AnalysisReport comparison_summary(const DiskAnalysis& storage, const std::function<bool()>& cancelled,
+                                  std::uint64_t max_bytes) {
+    const auto& metadata = storage.report();
+    std::uint64_t required = static_cast<std::uint64_t>(metadata.channels) *
+        (sizeof(ReportChannel) + sizeof(PsdSummary) + 20 * sizeof(PsdHarmonicMeasurement) + 256);
+    if (required > max_bytes) throw std::runtime_error("comparison metadata memory limit exceeded");
+    for (std::size_t c = 0; c < metadata.channels; ++c) {
+        if (storage.track_count(c) > (max_bytes - required) / sizeof(Track))
+            throw std::runtime_error("comparison track-summary memory limit exceeded");
+        required += storage.track_count(c) * sizeof(Track);
+    }
+    auto summary = metadata;
+    for (std::size_t c = 0; c < metadata.channels; ++c) {
+        auto& tracks = summary.channel_results[c].tracks;
+        tracks.reserve(static_cast<std::size_t>(storage.track_count(c)));
+        for (std::uint64_t t = 0; t < storage.track_count(c); ++t) {
+            if (cancelled && cancelled()) throw AnalysisCancelled();
+            const auto stored = storage.track(c, t);
+            Track track;
+            track.id = stored.id; track.first_frame = stored.first_frame; track.last_frame = stored.last_frame;
+            track.observed_frames = stored.observed_frames; track.missing_frames = stored.missing_frames;
+            track.median_frequency_hz = stored.median_frequency_hz; track.median_level_dbfs = stored.median_level_dbfs;
+            track.drift_hz_per_second = stored.drift_hz_per_second;
+            tracks.push_back(std::move(track));
+        }
+    }
+    return summary;
 }
 
 std::string serialize_comparison_json(const ComparisonReport& r) {

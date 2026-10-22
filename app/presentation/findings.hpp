@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+namespace humtrace { struct FrameEvidence; }
+
 namespace humtrace::ui {
 
 // One reviewable row per measured track. Descriptive only: no source attribution.
@@ -31,7 +33,10 @@ struct FindingRow {
 [[nodiscard]] std::vector<FindingRow> build_findings(const AnalysisReport& report);
 
 // Plain-text inspector content: measurements, evidence, settings, limitations.
-[[nodiscard]] std::string describe_finding(const AnalysisReport& report, const FindingRow& row);
+[[nodiscard]] std::string describe_finding(const AnalysisReport& report, const FindingRow& row,
+                                            const FrameEvidence* evidence = nullptr);
+
+[[nodiscard]] std::string summarize_report(const AnalysisReport& report, std::size_t track_count);
 
 // Accessible one-paragraph summary of a whole analysis.
 [[nodiscard]] std::string summarize_report(const AnalysisReport& report,

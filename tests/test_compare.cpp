@@ -1,4 +1,5 @@
 #include "humtrace/compare.hpp"
+#include "humtrace/pipeline.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -97,6 +98,23 @@ int main() {
         require(std::abs(edge.matches[0].delta_level_db - 6.0) < 1e-12 && std::abs(edge.matches[0].delta_frequency_hz - 1.0) < 1e-12, "deltas are B - A");
         s.frequency_tolerance_hz = 0.999;
         require(humtrace::compare_reports(a, b, s).matches.empty(), "just beyond the tolerance does not match");
+    }
+    {
+        const auto a = report(48000, {{50.0}});
+        bool cancelled = false;
+        try { (void)humtrace::compare_reports(a, a, {}, [] { return true; }); }
+        catch (const humtrace::AnalysisCancelled&) { cancelled = true; }
+        require(cancelled, "comparison honors cancellation");
+        const auto crowded = report(48000, {std::vector<double>(1025, 50.0)});
+        bool limited = false;
+        try { (void)humtrace::compare_reports(crowded, crowded); }
+        catch (const std::runtime_error& error) { limited = std::string(error.what()).find("candidate memory") != std::string::npos; }
+        require(limited, "candidate memory is bounded before sorting");
+        const auto large = report(48000, {std::vector<double>(5000, 50.0)});
+        limited = false;
+        try { (void)humtrace::compare_reports(large, large); }
+        catch (const std::runtime_error& error) { limited = std::string(error.what()).find("search work") != std::string::npos; }
+        require(limited, "comparison search work has an explicit limit");
     }
     std::cout << "All compare tests passed.\n";
 }

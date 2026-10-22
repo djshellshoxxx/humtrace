@@ -21,14 +21,15 @@ regressions, Qt 6.8-compatible bounded GUI test waits, and optional-view allocat
 avoidance for the CLI. Report equality tests protect numerical parity between
 presentation-enabled and CLI analysis.
 
-## Uncompleted requirements
+## Long-file implementation and uncompleted requirements
 
-- Desktop and comparison workflows still retain capped frame/track results and
-  spectrograms in memory; disk-backed presentation and tile eviction remain. The
-  standalone `--stream --json` path now writes incrementally with explicit disk
-  quotas, free-space checks and bounded active tracking. Its one/three-hour
-  acceptance uses a real 96 MiB address-space limit; passing it does not establish
-  the desktop constant-working-set requirement.
+- Long-file desktop analyses now use immutable disk-backed frame/track storage,
+  exact random-access inspector records, a byte-budgeted LRU and multiresolution
+  spectrogram viewport tiles. Small-file in-memory results retain a caller-visible
+  cap. Comparison loads bounded track summaries in a cancellable background task;
+  oversized track/candidate workloads fail explicitly rather than discard data.
+  JSON export is incremental and cancellable. The CLI and desktop hour-scale
+  acceptances independently measure actual working set and source immutability.
 - Track split/merge lineage, full event intervals, fit-quality/quantile output and
   independently validated persistence rules remain incomplete.
 - A labeled recording corpus split by source/session, field performance and

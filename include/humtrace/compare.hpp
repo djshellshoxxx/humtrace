@@ -3,6 +3,7 @@
 #include "humtrace/report.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,7 +51,13 @@ struct ComparisonReport {
 // two analysis reports. Throws std::invalid_argument for an invalid tolerance, an unknown
 // channel, or a map that uses a channel more than once.
 [[nodiscard]] ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& b,
-                                               const CompareSettings& settings = {});
+                                               const CompareSettings& settings = {},
+                                               const std::function<bool()>& cancelled = {});
+
+class DiskAnalysis;
+// Loads only bounded track summaries; never materializes frame/observation trees.
+[[nodiscard]] AnalysisReport comparison_summary(const DiskAnalysis& storage,
+    const std::function<bool()>& cancelled = {}, std::uint64_t max_bytes = 16ULL * 1024 * 1024);
 
 [[nodiscard]] std::string serialize_comparison_json(const ComparisonReport& report);
 

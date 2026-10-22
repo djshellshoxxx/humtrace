@@ -57,7 +57,7 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
     AnalysisResult result;
     result.report = analyze_wav(
         reader, settings, [&](double f) { report_progress(Stage::Analyzing, f); }, callbacks.cancelled,
-        want_views ? &result.views : nullptr, sink);
+        want_views ? &result.views : nullptr, sink, [&] { report_progress(Stage::Finalizing, 0.0); });
     std::error_code ec_after;
     if (std::filesystem::file_size(native, ec_after) != size_before ||
         std::filesystem::last_write_time(native, ec_after) != time_before)

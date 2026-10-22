@@ -1,5 +1,9 @@
 // End-to-end GUI behavior tests (offscreen). Exercise the same code paths as the actions.
 #include "FindingsModel.hpp"
+#include "ComparisonDialog.hpp"
+#include <QPushButton>
+#include "PagedData.hpp"
+#include "humtrace/report.hpp"
 #include "MainWindow.hpp"
 #include "SpectrogramChart.hpp"
 #include "ViewState.hpp"
@@ -10,9 +14,13 @@
 #include <QElapsedTimer>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QTimer>
 #include <QTableWidget>
 #include <QFile>
 #include <QTableView>
+#include <QTextBrowser>
 #include <QTemporaryDir>
 #include <QTest>
 #include <cmath>
@@ -61,6 +69,34 @@ class GuiTest : public QObject {
     Q_OBJECT
     QTemporaryDir dir_;
 private slots:
+    void comparisonPagesPreserveBoundaryRows() {
+        humtrace::ComparisonReport report;
+        for (std::size_t i = 0; i < 513; ++i) {
+            humtrace::TrackRef value;
+            value.median_frequency_hz = static_cast<double>(i);
+            report.unmatched_a.push_back(value);
+        }
+        ComparisonDialog dialog(report);
+        auto* table = dialog.findChild<QTableWidget*>();
+        QPushButton* next = nullptr;
+        QPushButton* previous = nullptr;
+        for (auto* button : dialog.findChildren<QPushButton*>()) {
+            if (button->text() == "Next rows") next = button;
+            if (button->text() == "Previous rows") previous = button;
+        }
+        QVERIFY(table && next && previous);
+        QCOMPARE(table->rowCount(), 256);
+        QVERIFY(!previous->isEnabled());
+        next->click();
+        QCOMPARE(table->item(0, 2)->text(), QString("256.000"));
+        next->click();
+        QCOMPARE(table->rowCount(), 1);
+        QCOMPARE(table->item(0, 2)->text(), QString("512.000"));
+        QVERIFY(!next->isEnabled());
+        previous->click();
+        QCOMPARE(table->rowCount(), 256);
+        QCOMPARE(table->item(255, 2)->text(), QString("511.000"));
+    }
     void initTestCase() { QVERIFY(dir_.isValid()); }
 
     void startsEmptyWithDisabledActions() {
@@ -331,6 +367,101 @@ private slots:
         // Unwritable destination reports an error and leaves no temp file.
         QVERIFY(!w.exportReport(dir_.path() + "/missing-dir/report.json", false).isEmpty());
     }
+    void streamsReportInBackgroundAndHandlesQuotaAndClose() {
+        const auto path = writeWav(dir_.path(), "stream-desktop.wav", 30.0);
+        const auto output = dir_.path() + "/stream-desktop.json";
+        MainWindow w;
+        w.show();
+        w.openRecording(path);
+        QString error;
+        w.setErrorHandler([&](const QString&, const QString& message) { error = message; });
+        int heartbeats = 0;
+        QTimer heartbeat;
+        connect(&heartbeat, &QTimer::timeout, this, [&] { ++heartbeats; });
+        heartbeat.start(1);
+        w.startStreamingExport(output);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(heartbeats > 0);
+        QVERIFY(w.report() == nullptr); // full timeline was never loaded for visual preview
+        QFile report(output);
+        QVERIFY(report.open(QIODevice::ReadOnly));
+        const auto document = QJsonDocument::fromJson(report.readAll());
+        QVERIFY(document.isObject());
+        QCOMPARE(document.object()["input"].toObject()["path"].toString(), QString("stream-desktop.wav"));
+        report.close();
+        humtrace::StreamingLimits tight;
+        tight.max_resident_bytes = 1;
+        w.setStreamingLimits(tight);
+        const auto refused = dir_.path() + "/stream-refused.json";
+        w.startStreamingExport(refused);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Failed; }, 20000));
+        QVERIFY(error.contains("memory budget"));
+        QVERIFY(!QFile::exists(refused));
+        w.setStreamingLimits({});
+        {
+            MainWindow closing;
+            closing.openRecording(path);
+            closing.startStreamingExport(dir_.path() + "/stream-close.json");
+            QElapsedTimer timer;
+            timer.start();
+            closing.close();
+            QVERIFY(timer.elapsed() < 250);
+        }
+        QVERIFY(!QFile::exists(dir_.path() + "/stream-close.json"));
+        QVERIFY(QDir(dir_.path()).entryList({".humtrace-stream-*", "*.humtrace-tmp-*"}, QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
+    }
+
+    void pagedAnalysisPreservesInspectorAndBoundsCaches() {
+        const auto path = writeWav(dir_.path(), "paged-desktop.wav", 30.25);
+        const auto plain = humtrace::analyze_file(path.toStdString(), {}, {}, true);
+        const auto expectedRows = humtrace::ui::build_findings(plain.report);
+        MainWindow w;
+        w.setPagedAnalysis(true);
+        w.show();
+        QString error;
+        w.setErrorHandler([&](const QString&, const QString& message) { error = message; });
+        w.openRecording(path);
+        w.startAnalysis();
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete || w.state() == humtrace::ui::JobState::Failed; }, 20000));
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(w.hasPagedResults());
+        QVERIFY(w.report()->channel_results[0].frames.empty());
+        QCOMPARE(w.findingsModel()->rowCount(), 1); // paged by channel, with explicit totals
+        auto* inspector = w.findChild<QTextBrowser*>();
+        QVERIFY(inspector);
+        w.findingsTable()->selectRow(0);
+        QCOMPARE(inspector->toPlainText(), QString::fromStdString(humtrace::ui::describe_finding(plain.report, expectedRows[0])));
+        w.viewState()->setChannel(1);
+        QCOMPARE(w.findingsModel()->rowCount(), 1);
+        w.findingsTable()->selectRow(0);
+        QCOMPARE(inspector->toPlainText(), QString::fromStdString(humtrace::ui::describe_finding(plain.report, expectedRows[1])));
+        auto* spectrogram = w.findChild<SpectrogramChart*>();
+        QVERIFY(spectrogram);
+        for (int i = 0; i < 40; ++i) {
+            w.viewState()->setCursor((i % 30) + 0.25);
+            w.viewState()->setView({double(i % 20), double(i % 20) + 5.0});
+        }
+        QVERIFY(w.pagedCacheBytes() <= 6 * 1024 * 1024);
+        QVERIFY(spectrogram->imageBytes() <= 2 * 1024 * 1024);
+        const auto exported = dir_.path() + "/paged-export.json";
+        QVERIFY(w.exportReport(exported, false).isEmpty());
+        QFile file(exported);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto actual = QJsonDocument::fromJson(file.readAll());
+        const auto expected = QJsonDocument::fromJson(QByteArray::fromStdString(humtrace::serialize_report_json(plain.report)));
+        QCOMPARE(actual, expected);
+        // A tiny cache must evict and reload while preserving exact values.
+        const auto stored = humtrace::analyze_file_paged(path.toStdString(), {});
+        PagedData cache(stored, 65536);
+        for (std::size_t c = 0; c < 2; ++c) for (std::uint64_t f = 0; f < stored->frame_count(c); ++f) {
+            QCOMPARE(cache.frame(c, f).start_sample, plain.report.channel_results[c].frames[static_cast<std::size_t>(f)].start_sample);
+            QCOMPARE(cache.row(c, f), plain.views[c].spectrogram_dbfs[static_cast<std::size_t>(f)]);
+            QVERIFY(cache.cachedBytesUpperBound() <= 65536);
+        }
+        QCOMPARE(cache.frame(0, 0).start_sample, std::uint64_t{0});
+    }
+
 };
 
 QTEST_MAIN(GuiTest)

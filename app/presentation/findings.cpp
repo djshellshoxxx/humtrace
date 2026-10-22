@@ -1,5 +1,6 @@
 #include "findings.hpp"
 #include "humtrace/music.hpp"
+#include "humtrace/streaming.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -42,7 +43,7 @@ std::vector<FindingRow> build_findings(const AnalysisReport& report) {
     return rows;
 }
 
-std::string describe_finding(const AnalysisReport& report, const FindingRow& row) {
+std::string describe_finding(const AnalysisReport& report, const FindingRow& row, const FrameEvidence* evidence) {
     std::string text = "Observation: channel " + std::to_string(row.channel) + ", track " +
                        std::to_string(row.track_id) + " (analysis-local id)\n";
     text += "Track observed in " + std::to_string(row.observed_frames) + " of " +
@@ -68,6 +69,10 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             hi60 = std::max(hi60, frame.mains_60.supporting_harmonics);
             total = frame.mains_50.harmonics.size();
         }
+        if (evidence) {
+            lo50 = evidence->lo50; hi50 = evidence->hi50;
+            lo60 = evidence->lo60; hi60 = evidence->hi60; total = evidence->harmonic_count;
+        }
         if (channel.psd) {
             const auto& psd = *channel.psd;
             text += "  Channel Welch PSD: " + std::to_string(psd.segments_averaged) + " complete segments\n";
@@ -87,6 +92,10 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             rms_hi = std::max(rms_hi, levels->rms_dbfs);
             sample_peak = std::max(sample_peak, levels->sample_peak_dbfs);
             below_floor = below_floor || levels->rms_below_numeric_floor;
+        }
+        if (evidence) {
+            measured = evidence->measured; below_floor = evidence->below_floor;
+            rms_lo = evidence->rms_lo; rms_hi = evidence->rms_hi; sample_peak = evidence->sample_peak;
         }
         if (measured) {
             text += fmt("  Frame RMS range (includes DC, reference amplitude 1.0): %.2f to %.2f dBFS\n", rms_lo, rms_hi);
@@ -114,9 +123,12 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
 }
 
 std::string summarize_report(const AnalysisReport& report, const std::vector<FindingRow>& rows) {
+    return summarize_report(report, rows.size());
+}
+std::string summarize_report(const AnalysisReport& report, std::size_t track_count) {
     std::string text = "Recording of " + fmt("%.1f", report.duration_seconds) + " seconds, " +
            std::to_string(report.channels) + " channel(s) at " + std::to_string(report.sample_rate_hz) +
-           " Hz. " + std::to_string(rows.size()) + " track(s) measured. Measurements only; no source attribution.";
+           " Hz. " + std::to_string(track_count) + " track(s) measured. Measurements only; no source attribution.";
     std::size_t measured_channels = 0;
     double floor_lo = 0, floor_hi = 0;
     for (const auto& channel : report.channel_results) {
