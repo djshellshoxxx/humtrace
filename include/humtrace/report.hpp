@@ -53,7 +53,8 @@ struct ReportArrays {
 };
 void write_frame_json(std::ostream& output, const InterferenceFrame& frame, std::uint32_t sample_rate_hz);
 void write_track_json(std::ostream& output, const Track& track,
-                      const std::function<void(std::ostream&)>& observations = {});
+                      const std::function<void(std::ostream&)>& observations = {},
+                      const std::function<void(std::ostream&)>& gaps = {});
 void write_report_json(std::ostream& output, const AnalysisReport& report, const ReportArrays* arrays = nullptr);
 
 [[nodiscard]] std::string serialize_report_json(const AnalysisReport& report);

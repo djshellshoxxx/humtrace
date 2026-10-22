@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace humtrace {
@@ -35,6 +36,8 @@ struct TrackObservation {
     double level_dbfs{};
 };
 
+enum class TrackEndReason { EndOfInput, GapExceeded };
+
 struct Track {
     std::size_t id{}; // local to one analysis; not stable across settings
     std::vector<TrackObservation> observations;
@@ -45,14 +48,25 @@ struct Track {
     double median_frequency_hz{};
     double median_level_dbfs{};
     double drift_hz_per_second{};
+    double frequency_q25_hz{}, frequency_q75_hz{}, level_q25_dbfs{}, level_q75_dbfs{};
+    std::optional<double> drift_r_squared;
+    std::optional<double> drift_residual_rms_hz;
+    TrackEndReason end_reason{TrackEndReason::EndOfInput};
 };
+// Shared exact reduction for retained and disk-backed observations. The scan may
+// be called repeatedly; order_statistic returns the selected ascending rank.
+using ObservationVisitor = std::function<void(const TrackObservation&)>;
+using ObservationScan = std::function<void(const ObservationVisitor&)>;
+using ObservationOrderStatistic = std::function<double(std::size_t, bool)>;
+void summarize_track(Track& track, double sample_rate_hz, const ObservationScan& scan,
+                     const ObservationOrderStatistic& order_statistic);
 
 // Incremental deterministic association. Storage of observations is delegated to
 // callbacks; only active track endpoints and bounded candidate pairs are retained.
 class PeakAssociator {
 public:
     using Observe = std::function<void(std::size_t, const TrackObservation&)>;
-    using End = std::function<void(std::size_t)>;
+    using End = std::function<void(std::size_t, TrackEndReason)>;
     explicit PeakAssociator(TrackerSettings settings, std::size_t max_active = 4096);
     void push(const FramePeaks& frame, const Observe& observed, const End& ended);
     void finish(const End& ended);

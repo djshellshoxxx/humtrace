@@ -126,11 +126,6 @@ double select(const fs::path& path, const Budget& budget, std::size_t rank, bool
     }
     return from_key(prefix);
 }
-double median(const fs::path& path, const Budget& budget, std::size_t count, bool frequency) {
-    const auto upper = select(path, budget, count / 2, frequency);
-    return count % 2 ? upper : (select(path, budget, count / 2 - 1, frequency) + upper) / 2.0;
-}
-
 struct EncodedCandidate {
     double nominal{};
     std::size_t supporting{}, count{};
@@ -273,14 +268,14 @@ public:
             append(observations(channel, id), budget_, [&](std::ostream& output) {
                 output.write(reinterpret_cast<const char*>(&observation), sizeof(observation));
             });
-        }, [&](std::size_t id) { end_track(channel, id); });
+        }, [&](std::size_t id, TrackEndReason reason) { end_track(channel, id, reason); });
         std::size_t active = 0;
         for (const auto& association : associations_) active += association.active_count();
         if (active > budget_.limits.max_active_tracks)
             throw std::runtime_error("streaming active track memory budget exceeded");
     }
     void finish(std::size_t channel, ReportChannel& summary) override {
-        associations_[channel].finish([&](std::size_t id) { end_track(channel, id); });
+        associations_[channel].finish([&](std::size_t id, TrackEndReason reason) { end_track(channel, id, reason); });
         summary.suppressed_tracks = suppressed_[channel];
         if (retain_views_) {
             append(track_index(channel), budget_, [&](std::ostream& out) {
@@ -400,33 +395,21 @@ private:
             count = (count + 1) / 2;
         }
     }
-    void end_track(std::size_t channel, std::size_t id) {
+    void end_track(std::size_t channel, std::size_t id, TrackEndReason reason) {
         const auto path = observations(channel, id);
         Track track;
         track.id = id;
-        double sum_t = 0, sum_f = 0;
         scan(path, budget_, [&](const TrackObservation& observation) {
             if (track.observed_frames++ == 0) track.first_frame = observation.frame_index;
             track.last_frame = observation.frame_index;
-            sum_t += static_cast<double>(observation.start_sample) / rate_;
-            sum_f += observation.frequency_hz;
         });
         if (suppressed_.size() < associations_.size()) suppressed_.resize(associations_.size());
         if (track.observed_frames < tracker_.min_observed_frames) {
             ++suppressed_[channel]; budget_.erase(path); return;
         }
-        track.missing_frames = track.last_frame - track.first_frame + 1 - track.observed_frames;
-        track.median_frequency_hz = median(path, budget_, track.observed_frames, true);
-        track.median_level_dbfs = median(path, budget_, track.observed_frames, false);
-        const auto n = static_cast<double>(track.observed_frames);
-        const auto mean_t = sum_t / n, mean_f = sum_f / n;
-        double covariance = 0, variance = 0;
-        scan(path, budget_, [&](const TrackObservation& observation) {
-            const auto dt = static_cast<double>(observation.start_sample) / rate_ - mean_t;
-            covariance += dt * (observation.frequency_hz - mean_f);
-            variance += dt * dt;
-        });
-        if (variance > 0) track.drift_hz_per_second = covariance / variance;
+        track.end_reason = reason;
+        summarize_track(track, rate_, [&](const ObservationVisitor& visit) { scan(path, budget_, visit); },
+            [&](std::size_t rank, bool frequency) { return select(path, budget_, rank, frequency); });
         append(track_json(channel, id), budget_, [&](std::ostream& output) {
             write_track_json(output, track, [&](std::ostream& observations_output) {
                 bool first = true;
@@ -439,6 +422,18 @@ private:
                     observations_output << ", \"level_dbfs\": ";
                     json::write_number(observations_output, observation.level_dbfs);
                     observations_output << '}';
+                });
+            }, [&](std::ostream& gaps) {
+                std::optional<std::size_t> previous;
+                bool first = true;
+                scan(path, budget_, [&](const TrackObservation& observation) {
+                    if (previous && observation.frame_index > *previous + 1) {
+                        if (!first) gaps << ", ";
+                        first = false;
+                        gaps << "{\"first_frame_inclusive\": " << *previous + 1
+                             << ", \"last_frame_inclusive\": " << observation.frame_index - 1 << '}';
+                    }
+                    previous = observation.frame_index;
                 });
             });
         });

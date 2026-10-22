@@ -462,6 +462,102 @@
                       }
                     }
                   }
+                },
+                "frequency_q25_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "frequency_q75_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "level_q25_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "level_q75_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "drift_r_squared": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "drift_residual_rms_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "end_reason": {
+                  "enum": [
+                    "end_of_input",
+                    "gap_exceeded"
+                  ]
+                },
+                "quantile_method": {
+                  "const": "linear interpolation at (N-1)*p"
+                },
+                "event": {
+                  "type": "object",
+                  "required": [
+                    "analysis_local_id",
+                    "first_frame_inclusive",
+                    "last_frame_inclusive",
+                    "observed_frames",
+                    "gaps"
+                  ],
+                  "properties": {
+                    "analysis_local_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "first_frame_inclusive": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "last_frame_inclusive": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "observed_frames": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "gaps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "first_frame_inclusive",
+                          "last_frame_inclusive"
+                        ],
+                        "properties": {
+                          "first_frame_inclusive": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "last_frame_inclusive": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

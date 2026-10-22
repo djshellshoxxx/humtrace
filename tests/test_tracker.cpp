@@ -31,6 +31,8 @@ int main() {
         auto tracks = track_peaks({frame(0, {{60.0, -6}}), frame(1, {}), frame(2, {}),
                                    frame(3, {{60.0, -6}})}, 1000.0, settings);
         CHECK(tracks.size() == 2);
+        CHECK(tracks[0].end_reason == TrackEndReason::GapExceeded);
+        CHECK(tracks[1].end_reason == TrackEndReason::EndOfInput);
     }
     { // two tones stay separate; one-to-one assignment
         auto tracks = track_peaks({frame(0, {{50.0, -6}, {60.0, -9}}),
@@ -62,6 +64,12 @@ int main() {
         auto tracks = track_peaks({frame(0, {{60.0, -10}}), frame(1, {{60.2, -20}}), frame(2, {{60.4, -30}}), frame(3, {{60.6, -40}})}, 1000.0, settings);
         CHECK(tracks.size() == 1);
         CHECK(tracks[0].median_level_dbfs == -25.0);
+        CHECK(tracks[0].level_q25_dbfs == -32.5);
+        CHECK(tracks[0].level_q75_dbfs == -17.5);
+        CHECK(std::abs(tracks[0].frequency_q25_hz - 60.15) < 1e-9);
+        CHECK(std::abs(tracks[0].frequency_q75_hz - 60.45) < 1e-9);
+        CHECK(tracks[0].drift_r_squared && *tracks[0].drift_r_squared > 0.999999);
+        CHECK(tracks[0].drift_residual_rms_hz && *tracks[0].drift_residual_rms_hz < 1e-9);
         CHECK(std::abs(tracks[0].median_frequency_hz - 60.3) < 1e-9);
     }
     { // suppressed count
@@ -75,6 +83,13 @@ int main() {
         TrackerSettings huge = settings;
         huge.max_gap_frames = SIZE_MAX;
         CHECK(track_peaks({frame(0, {{60.0, -6}}), frame(5, {{60.0, -6}})}, 1000.0, huge).size() == 1);
+    }
+    { // Constant frequency has perfect zero-residual fit; one observation has no fit.
+        const auto constant = track_peaks({frame(0, {{60, -6}}), frame(100, {{60, -6}})}, 1000, settings);
+        CHECK(constant[0].drift_r_squared == 1.0);
+        CHECK(constant[0].drift_residual_rms_hz == 0.0);
+        const auto single = track_peaks({frame(0, {{60, -6}})}, 1000, settings);
+        CHECK(!single[0].drift_r_squared && !single[0].drift_residual_rms_hz);
     }
     { // invalid settings rejected
         bool threw = false;

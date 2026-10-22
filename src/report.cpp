@@ -101,7 +101,8 @@ void write_frame_json(std::ostream& output, const InterferenceFrame& frame, std:
             output << '}';
 }
 
-void write_track_json(std::ostream& output, const Track& track, const std::function<void(std::ostream&)>& observations) {
+void write_track_json(std::ostream& output, const Track& track, const std::function<void(std::ostream&)>& observations,
+                      const std::function<void(std::ostream&)>& gaps) {
             output << "{\"local_id\": " << track.id << ", \"first_frame\": " << track.first_frame
                    << ", \"last_frame\": " << track.last_frame
                    << ", \"observed_frames\": " << track.observed_frames
@@ -112,7 +113,34 @@ void write_track_json(std::ostream& output, const Track& track, const std::funct
             write_number(output, track.median_level_dbfs);
             output << ", \"drift_hz_per_second\": ";
             write_number(output, track.drift_hz_per_second);
-            output << ", \"observations\": [";
+            output << ", \"frequency_q25_hz\": "; write_number(output, track.frequency_q25_hz);
+            output << ", \"frequency_q75_hz\": "; write_number(output, track.frequency_q75_hz);
+            output << ", \"level_q25_dbfs\": "; write_number(output, track.level_q25_dbfs);
+            output << ", \"level_q75_dbfs\": "; write_number(output, track.level_q75_dbfs);
+            output << ", \"quantile_method\": \"linear interpolation at (N-1)*p\", \"drift_r_squared\": ";
+            if (track.drift_r_squared) write_number(output, *track.drift_r_squared); else output << "null";
+            output << ", \"drift_residual_rms_hz\": ";
+            if (track.drift_residual_rms_hz) write_number(output, *track.drift_residual_rms_hz); else output << "null";
+            output << ", \"end_reason\": ";
+            write_string(output, track.end_reason == TrackEndReason::GapExceeded ? "gap_exceeded" : "end_of_input");
+            output << ", \"event\": {\"analysis_local_id\": " << track.id
+                   << ", \"first_frame_inclusive\": " << track.first_frame
+                   << ", \"last_frame_inclusive\": " << track.last_frame
+                   << ", \"observed_frames\": " << track.observed_frames << ", \"gaps\": [";
+            if (gaps) gaps(output);
+            else {
+                bool first = true;
+                for (std::size_t i = 1; i < track.observations.size(); ++i) {
+                    const auto previous = track.observations[i - 1].frame_index;
+                    const auto current = track.observations[i].frame_index;
+                    if (current <= previous + 1) continue;
+                    if (!first) output << ", ";
+                    first = false;
+                    output << "{\"first_frame_inclusive\": " << previous + 1
+                           << ", \"last_frame_inclusive\": " << current - 1 << '}';
+                }
+            }
+            output << "]}, \"observations\": [";
             if (observations) observations(output);
             else for (std::size_t o = 0; o < track.observations.size(); ++o) {
                 const auto& obs = track.observations[o];

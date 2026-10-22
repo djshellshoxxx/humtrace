@@ -6,46 +6,51 @@
 #include <tuple>
 
 namespace humtrace {
-namespace {
-[[nodiscard]] double median(std::vector<double> values) {
-    std::sort(values.begin(), values.end());
-    const auto middle = values.size() / 2;
-    return values.size() % 2 != 0 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
-}
-
-void summarize(Track& track, double sample_rate_hz) {
-    const auto& obs = track.observations;
-    track.first_frame = obs.front().frame_index;
-    track.last_frame = obs.back().frame_index;
-    track.observed_frames = obs.size();
-    track.missing_frames = track.last_frame - track.first_frame + 1 - obs.size();
-    std::vector<double> freqs, levels;
-    for (const auto& o : obs) {
-        freqs.push_back(o.frequency_hz);
-        levels.push_back(o.level_dbfs);
-    }
-    track.median_frequency_hz = median(freqs);
-    track.median_level_dbfs = median(levels);
-    track.drift_hz_per_second = 0.0;
-    if (obs.size() < 2)
-        return;
-    const auto n = static_cast<double>(obs.size());
+void summarize_track(Track& track, double sample_rate_hz, const ObservationScan& scan,
+                     const ObservationOrderStatistic& order_statistic) {
+    track.observed_frames = 0;
     double sum_t = 0.0, sum_f = 0.0;
-    for (const auto& o : obs) {
-        sum_t += static_cast<double>(o.start_sample) / sample_rate_hz;
-        sum_f += o.frequency_hz;
-    }
+    scan([&](const TrackObservation& observation) {
+        if (track.observed_frames++ == 0) track.first_frame = observation.frame_index;
+        track.last_frame = observation.frame_index;
+        sum_t += static_cast<double>(observation.start_sample) / sample_rate_hz;
+        sum_f += observation.frequency_hz;
+    });
+    if (track.observed_frames == 0) throw std::invalid_argument("cannot summarize an empty track");
+    track.missing_frames = track.last_frame - track.first_frame + 1 - track.observed_frames;
+    auto quantile = [&](unsigned quarter, bool frequency) {
+        const auto span = track.observed_frames - 1;
+        const auto lower = (span / 4) * quarter + (span % 4) * quarter / 4;
+        const auto remainder = (span % 4) * quarter % 4;
+        const auto lo = order_statistic(lower, frequency);
+        if (quarter == 2 && remainder) return (lo + order_statistic(lower + 1, frequency)) / 2.0;
+        return remainder ? lo + (order_statistic(lower + 1, frequency) - lo) * static_cast<double>(remainder) / 4.0 : lo;
+    };
+    track.median_frequency_hz = quantile(2, true);
+    track.median_level_dbfs = quantile(2, false);
+    track.frequency_q25_hz = quantile(1, true); track.frequency_q75_hz = quantile(3, true);
+    track.level_q25_dbfs = quantile(1, false); track.level_q75_dbfs = quantile(3, false);
+    const auto n = static_cast<double>(track.observed_frames);
     const double mean_t = sum_t / n, mean_f = sum_f / n;
-    double covariance = 0.0, variance = 0.0;
-    for (const auto& o : obs) {
-        const double dt = static_cast<double>(o.start_sample) / sample_rate_hz - mean_t;
-        covariance += dt * (o.frequency_hz - mean_f);
-        variance += dt * dt;
-    }
-    if (variance > 0.0)
-        track.drift_hz_per_second = covariance / variance;
+    double covariance = 0.0, variance = 0.0, frequency_variance = 0.0;
+    scan([&](const TrackObservation& observation) {
+        const double dt = static_cast<double>(observation.start_sample) / sample_rate_hz - mean_t;
+        const double df = observation.frequency_hz - mean_f;
+        covariance += dt * df; variance += dt * dt; frequency_variance += df * df;
+    });
+    track.drift_hz_per_second = 0.0;
+    track.drift_r_squared.reset(); track.drift_residual_rms_hz.reset();
+    if (track.observed_frames < 2 || variance <= 0.0) return;
+    track.drift_hz_per_second = covariance / variance;
+    double residual = 0.0;
+    scan([&](const TrackObservation& observation) {
+        const auto dt = static_cast<double>(observation.start_sample) / sample_rate_hz - mean_t;
+        const auto error = observation.frequency_hz - mean_f - track.drift_hz_per_second * dt;
+        residual += error * error;
+    });
+    track.drift_residual_rms_hz = std::sqrt(residual / n);
+    track.drift_r_squared = frequency_variance > 0.0 ? std::clamp(1.0 - residual / frequency_variance, 0.0, 1.0) : 1.0;
 }
-} // namespace
 
 PeakAssociator::PeakAssociator(TrackerSettings settings, std::size_t max_active)
     : settings_(settings), max_active_(max_active) {
@@ -59,7 +64,7 @@ PeakAssociator::PeakAssociator(TrackerSettings settings, std::size_t max_active)
 void PeakAssociator::push(const FramePeaks& frame, const Observe& observed, const End& ended) {
     std::erase_if(active_, [&](const Active& track) {
         if (frame_index_ - track.last.frame_index - 1 > settings_.max_gap_frames) {
-            ended(track.id);
+            ended(track.id, TrackEndReason::GapExceeded);
             return true;
         }
         return false;
@@ -107,7 +112,7 @@ void PeakAssociator::push(const FramePeaks& frame, const Observe& observed, cons
 }
 
 void PeakAssociator::finish(const End& ended) {
-    for (const auto& track : active_) ended(track.id);
+    for (const auto& track : active_) ended(track.id, TrackEndReason::EndOfInput);
     active_.clear();
 }
 
@@ -129,13 +134,23 @@ std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sam
                 tracks.back().id = id;
             }
             tracks[id - 1].observations.push_back(observation);
-        }, [](std::size_t) {});
+        }, [&](std::size_t id, TrackEndReason reason) { tracks[id - 1].end_reason = reason; });
     }
+    association.finish([&](std::size_t id, TrackEndReason reason) { tracks[id - 1].end_reason = reason; });
     const auto before = tracks.size();
     std::erase_if(tracks, [&](const Track& t) { return t.observations.size() < settings.min_observed_frames; });
     if (suppressed) *suppressed = before - tracks.size();
-    for (auto& track : tracks)
-        summarize(track, sample_rate_hz);
+    for (auto& track : tracks) {
+        std::vector<double> frequencies, levels;
+        frequencies.reserve(track.observations.size()); levels.reserve(track.observations.size());
+        for (const auto& observation : track.observations) {
+            frequencies.push_back(observation.frequency_hz); levels.push_back(observation.level_dbfs);
+        }
+        std::sort(frequencies.begin(), frequencies.end()); std::sort(levels.begin(), levels.end());
+        summarize_track(track, sample_rate_hz,
+            [&](const ObservationVisitor& visit) { for (const auto& observation : track.observations) visit(observation); },
+            [&](std::size_t rank, bool frequency) { return frequency ? frequencies.at(rank) : levels.at(rank); });
+    }
     return tracks;
 }
 
