@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
                 std::cout << "Warning: " << w << '\n';
             std::cout << "Interpretation: similar frequencies do not show a common device or environment.\n";
             if (!options.json_path.empty()) {
-                humtrace::write_file_atomically(options.json_path, humtrace::serialize_comparison_json(comparison));
+                humtrace::write_file_atomically(options.json_path, humtrace::serialize_comparison_json(comparison), options.force);
                 std::cout << "JSON comparison saved: " << options.json_path << '\n';
             }
             return 0;
@@ -265,16 +265,23 @@ int main(int argc, char** argv) {
         if (args.empty() || args[0].rfind("--", 0) == 0 || !parse_options(args, 1, false, options)) return usage();
         if (!options.json_path.empty()) check_output(options.json_path, {args[0]}, options.force);
         if (!options.csv_path.empty()) check_output(options.csv_path, {args[0]}, options.force);
+        if (!options.json_path.empty() && !options.csv_path.empty()) {
+            try {
+                humtrace::require_distinct_paths(options.json_path, options.csv_path);
+            } catch (const std::runtime_error&) {
+                throw std::runtime_error("JSON and CSV exports must use distinct output files");
+            }
+        }
         g_a4_hz = options.a4_hz;
         auto report = run(args[0], options.pipeline);
         report.input_path = display_path(report.input_path, options.full_path);
         print_summary(report, options.quiet);
         if (!options.json_path.empty()) {
-            humtrace::write_file_atomically(options.json_path, humtrace::serialize_report_json(report));
+            humtrace::write_file_atomically(options.json_path, humtrace::serialize_report_json(report), options.force);
             std::cout << "JSON report saved: " << options.json_path << '\n';
         }
         if (!options.csv_path.empty()) {
-            humtrace::write_file_atomically(options.csv_path, humtrace::serialize_tracks_csv(report, options.a4_hz));
+            humtrace::write_file_atomically(options.csv_path, humtrace::serialize_tracks_csv(report, options.a4_hz), options.force);
             std::cout << "CSV track list saved: " << options.csv_path << '\n';
         }
     } catch (const humtrace::AnalysisCancelled&) {

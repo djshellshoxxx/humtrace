@@ -117,7 +117,13 @@ jobs:
             build-cmake/humtrace-*.zip
             build-cmake/SHA256SUMS
   macos:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, arch: arm64 }
+          - { os: macos-15-intel, arch: x86_64 }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt 6 and build tools
@@ -135,7 +141,7 @@ jobs:
           cd build-cmake/bin
           "$(brew --prefix qt)/bin/macdeployqt" humtrace-gui.app -codesign=-
           cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md .
-          zip -qry "../humtrace-$VER-macos-arm64.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md
+          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md
           cd .. && shasum -a 256 humtrace-*.zip | tee SHA256SUMS
       - name: Smoke test the packaged CLI
         run: |
@@ -146,12 +152,12 @@ jobs:
               o.setnchannels(1); o.setsampwidth(2); o.setframerate(4096)
               o.writeframes(b"".join(struct.pack("<h", round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
           PY
-          mkdir pkgtest && cd pkgtest && unzip -q ../build-cmake/humtrace-$VER-macos-arm64.zip
+          mkdir pkgtest && cd pkgtest && unzip -q ../build-cmake/humtrace-$VER-macos-${{ matrix.arch }}.zip
           ./humtrace ../smoke.wav --json ../smoke.json --quiet
           python3 -c "import json; d=json.load(open('../smoke.json')); assert d['channels'][0]['tracks'], d"
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-zip
+          name: macos-${{ matrix.arch }}-zip
           path: |
             build-cmake/humtrace-*.zip
             build-cmake/SHA256SUMS

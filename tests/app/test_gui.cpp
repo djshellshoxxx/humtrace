@@ -20,6 +20,17 @@
 #include <numbers>
 
 namespace {
+// Qt 6.8 QTRY_* macros narrow a chrono duration inside the macro expansion
+// under -Wconversion. Keep the same bounded event-loop wait without narrowing.
+template<class Predicate>
+bool wait_until(Predicate ready, int timeout_ms) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!ready() && timer.elapsed() < timeout_ms)
+        QTest::qWait(10);
+    return ready();
+}
+
 void put16(QByteArray& b, qint16 v) { b.append(char(v & 0xff)); b.append(char((v >> 8) & 0xff)); }
 void put32(QByteArray& b, quint32 v) { for (int s = 0; s < 32; s += 8) b.append(char((v >> s) & 0xff)); }
 
@@ -65,7 +76,7 @@ private slots:
         w.openRecording(path);
         QCOMPARE(w.state(), humtrace::ui::JobState::Ready);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         QVERIFY(w.report() != nullptr);
         QCOMPARE(int(w.report()->channels), 2);
         QCOMPARE(w.findingsModel()->rowCount(), 2);
@@ -95,7 +106,7 @@ private slots:
         auto shot = [&](const char* name) { QTest::qWait(50); const auto img = w.grab(); QVERIFY(!img.isNull()); if (shots) img.save(QString("%1/%2.png").arg(shots, name)); };
         shot("ready");
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         w.setDisplayOptions(1, 1, -90, -20);
         shot("linear-grayscale");
         w.setDisplayOptions(0, 0, -100, -10);
@@ -109,7 +120,7 @@ private slots:
         shot("stale");
         w.setPipelineSettings({});
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         w.resize(1024, 680);
         shot("narrow");
         QString msg;
@@ -128,7 +139,7 @@ private slots:
         humtrace::PipelineSettings s;
         w.setPipelineSettings(s);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         w.findingsTable()->selectRow(0);
         QTableWidget* frameTable = nullptr;
         for (auto* t : w.findChildren<QTableWidget*>()) if (t->accessibleName().contains("Spectrum measurement table")) frameTable = t;
@@ -148,16 +159,16 @@ private slots:
         const auto stereo = writeWav(dir_.path(), "keepch.wav", 4.0);
         w.openRecording(stereo);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         w.viewState()->setChannel(1);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         QCOMPARE(w.viewState()->channel(), 1);
         // 4. Busy: opening another file during a run is refused and the run is unaffected.
         w.startAnalysis();
         w.openRecording(path);
         QVERIFY(humtrace::ui::is_active(w.state()) || w.state() == humtrace::ui::JobState::Complete);
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         QCOMPARE(w.report()->channels, quint16(2));
     }
 
@@ -170,7 +181,7 @@ private slots:
         w.openRecording(path);
         QVERIFY2(w.minimumSizeHint().width() < 1500, qPrintable(QString::number(w.minimumSizeHint().width())));
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 30000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 30000));
         QCOMPARE(int(w.report()->channels), 32);
         const auto img = w.grab(); // 32 lanes must fall back to one readable lane without crashing
         QVERIFY(!img.isNull());
@@ -200,7 +211,7 @@ private slots:
         w.show();
         w.openRecording(path);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         w.findingsTable()->selectRow(1);
         QCOMPARE(w.viewState()->channel(), 1);
         QVERIFY(w.viewState()->hasSelection());
@@ -213,7 +224,7 @@ private slots:
         w.show();
         w.openRecording(path);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         const auto digest = w.report()->input_sha256;
         const auto before = w.report()->channel_results[0].frames.size();
         auto* wave = w.findChild<WaveformChart*>();
@@ -248,7 +259,7 @@ private slots:
         QElapsedTimer t;
         t.start();
         QMetaObject::invokeMethod(&w, "cancelAnalysis");
-        QTRY_VERIFY_WITH_TIMEOUT(w.state() == humtrace::ui::JobState::Cancelled || w.state() == humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Cancelled || w.state() == humtrace::ui::JobState::Complete; }, 20000));
         if (w.state() == humtrace::ui::JobState::Cancelled) {
             QVERIFY2(t.elapsed() < 3000, "cancellation latency");
             QVERIFY(w.report() == nullptr);
@@ -280,7 +291,7 @@ private slots:
         w.show();
         w.openRecording(path);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         QLabel* header = nullptr;
         for (auto* l : w.findChildren<QLabel*>()) if (l->accessibleName() == "Recording identity") header = l;
         QVERIFY(header);
@@ -307,7 +318,7 @@ private slots:
         w.show();
         w.openRecording(path);
         w.startAnalysis();
-        QTRY_COMPARE_WITH_TIMEOUT(w.state(), humtrace::ui::JobState::Complete, 20000);
+        QVERIFY(wait_until([&] { return w.state() == humtrace::ui::JobState::Complete; }, 20000));
         const QString out = dir_.path() + "/report.json";
         QVERIFY(w.exportReport(out, true).isEmpty());
         QFile f(out);

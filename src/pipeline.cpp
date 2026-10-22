@@ -64,7 +64,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         // vector growth, and bookkeeping.
         const std::uint64_t per_window = metadata.channels *
             (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
-             settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 64 * 3 / 2 + 128);
+             (views ? settings.spectrogram_rows * sizeof(float) : 0) +
+             settings.max_peaks_per_frame * 64 * 3 / 2 + 128);
         const std::uint64_t psd_bytes = metadata.channels *
             (sizeof(PsdSummary) + 20 * sizeof(PsdHarmonicMeasurement));
         if (psd_bytes >= settings.max_result_bytes ||
@@ -105,11 +106,13 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         estimators.emplace_back(metadata.sample_rate_hz, settings.welch);
     std::vector<double> samples(window_size);
     std::vector<std::vector<FramePeaks>> peaks(metadata.channels);
-    std::vector<ChannelView> local_views(metadata.channels);
+    std::vector<ChannelView> local_views(views ? metadata.channels : 0);
     std::vector<EnvelopeBuilder> envelopes;
     const auto total_per_channel = metadata.frame_count;
-    for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
-        envelopes.emplace_back(settings.waveform_buckets, total_per_channel);
+    if (views) {
+        for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
+            envelopes.emplace_back(settings.waveform_buckets, total_per_channel);
+    }
     std::vector<double> row_edges;
     // Full scale for the stored bit depth (integer PCM tops out one step below 1.0).
     const double clip_threshold = metadata.format_code == 3 ? 1.0 : 1.0 - 1.5 * std::ldexp(1.0, -(metadata.bit_depth - 1));
@@ -122,16 +125,18 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             // Overlapping FFT windows revisit samples; Welch receives only the new suffix.
             estimators[channel].push(std::span<const double>(samples).subspan(new_from));
             const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
-            if (row_edges.empty()) {
-                // Keep the lowest row below Nyquist for very low sample rates.
-                row_edges = log_row_edges(spectrum, settings.spectrogram_rows,
-                                          std::min(settings.spectrogram_min_hz, spectrum.back().frequency_hz / 100.0));
-                for (auto& view : local_views)
-                    view.row_frequency_hz.assign(row_edges.begin(), row_edges.end() - 1);
+            if (views) {
+                if (row_edges.empty()) {
+                    // Keep the lowest row below Nyquist for very low sample rates.
+                    row_edges = log_row_edges(spectrum, settings.spectrogram_rows,
+                                              std::min(settings.spectrogram_min_hz, spectrum.back().frequency_hz / 100.0));
+                    for (auto& view : local_views)
+                        view.row_frequency_hz.assign(row_edges.begin(), row_edges.end() - 1);
+                }
+                local_views[channel].spectrogram_dbfs.push_back(
+                    reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs));
+                envelopes[channel].add(samples.data() + new_from, window_size - new_from);
             }
-            local_views[channel].spectrogram_dbfs.push_back(
-                reduce_to_rows(spectrum, row_edges, settings.spectrogram_floor_dbfs));
-            envelopes[channel].add(samples.data() + new_from, window_size - new_from);
             for (std::size_t i = new_from; i < window_size; ++i)
                 if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
             report.channel_results[channel].frames.push_back(

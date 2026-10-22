@@ -34,7 +34,9 @@ struct AnalysisResult {
 void require_distinct_paths(const std::string& output, const std::string& input);
 
 // Write text to `path` by writing a sibling temp file then renaming, so a failed export
-// never leaves a truncated report. Throws std::runtime_error on failure.
-void write_file_atomically(const std::string& path, const std::string& content);
+// never leaves a truncated report. With replace_existing=false, publication also
+// refuses a destination created concurrently after preflight. Throws on failure.
+void write_file_atomically(const std::string& path, const std::string& content,
+                           bool replace_existing = true);
 
 } // namespace humtrace

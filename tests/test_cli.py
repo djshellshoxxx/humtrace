@@ -108,6 +108,25 @@ def check_never_overwrites_input(executable: pathlib.Path, directory: pathlib.Pa
     assert result.returncode == 1 and source.read_bytes() == before
 
 
+def check_output_paths_are_distinct(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "two-channel tones.wav"
+    output = directory / "colliding.json"
+    result = subprocess.run(
+        [str(executable), str(source), "--json", str(output), "--csv", str(output)],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 1 and not output.exists(), result.stderr
+    output.write_text("preserve this report", encoding="utf-8")
+    alias = directory / "colliding-alias.csv"
+    alias.hardlink_to(output)
+    result = subprocess.run(
+        [str(executable), str(source), "--json", str(output), "--csv", str(alias), "--force"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 1, result.stderr
+    assert output.read_text(encoding="utf-8") == alias.read_text(encoding="utf-8") == "preserve this report"
+
+
 def check_paths_overwrite_and_clipping(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "two-channel tones.wav"
     out = directory / "redacted.json"
@@ -241,6 +260,7 @@ def main() -> None:
         check_unwritable_output_leaves_nothing(executable, directory)
         check_interrupt_cancels_without_output(executable, directory)
         check_csv_and_notes(executable, directory)
+        check_output_paths_are_distinct(executable, directory)
     print("All CLI integration tests passed.")
 
 

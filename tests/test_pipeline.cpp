@@ -77,6 +77,18 @@ int main() {
         try { (void)humtrace::analyze_wav(reader, tight); } catch (const std::runtime_error&) { threw = true; }
         require(threw, "result memory limit is enforced up front");
     }
+    { // presentation allocation must not change any analytical measurement
+        const auto bytes = two_tone_wav(4096, 4096 * 3);
+        std::istringstream plain_input(bytes, std::ios::binary), view_input(bytes, std::ios::binary);
+        humtrace::WavStreamReader plain_reader(plain_input), view_reader(view_input);
+        const auto plain = humtrace::analyze_wav(plain_reader, {});
+        std::vector<humtrace::ChannelView> views;
+        const auto visual = humtrace::analyze_wav(view_reader, {}, {}, {}, &views);
+        require(!views.empty() && !views[0].spectrogram_dbfs.empty() && !views[0].waveform_min.empty(),
+                "requested presentation data is generated");
+        require(humtrace::serialize_report_json(plain) == humtrace::serialize_report_json(visual),
+                "CLI and desktop analyses have identical measurements");
+    }
     { // the final partial hop is analyzed (end-aligned window) and the waveform covers the whole file
         std::istringstream in(two_tone_wav(4096, 10000), std::ios::binary);
         humtrace::WavStreamReader reader(in);

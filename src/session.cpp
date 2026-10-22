@@ -3,11 +3,19 @@
 #include "humtrace/sha256.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <random>
 #include <stdexcept>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace humtrace {
 
@@ -74,27 +82,49 @@ void require_distinct_paths(const std::string& output, const std::string& input)
         throw std::runtime_error("refusing to overwrite the input recording with an export");
 }
 
-void write_file_atomically(const std::string& path, const std::string& content) {
+void write_file_atomically(const std::string& path, const std::string& content, bool replace_existing) {
     std::error_code error_ignored;
     const auto target = path_from_utf8(path);
-    // Unique temp name in the destination directory so concurrent exports cannot collide.
+    // Exclusively create the sibling temp file: randomness alone does not make
+    // truncating creation safe against collisions or pre-existing symlinks.
     std::random_device entropy;
-    auto temp = target;
-    temp += ".humtrace-tmp-" + std::to_string(entropy());
-    {
-        std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-        if (!out)
-            throw std::runtime_error("could not create output file");
-        out << content;
-        out.flush();
-        if (!out) {
-            out.close();
-            std::filesystem::remove(temp, error_ignored);
-            throw std::runtime_error("failed while writing output file");
-        }
+    std::filesystem::path temp;
+    std::FILE* out = nullptr;
+    for (int attempt = 0; attempt < 16; ++attempt) {
+        temp = target;
+        temp += ".humtrace-tmp-" + std::to_string(entropy());
+#ifdef _WIN32
+        out = _wfopen(temp.c_str(), L"wbx");
+#else
+        out = std::fopen(temp.c_str(), "wbx");
+#endif
+        if (out != nullptr || errno != EEXIST) break;
+    }
+    if (out == nullptr)
+        throw std::runtime_error("could not create output file");
+    const bool written = std::fwrite(content.data(), 1, content.size(), out) == content.size();
+    const bool closed = std::fclose(out) == 0;
+    if (!written || !closed) {
+        std::filesystem::remove(temp, error_ignored);
+        throw std::runtime_error("failed while writing output file");
     }
     std::error_code error;
-    std::filesystem::rename(temp, target, error);
+#ifdef _WIN32
+    // std::filesystem::rename cannot replace an existing destination on Windows.
+    // Use the native same-volume replacement operation for --force / GUI saves.
+    const DWORD flags = MOVEFILE_WRITE_THROUGH | (replace_existing ? MOVEFILE_REPLACE_EXISTING : 0U);
+    if (!MoveFileExW(temp.c_str(), target.c_str(), flags))
+        error = std::error_code(static_cast<int>(GetLastError()), std::system_category());
+#else
+    if (replace_existing) {
+        std::filesystem::rename(temp, target, error);
+    } else {
+        // Linking publishes the completed file without replacing a concurrently
+        // created destination. The sibling temporary is on the same filesystem.
+        std::filesystem::create_hard_link(temp, target, error);
+        if (!error) std::filesystem::remove(temp, error_ignored);
+    }
+#endif
     if (error) {
         std::filesystem::remove(temp, error_ignored);
         throw std::runtime_error("could not finalize output file: " + error.message());

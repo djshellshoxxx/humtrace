@@ -10,6 +10,10 @@
 
 namespace fs = std::filesystem;
 namespace {
+std::string utf8(const fs::path& path) {
+    const auto bytes = path.u8string();
+    return std::string(bytes.begin(), bytes.end());
+}
 void require(bool c, const char* m) { if (!c) { std::cerr << "FAIL: " << m << '\n'; std::exit(1); } }
 void put(std::string& b, std::uint32_t v, int bytes) { for (int i = 0; i < bytes; ++i) b.push_back(static_cast<char>((v >> (8 * i)) & 0xff)); }
 std::string wav(std::uint32_t frames) {
@@ -29,13 +33,29 @@ int main() {
     const auto dir = fs::temp_directory_path() / "humtrace-session-test";
     fs::create_directories(dir);
     { // non-ASCII (UTF-8) file names work for read and atomic write
-        const std::string name = (dir / fs::path(u8"résumé-テスト.wav")).string();
+        const std::string name = utf8(dir / fs::path(u8"résumé-テスト.wav"));
         { std::ofstream f(humtrace::path_from_utf8(name), std::ios::binary); const auto w = wav(16384); f.write(w.data(), static_cast<std::streamsize>(w.size())); }
         const auto result = humtrace::analyze_file(name, {}, {}, false);
         require(result.report.channel_results[0].tracks.size() == 1, "analysis of a UTF-8 path");
-        const std::string out = (dir / fs::path(u8"ümlaut.json")).string();
+        const std::string out = utf8(dir / fs::path(u8"ümlaut.json"));
         humtrace::write_file_atomically(out, "{}");
         require(fs::exists(humtrace::path_from_utf8(out)), "UTF-8 output path written");
+        humtrace::write_file_atomically(out, "replacement");
+        std::ifstream replacement(humtrace::path_from_utf8(out));
+        std::string text;
+        replacement >> text;
+        require(text == "replacement", "atomic export replaces existing output on every platform");
+        replacement.close();
+        bool refused = false;
+        try { humtrace::write_file_atomically(out, "must not replace", false); }
+        catch (const std::runtime_error&) { refused = true; }
+        require(refused, "no-replace publication refuses an existing destination");
+        std::ifstream preserved(humtrace::path_from_utf8(out));
+        preserved >> text;
+        require(text == "replacement", "no-replace publication preserves destination contents");
+        for (const auto& entry : fs::directory_iterator(dir))
+            require(utf8(entry.path().filename()).find(".humtrace-tmp-") == std::string::npos,
+                    "failed publication cleans up temporary files");
     }
     { // a file modified during analysis is rejected, not silently analyzed
         const auto path = (dir / "changing.wav").string();
