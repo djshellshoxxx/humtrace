@@ -43,3 +43,22 @@ Spectrum levels are peak-amplitude dBFS calculated from normalized decoded sampl
 `humtrace file.wav --psd-segment-size 4096 --psd-hop-size 2048 --json report.json --quiet`
 
 Both flags also apply to `compare`. The desktop uses the same estimator with default settings. See [PSD units and limitations](docs/modules/welch-psd.md).
+
+## Bounded-memory long-file JSON reports
+
+`humtrace file.wav --stream --json report.json --memory-limit-mib 64 --disk-limit-mib 1024`
+
+The explicit streaming workflow spools measurements and track observations beside
+its destination, computes exact track medians using bounded disk scans, and
+publishes a schema-compatible report atomically. It checks available disk space,
+limits temporary plus final output bytes, and removes scratch on cancellation or
+failure. Disk I/O trades speed for bounded memory. JSON/CSV combined exports and
+recording comparisons currently use the capped in-memory workflow; `--stream`
+accepts one recording and JSON output. The desktop still retains capped results
+and spectrograms; its disk-backed presentation model remains incomplete.
+
+`python tools/validate_streaming_memory.py build/humtrace` is the Linux acceptance
+runner: persistent-tone recordings of one and three hours complete under a real
+96 MiB address-space limit and a 64 MiB configured scratch budget, with source
+hash preservation, full frame counts and cleanup checks. This does not establish
+field accuracy or complete the desktop long-file specification.

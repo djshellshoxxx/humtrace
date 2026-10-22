@@ -56,7 +56,8 @@ QString stageText(int stage) {
     switch (static_cast<humtrace::Stage>(stage)) {
     case humtrace::Stage::Hashing: return QObject::tr("Hashing input");
     case humtrace::Stage::Analyzing: return QObject::tr("Analyzing");
-    case humtrace::Stage::Done: return QObject::tr("Finalizing");
+    case humtrace::Stage::Finalizing: return QObject::tr("Finalizing");
+    case humtrace::Stage::Done: return QObject::tr("Complete");
     }
     return {};
 }

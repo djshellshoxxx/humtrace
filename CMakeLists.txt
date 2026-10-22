@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(HumTrace VERSION 0.2.1 LANGUAGES CXX)
+project(HumTrace VERSION 0.2.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,7 @@ if(HUMTRACE_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME cli_integration COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_cli.py $<TARGET_FILE:humtrace>)
+    add_test(NAME streaming_integration COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_streaming.py $<TARGET_FILE:humtrace>)
   endif()
 endif()
 

@@ -25,6 +25,8 @@ jobs:
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
         run: python3 tools/qa_run.py build/humtrace
+      - name: Disk-backed long-file memory acceptance
+        run: python3 tools/validate_streaming_memory.py build/humtrace
       - name: Settings-matrix fuzz (30 s)
         run: make fuzz FUZZ_SECONDS=30
   sanitizers:

@@ -34,6 +34,7 @@ $(BUILD_DIR)/test_%: tests/test_%.cpp $(CORE_OBJECTS) $(CORE_HEADERS) | $(BUILD_
 test: $(BUILD_DIR)/humtrace $(addprefix $(BUILD_DIR)/test_,$(TESTS))
 	@set -e; for t in $(TESTS); do $(BUILD_DIR)/test_$$t; done
 	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
+	$(PYTHON) tests/test_streaming.py $(BUILD_DIR)/humtrace
 
 # 30-second randomized settings-matrix fuzz (override: make fuzz FUZZ_SECONDS=60).
 FUZZ_SECONDS ?= 30

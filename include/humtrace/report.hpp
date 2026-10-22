@@ -6,6 +6,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -43,6 +45,16 @@ struct AnalysisReport {
     std::vector<std::string> warnings; // plain-language notes about measurement quality
     std::vector<ReportChannel> channel_results;
 };
+
+// Array providers allow reports to be assembled from bounded-memory disk spools.
+struct ReportArrays {
+    std::function<void(std::ostream&, std::size_t)> frames;
+    std::function<void(std::ostream&, std::size_t)> tracks;
+};
+void write_frame_json(std::ostream& output, const InterferenceFrame& frame, std::uint32_t sample_rate_hz);
+void write_track_json(std::ostream& output, const Track& track,
+                      const std::function<void(std::ostream&)>& observations = {});
+void write_report_json(std::ostream& output, const AnalysisReport& report, const ReportArrays* arrays = nullptr);
 
 [[nodiscard]] std::string serialize_report_json(const AnalysisReport& report);
 

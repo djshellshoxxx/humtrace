@@ -72,8 +72,62 @@ void write_psd_summary(std::ostream& output, const PsdSummary& summary) {
 }
 } // namespace
 
-std::string serialize_report_json(const AnalysisReport& report) {
-    std::ostringstream output;
+void write_frame_json(std::ostream& output, const InterferenceFrame& frame, std::uint32_t sample_rate_hz) {
+            output << "\n      {\"start_sample\": " << frame.start_sample << ", \"start_seconds\": ";
+            if (sample_rate_hz == 0)
+                output << "null";
+            else
+                write_number(output, static_cast<double>(frame.start_sample) / sample_rate_hz);
+            output << ", \"sample_levels\": ";
+            if (frame.levels) {
+                const auto& levels = *frame.levels;
+                output << "{\"sample_count\": " << levels.sample_count << ", \"mean\": ";
+                write_number(output, levels.mean);
+                output << ", \"rms_dbfs\": "; write_number(output, levels.rms_dbfs);
+                output << ", \"sample_peak_dbfs\": "; write_number(output, levels.sample_peak_dbfs);
+                output << ", \"rms_below_numeric_floor\": " << (levels.rms_below_numeric_floor ? "true" : "false")
+                       << ", \"peak_below_numeric_floor\": " << (levels.peak_below_numeric_floor ? "true" : "false")
+                       << ", \"floor_dbfs\": " << sample_level_floor_dbfs
+                       << ", \"reference\": \"normalized amplitude 1.0; RMS includes DC; unwindowed sample peak\"}";
+            } else output << "null";
+            output << ", \"strongest_peak\": {\"frequency_hz\": ";
+            write_number(output, frame.strongest_peak.frequency_hz);
+            output << ", \"level_dbfs\": ";
+            write_number(output, frame.strongest_peak.level_dbfs);
+            output << "}, \"mains_50_hz_measurements\": ";
+            write_candidate(output, frame.mains_50);
+            output << ", \"mains_60_hz_measurements\": ";
+            write_candidate(output, frame.mains_60);
+            output << '}';
+}
+
+void write_track_json(std::ostream& output, const Track& track, const std::function<void(std::ostream&)>& observations) {
+            output << "{\"local_id\": " << track.id << ", \"first_frame\": " << track.first_frame
+                   << ", \"last_frame\": " << track.last_frame
+                   << ", \"observed_frames\": " << track.observed_frames
+                   << ", \"missing_frames\": " << track.missing_frames
+                   << ", \"median_frequency_hz\": ";
+            write_number(output, track.median_frequency_hz);
+            output << ", \"median_level_dbfs\": ";
+            write_number(output, track.median_level_dbfs);
+            output << ", \"drift_hz_per_second\": ";
+            write_number(output, track.drift_hz_per_second);
+            output << ", \"observations\": [";
+            if (observations) observations(output);
+            else for (std::size_t o = 0; o < track.observations.size(); ++o) {
+                const auto& obs = track.observations[o];
+                if (o != 0) output << ", ";
+                output << "{\"frame_index\": " << obs.frame_index << ", \"start_sample\": " << obs.start_sample
+                       << ", \"frequency_hz\": ";
+                write_number(output, obs.frequency_hz);
+                output << ", \"level_dbfs\": ";
+                write_number(output, obs.level_dbfs);
+                output << '}';
+            }
+            output << "]}";
+}
+
+void write_report_json(std::ostream& output, const AnalysisReport& report, const ReportArrays* arrays) {
     output << std::setprecision(17)
            << "{\n  \"schema_version\": \"" << kReportSchemaVersion << "\",\n  \"application\": \"HumTrace\",\n  \"generator\": {\"application_version\": \"" << kApplicationVersion
            << "\", \"method_version\": \"" << kMethodVersion << "\"},\n  \"input\": {\n    \"path\": ";
@@ -127,64 +181,20 @@ std::string serialize_report_json(const AnalysisReport& report) {
         const auto& channel = report.channel_results[channel_index];
         if (channel_index != 0) output << ',';
         output << "\n    {\"channel_number\": " << channel.channel_number << ", \"frames\": [";
-        for (std::size_t frame_index = 0; frame_index < channel.frames.size(); ++frame_index) {
+        if (arrays) arrays->frames(output, channel_index);
+        else for (std::size_t frame_index = 0; frame_index < channel.frames.size(); ++frame_index) {
             const auto& frame = channel.frames[frame_index];
             if (frame_index != 0) output << ',';
-            output << "\n      {\"start_sample\": " << frame.start_sample << ", \"start_seconds\": ";
-            if (report.sample_rate_hz == 0)
-                output << "null";
-            else
-                write_number(output, static_cast<double>(frame.start_sample) / report.sample_rate_hz);
-            output << ", \"sample_levels\": ";
-            if (frame.levels) {
-                const auto& levels = *frame.levels;
-                output << "{\"sample_count\": " << levels.sample_count << ", \"mean\": ";
-                write_number(output, levels.mean);
-                output << ", \"rms_dbfs\": "; write_number(output, levels.rms_dbfs);
-                output << ", \"sample_peak_dbfs\": "; write_number(output, levels.sample_peak_dbfs);
-                output << ", \"rms_below_numeric_floor\": " << (levels.rms_below_numeric_floor ? "true" : "false")
-                       << ", \"peak_below_numeric_floor\": " << (levels.peak_below_numeric_floor ? "true" : "false")
-                       << ", \"floor_dbfs\": " << sample_level_floor_dbfs
-                       << ", \"reference\": \"normalized amplitude 1.0; RMS includes DC; unwindowed sample peak\"}";
-            } else output << "null";
-            output << ", \"strongest_peak\": {\"frequency_hz\": ";
-            write_number(output, frame.strongest_peak.frequency_hz);
-            output << ", \"level_dbfs\": ";
-            write_number(output, frame.strongest_peak.level_dbfs);
-            output << "}, \"mains_50_hz_measurements\": ";
-            write_candidate(output, frame.mains_50);
-            output << ", \"mains_60_hz_measurements\": ";
-            write_candidate(output, frame.mains_60);
-            output << '}';
+            write_frame_json(output, frame, report.sample_rate_hz);
         }
         if (!channel.frames.empty()) output << '\n' << "    ";
         output << "], \"suppressed_tracks\": " << channel.suppressed_tracks << ", \"clipped_samples\": " << channel.clipped_samples
                << ", \"tracks\": [";
-        for (std::size_t t = 0; t < channel.tracks.size(); ++t) {
+        if (arrays) arrays->tracks(output, channel_index);
+        else for (std::size_t t = 0; t < channel.tracks.size(); ++t) {
             const auto& track = channel.tracks[t];
             if (t != 0) output << ", ";
-            output << "{\"local_id\": " << track.id << ", \"first_frame\": " << track.first_frame
-                   << ", \"last_frame\": " << track.last_frame
-                   << ", \"observed_frames\": " << track.observed_frames
-                   << ", \"missing_frames\": " << track.missing_frames
-                   << ", \"median_frequency_hz\": ";
-            write_number(output, track.median_frequency_hz);
-            output << ", \"median_level_dbfs\": ";
-            write_number(output, track.median_level_dbfs);
-            output << ", \"drift_hz_per_second\": ";
-            write_number(output, track.drift_hz_per_second);
-            output << ", \"observations\": [";
-            for (std::size_t o = 0; o < track.observations.size(); ++o) {
-                const auto& obs = track.observations[o];
-                if (o != 0) output << ", ";
-                output << "{\"frame_index\": " << obs.frame_index << ", \"start_sample\": " << obs.start_sample
-                       << ", \"frequency_hz\": ";
-                write_number(output, obs.frequency_hz);
-                output << ", \"level_dbfs\": ";
-                write_number(output, obs.level_dbfs);
-                output << '}';
-            }
-            output << "]}";
+            write_track_json(output, track);
         }
         output << "], \"psd\": ";
         if (channel.psd) write_psd_summary(output, *channel.psd);
@@ -194,6 +204,11 @@ std::string serialize_report_json(const AnalysisReport& report) {
     if (!report.channel_results.empty()) output << '\n' << "  ";
     output << "],\n  \"interpretation\": {\n    \"source_classification\": null,\n"
            << "    \"note\": \"Frequency and harmonic measurements do not prove a physical source.\"\n  }\n}\n";
+}
+
+std::string serialize_report_json(const AnalysisReport& report) {
+    std::ostringstream output;
+    write_report_json(output, report);
     return output.str();
 }
 

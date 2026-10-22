@@ -29,6 +29,16 @@ struct PipelineSettings {
     double spectrogram_floor_dbfs{-120.0};
 };
 
+// Optional disk-backed consumer; measurements are delivered before scratch reuse.
+// With a sink, the returned report contains metadata/PSD and no retained timeline.
+class FrameSink {
+public:
+    virtual ~FrameSink() = default;
+    virtual void begin(const WavMetadata&, const PipelineSettings&) {}
+    virtual void frame(std::size_t channel, const InterferenceFrame& frame, const FramePeaks& peaks) = 0;
+    virtual void finish(std::size_t channel, ReportChannel& summary) = 0;
+};
+
 // Throws std::invalid_argument naming the offending setting (non-finite values, negative
 // tolerances, zero counts). analyze_wav calls this first.
 void validate_settings(const PipelineSettings& settings);
@@ -46,7 +56,7 @@ void validate_settings(const PipelineSettings& settings);
 [[nodiscard]] AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
                                          const std::function<void(double)>& progress = {},
                                          const std::function<bool()>& cancelled = {},
-                                         std::vector<ChannelView>* views = nullptr);
+                                         std::vector<ChannelView>* views = nullptr, FrameSink* sink = nullptr);
 
 struct AnalysisCancelled : std::runtime_error {
     AnalysisCancelled() : std::runtime_error("analysis cancelled") {}

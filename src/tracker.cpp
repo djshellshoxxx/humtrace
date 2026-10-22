@@ -47,6 +47,70 @@ void summarize(Track& track, double sample_rate_hz) {
 }
 } // namespace
 
+PeakAssociator::PeakAssociator(TrackerSettings settings, std::size_t max_active)
+    : settings_(settings), max_active_(max_active) {
+    if (max_active == 0 || max_active > 65536 || !std::isfinite(settings.fixed_hz_tolerance) || settings.fixed_hz_tolerance < 0.0 ||
+        !std::isfinite(settings.relative_tolerance) || settings.relative_tolerance < 0.0 ||
+        !std::isfinite(settings.bin_spacing_hz) || settings.bin_spacing_hz < 0.0 ||
+        !std::isfinite(settings.bin_fraction) || settings.bin_fraction < 0.0)
+        throw std::invalid_argument("invalid incremental tracker settings");
+}
+
+void PeakAssociator::push(const FramePeaks& frame, const Observe& observed, const End& ended) {
+    std::erase_if(active_, [&](const Active& track) {
+        if (frame_index_ - track.last.frame_index - 1 > settings_.max_gap_frames) {
+            ended(track.id);
+            return true;
+        }
+        return false;
+    });
+    const auto& peaks = frame.peaks;
+    std::vector<std::tuple<double, std::size_t, std::size_t>> candidates;
+    constexpr auto candidate_limit = std::size_t{1} << 20;
+    const auto peak_count = std::min(peaks.size(), candidate_limit);
+    const auto pairs = peak_count != 0 && active_.size() > candidate_limit / peak_count
+        ? candidate_limit : active_.size() * peak_count;
+    candidates.reserve(pairs);
+    for (std::size_t p = 0; p < peaks.size(); ++p) {
+        if (!std::isfinite(peaks[p].frequency_hz) || peaks[p].frequency_hz <= 0.0 ||
+            !std::isfinite(peaks[p].level_dbfs)) continue;
+        for (std::size_t t = 0; t < active_.size(); ++t) {
+            const double prior = active_[t].last.frequency_hz;
+            const double limit = std::max({settings_.fixed_hz_tolerance,
+                settings_.relative_tolerance * prior, settings_.bin_fraction * settings_.bin_spacing_hz});
+            const double distance = std::abs(peaks[p].frequency_hz - prior);
+            if (distance <= limit) {
+                if (candidates.size() >= (std::size_t{1} << 20))
+                    throw std::runtime_error("tracker candidate memory limit exceeded");
+                candidates.emplace_back(distance, t, p);
+            }
+        }
+    }
+    std::sort(candidates.begin(), candidates.end());
+    std::vector<bool> track_used(active_.size(), false), peak_used(peaks.size(), false);
+    for (const auto& [distance, t, p] : candidates) {
+        (void)distance;
+        if (track_used[t] || peak_used[p]) continue;
+        track_used[t] = peak_used[p] = true;
+        active_[t].last = {frame_index_, frame.start_sample, peaks[p].frequency_hz, peaks[p].level_dbfs};
+        observed(active_[t].id, active_[t].last);
+    }
+    for (std::size_t p = 0; p < peaks.size(); ++p) {
+        if (peak_used[p] || !std::isfinite(peaks[p].frequency_hz) || peaks[p].frequency_hz <= 0.0 ||
+            !std::isfinite(peaks[p].level_dbfs)) continue;
+        if (active_.size() >= max_active_) throw std::runtime_error("active tracker memory limit exceeded");
+        Active track{next_id_++, {frame_index_, frame.start_sample, peaks[p].frequency_hz, peaks[p].level_dbfs}};
+        observed(track.id, track.last);
+        active_.push_back(track);
+    }
+    ++frame_index_;
+}
+
+void PeakAssociator::finish(const End& ended) {
+    for (const auto& track : active_) ended(track.id);
+    active_.clear();
+}
+
 std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sample_rate_hz,
                                const TrackerSettings& settings, std::size_t* suppressed) {
     if (!std::isfinite(sample_rate_hz) || sample_rate_hz <= 0.0 ||
@@ -57,47 +121,15 @@ std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames, double sam
         throw std::invalid_argument("invalid tracker settings or sample rate");
 
     std::vector<Track> tracks;
-    std::vector<std::size_t> active; // indices into tracks, ascending id
-    for (std::size_t frame = 0; frame < frames.size(); ++frame) {
-        std::erase_if(active, [&](std::size_t t) {
-            return frame - tracks[t].observations.back().frame_index - 1 > settings.max_gap_frames;
-        });
-        const auto& peaks = frames[frame].peaks;
-        std::vector<std::tuple<double, std::size_t, std::size_t>> candidates; // distance, track, peak
-        for (std::size_t p = 0; p < peaks.size(); ++p) {
-            if (!std::isfinite(peaks[p].frequency_hz) || peaks[p].frequency_hz <= 0.0 ||
-                !std::isfinite(peaks[p].level_dbfs))
-                continue;
-            for (const auto t : active) {
-                const double prior = tracks[t].observations.back().frequency_hz;
-                const double limit = std::max({settings.fixed_hz_tolerance,
-                                               settings.relative_tolerance * prior,
-                                               settings.bin_fraction * settings.bin_spacing_hz});
-                const double distance = std::abs(peaks[p].frequency_hz - prior);
-                if (distance <= limit)
-                    candidates.emplace_back(distance, t, p);
+    PeakAssociator association(settings);
+    for (const auto& frame : frames) {
+        association.push(frame, [&](std::size_t id, const TrackObservation& observation) {
+            if (id > tracks.size()) {
+                tracks.emplace_back();
+                tracks.back().id = id;
             }
-        }
-        std::sort(candidates.begin(), candidates.end());
-        std::vector<bool> track_used(tracks.size(), false), peak_used(peaks.size(), false);
-        for (const auto& [distance, t, p] : candidates) {
-            if (track_used[t] || peak_used[p])
-                continue;
-            track_used[t] = peak_used[p] = true;
-            tracks[t].observations.push_back(
-                {frame, frames[frame].start_sample, peaks[p].frequency_hz, peaks[p].level_dbfs});
-        }
-        for (std::size_t p = 0; p < peaks.size(); ++p) {
-            if (peak_used[p] || !std::isfinite(peaks[p].frequency_hz) ||
-                peaks[p].frequency_hz <= 0.0 || !std::isfinite(peaks[p].level_dbfs))
-                continue;
-            Track track;
-            track.id = tracks.size() + 1;
-            track.observations.push_back(
-                {frame, frames[frame].start_sample, peaks[p].frequency_hz, peaks[p].level_dbfs});
-            tracks.push_back(std::move(track));
-            active.push_back(tracks.size() - 1);
-        }
+            tracks[id - 1].observations.push_back(observation);
+        }, [](std::size_t) {});
     }
     const auto before = tracks.size();
     std::erase_if(tracks, [&](const Track& t) { return t.observations.size() < settings.min_observed_frames; });

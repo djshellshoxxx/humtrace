@@ -8,6 +8,8 @@
 #include <filesystem>
 #include <fstream>
 #include <random>
+#include <ostream>
+#include <streambuf>
 #include <stdexcept>
 
 #ifdef _WIN32
@@ -24,7 +26,7 @@ std::filesystem::path path_from_utf8(const std::string& utf8) {
 }
 
 AnalysisResult analyze_file(const std::string& path, const PipelineSettings& settings,
-                            const SessionCallbacks& callbacks, bool want_views) {
+                            const SessionCallbacks& callbacks, bool want_views, FrameSink* sink) {
     const auto native = path_from_utf8(path);
     std::ifstream input(native, std::ios::binary);
     if (!input)
@@ -55,7 +57,7 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
     AnalysisResult result;
     result.report = analyze_wav(
         reader, settings, [&](double f) { report_progress(Stage::Analyzing, f); }, callbacks.cancelled,
-        want_views ? &result.views : nullptr);
+        want_views ? &result.views : nullptr, sink);
     std::error_code ec_after;
     if (std::filesystem::file_size(native, ec_after) != size_before ||
         std::filesystem::last_write_time(native, ec_after) != time_before)
@@ -82,7 +84,24 @@ void require_distinct_paths(const std::string& output, const std::string& input)
         throw std::runtime_error("refusing to overwrite the input recording with an export");
 }
 
-void write_file_atomically(const std::string& path, const std::string& content, bool replace_existing) {
+namespace {
+class FileBuffer final : public std::streambuf {
+public:
+    explicit FileBuffer(std::FILE* file) : file_(file) {}
+private:
+    std::streamsize xsputn(const char* data, std::streamsize size) override {
+        return static_cast<std::streamsize>(std::fwrite(data, 1, static_cast<std::size_t>(size), file_));
+    }
+    int_type overflow(int_type value) override {
+        if (traits_type::eq_int_type(value, traits_type::eof())) return traits_type::not_eof(value);
+        return std::fputc(traits_type::to_char_type(value), file_) == EOF ? traits_type::eof() : value;
+    }
+    int sync() override { return std::fflush(file_); }
+    std::FILE* file_;
+};
+}
+
+void write_file_atomically(const std::string& path, const std::function<void(std::ostream&)>& writer, bool replace_existing) {
     std::error_code error_ignored;
     const auto target = path_from_utf8(path);
     // Exclusively create the sibling temp file: randomness alone does not make
@@ -102,9 +121,19 @@ void write_file_atomically(const std::string& path, const std::string& content, 
     }
     if (out == nullptr)
         throw std::runtime_error("could not create output file");
-    const bool written = std::fwrite(content.data(), 1, content.size(), out) == content.size();
+    try {
+        FileBuffer buffer(out);
+        std::ostream output(&buffer);
+        output.exceptions(std::ios::badbit | std::ios::failbit);
+        writer(output);
+        output.flush();
+    } catch (...) {
+        std::fclose(out);
+        std::filesystem::remove(temp, error_ignored);
+        throw;
+    }
     const bool closed = std::fclose(out) == 0;
-    if (!written || !closed) {
+    if (!closed) {
         std::filesystem::remove(temp, error_ignored);
         throw std::runtime_error("failed while writing output file");
     }
@@ -129,6 +158,12 @@ void write_file_atomically(const std::string& path, const std::string& content, 
         std::filesystem::remove(temp, error_ignored);
         throw std::runtime_error("could not finalize output file: " + error.message());
     }
+}
+
+void write_file_atomically(const std::string& path, const std::string& content, bool replace_existing) {
+    write_file_atomically(path, [&](std::ostream& output) {
+        output.write(content.data(), static_cast<std::streamsize>(content.size()));
+    }, replace_existing);
 }
 
 } // namespace humtrace

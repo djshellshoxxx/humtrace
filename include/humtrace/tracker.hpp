@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace humtrace {
@@ -44,6 +45,26 @@ struct Track {
     double median_frequency_hz{};
     double median_level_dbfs{};
     double drift_hz_per_second{};
+};
+
+// Incremental deterministic association. Storage of observations is delegated to
+// callbacks; only active track endpoints and bounded candidate pairs are retained.
+class PeakAssociator {
+public:
+    using Observe = std::function<void(std::size_t, const TrackObservation&)>;
+    using End = std::function<void(std::size_t)>;
+    explicit PeakAssociator(TrackerSettings settings, std::size_t max_active = 4096);
+    void push(const FramePeaks& frame, const Observe& observed, const End& ended);
+    void finish(const End& ended);
+    [[nodiscard]] std::size_t active_count() const { return active_.size(); }
+    [[nodiscard]] std::size_t tracks_created() const { return next_id_ - 1; }
+private:
+    struct Active { std::size_t id; TrackObservation last; };
+    TrackerSettings settings_;
+    std::size_t max_active_;
+    std::size_t frame_index_{};
+    std::size_t next_id_{1};
+    std::vector<Active> active_;
 };
 
 // Associate peaks across ordered frames of ONE channel. Deterministic: greedy

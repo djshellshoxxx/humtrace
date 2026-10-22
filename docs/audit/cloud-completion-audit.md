@@ -23,10 +23,12 @@ presentation-enabled and CLI analysis.
 
 ## Uncompleted requirements
 
-- Long-file analysis currently retains capped frame/track results in memory. It
-  does not implement incremental disk-backed report generation, spectrogram-tile
-  eviction or a temporary-disk cap. The result cap is a safety measure, not proof
-  of the constant-working-set requirement in `specs/long-file-workflow.md`.
+- Desktop and comparison workflows still retain capped frame/track results and
+  spectrograms in memory; disk-backed presentation and tile eviction remain. The
+  standalone `--stream --json` path now writes incrementally with explicit disk
+  quotas, free-space checks and bounded active tracking. Its one/three-hour
+  acceptance uses a real 96 MiB address-space limit; passing it does not establish
+  the desktop constant-working-set requirement.
 - Track split/merge lineage, full event intervals, fit-quality/quantile output and
   independently validated persistence rules remain incomplete.
 - A labeled recording corpus split by source/session, field performance and

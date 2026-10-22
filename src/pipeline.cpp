@@ -51,13 +51,15 @@ std::size_t select_window_size(const WavMetadata& metadata,
 AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
                            const std::function<void(double)>& progress,
                            const std::function<bool()>& cancelled,
-                           std::vector<ChannelView>* views) {
+                           std::vector<ChannelView>* views, FrameSink* sink) {
     validate_settings(settings);
+    if (views && sink) throw std::invalid_argument("streaming sink cannot retain presentation views");
     const auto& metadata = reader.metadata();
     const auto frames = metadata.frame_count;
     const auto window_size = select_window_size(metadata, settings.max_interleaved_window_samples);
     const auto hop_size = window_size / 2;
-    {
+    if (sink) sink->begin(metadata, settings);
+    if (!sink) {
         const std::uint64_t windows = (frames - window_size) / hop_size + 2; // + final aligned window
         // Conservative per-window cost (values are bounded by validate_settings, so no overflow):
         // frame + harmonics, spectrogram row, peaks (observation + peak entry, ~64 B each) with 1.5x
@@ -139,14 +141,17 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             }
             for (std::size_t i = new_from; i < window_size; ++i)
                 if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
-            report.channel_results[channel].frames.push_back(
-                measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db));
-            report.channel_results[channel].frames.back().levels = measure_sample_levels(samples);
+            auto measured = measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db);
+            measured.levels = measure_sample_levels(samples);
             FramePeaks entry{start, {}};
             for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
                                                settings.peak_min_prominence_db, settings.max_peaks_per_frame))
                 entry.peaks.push_back({peak.frequency_hz, peak.level_dbfs});
-            peaks[channel].push_back(std::move(entry));
+            if (sink) sink->frame(channel, measured, entry);
+            else {
+                report.channel_results[channel].frames.push_back(std::move(measured));
+                peaks[channel].push_back(std::move(entry));
+            }
         }
     };
 
@@ -193,7 +198,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     tracker.bin_spacing_hz = static_cast<double>(metadata.sample_rate_hz) / static_cast<double>(window_size);
     report.tracker = tracker;
     for (std::size_t c = 0; c < peaks.size(); ++c)
-        report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker,
+        if (sink) sink->finish(c, report.channel_results[c]);
+        else report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker,
                                                        &report.channel_results[c].suppressed_tracks);
     PsdNoiseFloorSettings floor_settings;
     floor_settings.minimum_prominence_db = settings.minimum_prominence_db;

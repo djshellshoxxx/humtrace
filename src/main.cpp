@@ -2,6 +2,7 @@
 #include "humtrace/export.hpp"
 #include "humtrace/music.hpp"
 #include "humtrace/session.hpp"
+#include "humtrace/streaming.hpp"
 #include "humtrace/wav.hpp"
 
 #ifdef _WIN32
@@ -18,6 +19,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -94,6 +96,9 @@ int usage() {
     std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--csv <tracks.csv>] [--a4 <Hz>] [--quiet] [--full-path] [--force]\n"
                  "       humtrace compare <a.wav> <b.wav> [--tolerance <Hz>] [--map <a:b[,a:b...]>]\n"
                  "                        [--json <comparison.json>] [--full-path] [--force]\n"
+                 "  --stream     bounded-memory disk-spooled analysis (requires --json; no CSV/compare)\n"
+                 "  --disk-limit-mib <MiB>  streaming scratch + final report quota (default 4096)\n"
+                 "  --memory-limit-mib <MiB>  streaming scratch-memory budget (default 512)\n"
                  "  --csv        write one CSV row per track (with note name and cents)\n"
                  "  --a4 <Hz>    tuning reference for note names, 400-480 (default 440)\n"
                  "  --psd-segment-size <samples>  Welch power-of-two segment (default 4096)\n"
@@ -111,6 +116,9 @@ struct Options {
     bool quiet{false};
     bool full_path{false};
     bool force{false};
+    bool stream{false};
+    bool stream_limits_set{false};
+    humtrace::StreamingLimits stream_limits;
     humtrace::CompareSettings compare;
     humtrace::PipelineSettings pipeline;
 };
@@ -142,6 +150,18 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             if (used != v.size() || !(out.a4_hz >= 400.0 && out.a4_hz <= 480.0))
                 throw std::invalid_argument("--a4 needs a number between 400 and 480");
         }
+        else if (!allow_compare && a == "--stream") out.stream = true;
+        else if (!allow_compare && (a == "--disk-limit-mib" || a == "--memory-limit-mib")) {
+            out.stream_limits_set = true;
+            const auto& v = value();
+            if (v.empty() || v.find_first_not_of("0123456789") != std::string::npos)
+                throw std::invalid_argument(a + " needs a positive integer");
+            const auto n = std::stoull(v);
+            if (n == 0 || n > (std::numeric_limits<std::uint64_t>::max() >> 20))
+                throw std::invalid_argument(a + " is out of range");
+            if (a == "--disk-limit-mib") out.stream_limits.max_disk_bytes = n << 20;
+            else out.stream_limits.max_resident_bytes = n << 20;
+        }
         else if (a == "--quiet") out.quiet = true;
         else if (a == "--full-path") out.full_path = true;
         else if (a == "--force") out.force = true;
@@ -167,6 +187,8 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             return false;
         }
     }
+    if (out.stream_limits_set && !out.stream)
+        throw std::invalid_argument("streaming resource limits require --stream");
     humtrace::validate_settings(out.pipeline);
     return true;
 }
@@ -271,6 +293,19 @@ int main(int argc, char** argv) {
             } catch (const std::runtime_error&) {
                 throw std::runtime_error("JSON and CSV exports must use distinct output files");
             }
+        }
+        if (options.stream) {
+            if (options.json_path.empty() || !options.csv_path.empty())
+                throw std::invalid_argument("--stream requires --json and does not accept --csv");
+            humtrace::SessionCallbacks callbacks;
+            callbacks.cancelled = [] { return g_cancel.load(); };
+            const auto result = humtrace::stream_file_report(args[0], options.json_path, options.pipeline,
+                callbacks, options.stream_limits, options.force, options.full_path);
+            for (std::size_t c = 0; c < result.frame_counts.size(); ++c)
+                std::cout << "Channel " << c + 1 << " streamed frames: " << result.frame_counts[c] << '\n';
+            std::cout << "JSON report saved: " << options.json_path
+                      << "\nInterpretation: spectral components are measurements, not source attribution.\n";
+            return 0;
         }
         g_a4_hz = options.a4_hz;
         auto report = run(args[0], options.pipeline);
