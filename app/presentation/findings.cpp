@@ -68,6 +68,14 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             hi60 = std::max(hi60, frame.mains_60.supporting_harmonics);
             total = frame.mains_50.harmonics.size();
         }
+        if (channel.psd) {
+            const auto& psd = *channel.psd;
+            text += "  Channel Welch PSD: " + std::to_string(psd.segments_averaged) + " complete segments\n";
+            text += fmt("  Channel median density: %.2f dBFS^2/Hz\n", psd.broadband_median_dbfs2_per_hz);
+            text += "  Prominent nominal 50/60 Hz harmonic bins: " +
+                    std::to_string(psd.mains_50.prominent_harmonics) + "/" +
+                    std::to_string(psd.mains_60.prominent_harmonics) + "\n";
+        }
         bool measured = false, below_floor = false;
         double rms_lo = 0, rms_hi = 0, sample_peak = sample_level_floor_dbfs;
         for (std::size_t f = row.first_frame; f <= row.last_frame && f < channel.frames.size(); ++f) {
@@ -109,18 +117,19 @@ std::string summarize_report(const AnalysisReport& report, const std::vector<Fin
     std::string text = "Recording of " + fmt("%.1f", report.duration_seconds) + " seconds, " +
            std::to_string(report.channels) + " channel(s) at " + std::to_string(report.sample_rate_hz) +
            " Hz. " + std::to_string(rows.size()) + " track(s) measured. Measurements only; no source attribution.";
+    std::size_t measured_channels = 0;
+    double floor_lo = 0, floor_hi = 0;
     for (const auto& channel : report.channel_results) {
-        text += "\nChannel " + std::to_string(channel.channel_number) + " Welch PSD: ";
-        if (!channel.psd) {
-            text += "unavailable (no complete segment).";
-            continue;
-        }
-        const auto& psd = *channel.psd;
-        text += std::to_string(psd.segments_averaged) + " segments, median density " +
-                fmt("%.2f", psd.broadband_median_dbfs2_per_hz) + " dBFS^2/Hz; prominent 50/60 Hz harmonic bins " +
-                std::to_string(psd.mains_50.prominent_harmonics) + "/" +
-                std::to_string(psd.mains_60.prominent_harmonics) + ".";
+        if (!channel.psd) continue;
+        const auto floor = channel.psd->broadband_median_dbfs2_per_hz;
+        if (measured_channels++ == 0) floor_lo = floor_hi = floor;
+        floor_lo = std::min(floor_lo, floor);
+        floor_hi = std::max(floor_hi, floor);
     }
+    text += " Welch PSD: " + std::to_string(measured_channels) + "/" +
+            std::to_string(report.channel_results.size()) + " channels with complete segments.";
+    if (measured_channels > 0)
+        text += fmt(" Per-channel median density range %.2f to %.2f dBFS^2/Hz.", floor_lo, floor_hi);
     return text;
 }
 

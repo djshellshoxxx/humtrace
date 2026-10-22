@@ -97,6 +97,8 @@ int main() {
         const auto text = summarize_report(r, {});
         require(text.find("Welch PSD") != std::string::npos && text.find("dBFS^2/Hz") != std::string::npos,
                 "desktop summary exposes PSD with explicit density units");
+        r.channel_results.resize(32, r.channel_results.front());
+        require(summarize_report(r, {}).size() < 500, "multichannel summary remains compact");
     }
     std::cout << "All presentation tests passed.\n";
 }

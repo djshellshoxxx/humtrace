@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <numbers>
+#include <stdexcept>
 #include <vector>
 
 void require(bool condition, const char* message) {
