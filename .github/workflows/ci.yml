@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: humtrace-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -134,7 +138,7 @@ jobs:
         run: make test
       - name: Qt build and tests
         run: |
-          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)" -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
       - name: Package (ad-hoc signed app bundle + CLI)
