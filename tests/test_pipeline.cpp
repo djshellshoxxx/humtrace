@@ -44,6 +44,9 @@ int main() {
         require(last == 1.0, "progress reaches completion");
         require(report.channel_results.size() == 1 && report.channel_results[0].frames.size() == 5,
                 "overlapping frames are produced");
+        const auto& levels = report.channel_results[0].frames[0].levels;
+        require(levels.has_value() && levels->sample_count == 4096, "raw sample levels attached to every frame");
+        require(std::abs(levels->rms_dbfs + 10.0) < 0.01, "two orthogonal tones have expected RMS power");
         const auto& tracks = report.channel_results[0].tracks;
         require(tracks.size() == 2, "both tones form separate tracks");
         require(tracks[0].observed_frames == 5 && tracks[1].observed_frames == 5, "tracks persist across frames");

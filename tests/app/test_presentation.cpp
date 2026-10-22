@@ -77,7 +77,11 @@ int main() {
         require(rows[0].channel == 1 && rows[0].track_id == 1 && rows[2].channel == 2, "ordered by channel then start");
         require(std::abs(rows[0].end_seconds - 0.2) < 1e-9, "end includes the frame length");
         require(std::abs(rows[0].coverage() - 2.0 / 3.0) < 1e-9, "coverage = observed / spanned");
+        r.channel_results[0].frames.resize(2);
+        r.channel_results[0].frames[0].levels = humtrace::SampleLevels{};
         const auto text = describe_finding(r, rows[0]);
+        require(text.find("RMS") != std::string::npos && text.find("includes DC") != std::string::npos,
+                "inspector distinguishes raw RMS from spectral peak levels");
         require(text.find("observed in 2 of 3 frames") != std::string::npos, "descriptive wording");
         require(text.find("does not identify a device") != std::string::npos, "limitations are stated");
         require(text.find("ground loop detected") == std::string::npos, "no source attribution");

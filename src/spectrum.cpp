@@ -239,6 +239,7 @@ std::vector<InterferenceFrame> analyze_interference_timeline(
                                   samples.begin() + static_cast<std::ptrdiff_t>(start + frame_size));
         result.push_back(measure_frame(analyze_spectrum(block, sample_rate_hz),
             static_cast<std::uint64_t>(start), support_threshold_dbfs, max_harmonics, minimum_prominence_db));
+        result.back().levels = measure_sample_levels(block);
     }
     return result;
 }

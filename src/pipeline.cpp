@@ -136,6 +136,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                 if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
             report.channel_results[channel].frames.push_back(
                 measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db));
+            report.channel_results[channel].frames.back().levels = measure_sample_levels(samples);
             FramePeaks entry{start, {}};
             for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
                                                settings.peak_min_prominence_db, settings.max_peaks_per_frame))

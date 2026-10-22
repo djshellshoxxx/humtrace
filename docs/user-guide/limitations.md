@@ -10,9 +10,11 @@
 - The GUI has a custom-drawn spectrogram/waveform/spectrum; each has a text/table alternative (findings table, spectrum table, inspector) and an accessible summary, but screen-reader behavior has not been verified with Narrator or AT-SPI tools.
 - The CLI and GUI use UTF-8 paths on Windows. Windows builds are produced in CI but have not been tested on a clean machine.
 - Measurements in dBFS do not establish acoustic SPL, line voltage, ground-loop presence, hardware identity, location, authenticity, or recording time.
-- Not implemented from the analysis-engine spec: RMS, per-track noise-floor/SNR evidence, measurement uncertainty, and a below-numeric-floor flag. Clipping is counted and warned about; a non-finite float sample aborts the analysis.
+- Not implemented from the analysis-engine spec: per-track noise-floor/SNR evidence, measurement uncertainty, and a below-numeric-floor flag. Clipping is counted and warned about; a non-finite float sample aborts the analysis.
 - The report has no generation timestamp (so identical inputs give byte-identical reports); it records application and method versions, input byte length, and all result-affecting settings.
 - Not implemented: ENF analysis, diagnostic guidance, signature library, plugins, playback.
 - Note names and cents are equal-tempered labels computed from the measured frequency; they say nothing about the source. Release binaries are unsigned; macOS builds are Apple silicon only and not notarized.
 
 - Welch PSD uses complete Hann segments only (default 4096 samples, hop 2048); trailing partial segments are excluded and audio shorter than one segment has no PSD summary. Raw DC is retained in Welch, independently of the mean removal in peak-amplitude FFT frames. The broadband floor is a median of non-DC/non-Nyquist density bins, not calibrated sensor noise. Unresolved nominal harmonics and empty floor neighborhoods cannot establish prominence.
+
+- Raw per-frame mean/DC, RMS, and sample peak are measured before detrending/windowing. RMS includes DC and uses normalized amplitude 1.0 as reference. Values below -300 dBFS are clamped with explicit flags. These overlapping frame measurements are not a whole-recording RMS and sample peaks are not intersample true peaks.

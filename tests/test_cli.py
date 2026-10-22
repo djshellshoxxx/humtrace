@@ -43,6 +43,10 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
         assert channel["psd"]["segments_averaged"] == 3
         assert channel["psd"]["density_unit"] == "dBFS^2/Hz"
     assert "Welch PSD" in result.stdout
+    level = report["channels"][0]["frames"][0]["sample_levels"]
+    assert abs(level["rms_dbfs"] + 9.031) < 0.01
+    assert abs(level["sample_peak_dbfs"] + 6.021) < 0.01
+    assert level["sample_count"] == 4096 and not level["rms_below_numeric_floor"]
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0

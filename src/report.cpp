@@ -135,6 +135,18 @@ std::string serialize_report_json(const AnalysisReport& report) {
                 output << "null";
             else
                 write_number(output, static_cast<double>(frame.start_sample) / report.sample_rate_hz);
+            output << ", \"sample_levels\": ";
+            if (frame.levels) {
+                const auto& levels = *frame.levels;
+                output << "{\"sample_count\": " << levels.sample_count << ", \"mean\": ";
+                write_number(output, levels.mean);
+                output << ", \"rms_dbfs\": "; write_number(output, levels.rms_dbfs);
+                output << ", \"sample_peak_dbfs\": "; write_number(output, levels.sample_peak_dbfs);
+                output << ", \"rms_below_numeric_floor\": " << (levels.rms_below_numeric_floor ? "true" : "false")
+                       << ", \"peak_below_numeric_floor\": " << (levels.peak_below_numeric_floor ? "true" : "false")
+                       << ", \"floor_dbfs\": " << sample_level_floor_dbfs
+                       << ", \"reference\": \"normalized amplitude 1.0; RMS includes DC; unwindowed sample peak\"}";
+            } else output << "null";
             output << ", \"strongest_peak\": {\"frequency_hz\": ";
             write_number(output, frame.strongest_peak.frequency_hz);
             output << ", \"level_dbfs\": ";

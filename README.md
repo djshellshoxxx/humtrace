@@ -6,6 +6,7 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 
 - Reads WAV (PCM 8/16/24/32, float 32/64, extensible) in bounded streaming windows; records the input SHA-256.
 - Computes streaming Welch PSD, median noise density, and nominal harmonic prominence in dBFS^2/Hz.
+- Reports raw per-frame mean/DC, RMS, and sample peak with explicit numeric-floor flags.
 - Measures per-channel spectra, strongest peaks, prominence-gated peaks, and 50/60 Hz harmonic bins; groups peaks into descriptive persistence tracks (gaps counted, never interpolated).
 - Desktop app (Qt 6): waveform, spectrogram, spectrum with table alternative, findings list and inspector, keyboard operation, high-contrast theme, cancellable analysis, atomic JSON export, two-recording comparison.
 - CLI: `humtrace file.wav --json report.json`; `humtrace compare a.wav b.wav`.

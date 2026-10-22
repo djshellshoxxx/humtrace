@@ -322,6 +322,55 @@
                 },
                 "mains_60_hz_measurements": {
                   "$ref": "#/$defs/harmonicCandidate"
+                },
+                "sample_levels": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "sample_count",
+                        "mean",
+                        "rms_dbfs",
+                        "sample_peak_dbfs",
+                        "rms_below_numeric_floor",
+                        "peak_below_numeric_floor",
+                        "floor_dbfs",
+                        "reference"
+                      ],
+                      "properties": {
+                        "sample_count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "mean": {
+                          "type": "number"
+                        },
+                        "rms_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "sample_peak_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "rms_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "peak_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "floor_dbfs": {
+                          "const": -300
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }

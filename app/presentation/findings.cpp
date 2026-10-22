@@ -68,6 +68,23 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             hi60 = std::max(hi60, frame.mains_60.supporting_harmonics);
             total = frame.mains_50.harmonics.size();
         }
+        bool measured = false, below_floor = false;
+        double rms_lo = 0, rms_hi = 0, sample_peak = sample_level_floor_dbfs;
+        for (std::size_t f = row.first_frame; f <= row.last_frame && f < channel.frames.size(); ++f) {
+            const auto& levels = channel.frames[f].levels;
+            if (!levels) continue;
+            if (!measured) rms_lo = rms_hi = levels->rms_dbfs;
+            measured = true;
+            rms_lo = std::min(rms_lo, levels->rms_dbfs);
+            rms_hi = std::max(rms_hi, levels->rms_dbfs);
+            sample_peak = std::max(sample_peak, levels->sample_peak_dbfs);
+            below_floor = below_floor || levels->rms_below_numeric_floor;
+        }
+        if (measured) {
+            text += fmt("  Frame RMS range (includes DC, reference amplitude 1.0): %.2f to %.2f dBFS\n", rms_lo, rms_hi);
+            text += fmt("  Maximum raw sample peak across those frames: %.2f dBFS (not true peak)\n", sample_peak);
+            if (below_floor) text += "  Some RMS values are below the -300 dBFS numeric reporting floor.\n";
+        }
         text += "  50 Hz harmonic bins above threshold: " + std::to_string(lo50 > hi50 ? 0 : lo50) + " to " +
                 std::to_string(hi50) + " of " + std::to_string(total) + "\n";
         text += "  60 Hz harmonic bins above threshold: " + std::to_string(lo60 > hi60 ? 0 : lo60) + " to " +
