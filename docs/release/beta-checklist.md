@@ -13,7 +13,7 @@ Current status: **feature-complete beta candidate; not release-ready**. Items ma
 - [ ] Keyboard-only operation is implemented and tested; screen-reader summaries/tables exist but Narrator/AT-SPI verification, focus visibility, and high-DPI checks on packaged apps are pending.
 - [ ] Labeled validation corpus: synthetic layer done ([results](../validation/synthetic-results.md)); no real labeled/held-out corpus, so no field false-positive/negative claims.
 - [x] Third-party notices drafted ([notices](THIRD_PARTY_NOTICES.md)); Qt LGPL review for the exact distributed build is pending.
-- [ ] Linux packages build and install (.deb/.tar.gz smoke-tested in CI); Windows zip is configured but unverified; clean-VM install/upgrade tests not run.
+- [ ] Linux packages build and install (.deb/.tar.gz smoke-tested in CI); Windows zip and macOS zip are smoke-tested by CI on the package contents (CLI only; GUI launch not verified on those OSes); clean-VM install/upgrade tests not run.
 - [x] CI: core, sanitizers, Qt build, packaging, 30 s fuzzers. Dependency review/SBOM pending.
 - [x] User guide, limitations, release notes, QA report match the build.
 

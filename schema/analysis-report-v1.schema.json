@@ -201,6 +201,58 @@
               "type": "string"
             }
           }
+        },
+        "welch_psd": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "window",
+                "density_unit",
+                "segment_size_samples",
+                "hop_size_samples",
+                "guard_bins",
+                "radius_bins",
+                "max_harmonics",
+                "minimum_prominence_db"
+              ],
+              "properties": {
+                "window": {
+                  "const": "hann"
+                },
+                "density_unit": {
+                  "const": "dBFS^2/Hz"
+                },
+                "segment_size_samples": {
+                  "type": "integer",
+                  "minimum": 4
+                },
+                "hop_size_samples": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "guard_bins": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "radius_bins": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "max_harmonics": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minimum_prominence_db": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -270,6 +322,55 @@
                 },
                 "mains_60_hz_measurements": {
                   "$ref": "#/$defs/harmonicCandidate"
+                },
+                "sample_levels": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "sample_count",
+                        "mean",
+                        "rms_dbfs",
+                        "sample_peak_dbfs",
+                        "rms_below_numeric_floor",
+                        "peak_below_numeric_floor",
+                        "floor_dbfs",
+                        "reference"
+                      ],
+                      "properties": {
+                        "sample_count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "mean": {
+                          "type": "number"
+                        },
+                        "rms_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "sample_peak_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "rms_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "peak_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "floor_dbfs": {
+                          "const": -300
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -372,6 +473,16 @@
           "clipped_samples": {
             "type": "integer",
             "minimum": 0
+          },
+          "psd": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/psdSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       }
@@ -488,6 +599,134 @@
               }
             }
           }
+        }
+      }
+    },
+    "psdHarmonic": {
+      "type": "object",
+      "required": [
+        "number",
+        "expected_frequency_hz",
+        "measured_bin_hz",
+        "level_dbfs2_per_hz",
+        "local_floor_dbfs2_per_hz",
+        "prominence_db",
+        "prominent"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "measured_bin_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "level_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "local_floor_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "psdHarmonicCandidate": {
+      "type": "object",
+      "required": [
+        "nominal_frequency_hz",
+        "prominent_harmonics",
+        "harmonics"
+      ],
+      "properties": {
+        "nominal_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "prominent_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "harmonics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/psdHarmonic"
+          }
+        }
+      }
+    },
+    "psdSummary": {
+      "type": "object",
+      "required": [
+        "segments_averaged",
+        "samples_processed",
+        "bin_width_hz",
+        "density_unit",
+        "broadband_median_dbfs2_per_hz",
+        "source_classification",
+        "mains_50_hz_psd",
+        "mains_60_hz_psd"
+      ],
+      "properties": {
+        "segments_averaged": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "samples_processed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bin_width_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "density_unit": {
+          "const": "dBFS^2/Hz"
+        },
+        "broadband_median_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_classification": {
+          "type": "null"
+        },
+        "mains_50_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
+        },
+        "mains_60_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
         }
       }
     }

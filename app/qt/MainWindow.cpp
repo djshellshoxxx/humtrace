@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "humtrace/music.hpp"
 
 #include "AnalysisWorker.hpp"
 #include "ComparisonDialog.hpp"
@@ -479,7 +480,10 @@ void MainWindow::updateFrameViews() {
         frameTable_->setItem(row, 1, new QTableWidgetItem(QString::number(hz, 'f', 3)));
         frameTable_->setItem(row, 2, new QTableWidgetItem(std::isfinite(level) ? QString::number(level, 'f', 2) : tr("silence")));
     };
-    add(tr("Frame %1 strongest non-DC peak (interpolated)").arg(f), frame.strongest_peak.frequency_hz, frame.strongest_peak.level_dbfs);
+    const QString noteLabel = frame.strongest_peak.frequency_hz > 0.0
+        ? QString::fromStdString(" [" + humtrace::format_note(humtrace::nearest_note(frame.strongest_peak.frequency_hz)) + "]")
+        : QString();
+    add(tr("Frame %1 strongest non-DC peak (interpolated)%2").arg(f).arg(noteLabel), frame.strongest_peak.frequency_hz, frame.strongest_peak.level_dbfs);
     for (const auto* cand : {&frame.mains_50, &frame.mains_60})
         for (const auto& h : cand->harmonics)
             add(tr("%1 Hz harmonic %2 bin%3").arg(cand->nominal_frequency_hz, 0, 'f', 0).arg(h.harmonic_number)

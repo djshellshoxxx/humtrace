@@ -1,5 +1,8 @@
 #pragma once
 
+#include "humtrace/levels.hpp"
+
+#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -42,6 +45,7 @@ struct InterferenceFrame {
     SpectralPeak strongest_peak;
     HarmonicCandidate mains_50;
     HarmonicCandidate mains_60;
+    std::optional<SampleLevels> levels{};
 };
 
 // Analyze a finite, power-of-two block using a Hann window and a radix-2 FFT.

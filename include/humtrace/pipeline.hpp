@@ -17,6 +17,7 @@ struct PipelineSettings {
     // front, never silently downsampled, when the estimate exceeds it.
     std::uint64_t max_result_bytes{512ULL * 1024 * 1024};
     TrackerSettings tracker;
+    WelchSettings welch;
     double peak_min_level_dbfs{-80.0};
     double peak_min_prominence_db{10.0};
     std::size_t max_peaks_per_frame{8};

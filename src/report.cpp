@@ -34,6 +34,42 @@ void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
     }
     output << "]}";
 }
+void write_psd_harmonics(std::ostream& output, const PsdHarmonicCandidate& candidate) {
+    output << "{\"nominal_frequency_hz\": ";
+    write_number(output, candidate.nominal_frequency_hz);
+    output << ", \"prominent_harmonics\": " << candidate.prominent_harmonics
+           << ", \"harmonics\": [";
+    for (std::size_t i = 0; i < candidate.harmonics.size(); ++i) {
+        const auto& harmonic = candidate.harmonics[i];
+        if (i != 0) output << ", ";
+        output << "{\"number\": " << harmonic.harmonic_number << ", \"expected_frequency_hz\": ";
+        write_number(output, harmonic.expected_frequency_hz);
+        output << ", \"measured_bin_hz\": ";
+        write_number(output, harmonic.measured_bin_hz);
+        output << ", \"level_dbfs2_per_hz\": ";
+        write_number(output, harmonic.level_dbfs2_per_hz);
+        output << ", \"local_floor_dbfs2_per_hz\": ";
+        write_number(output, harmonic.local_floor_dbfs2_per_hz);
+        output << ", \"prominence_db\": ";
+        write_number(output, harmonic.prominence_db);
+        output << ", \"prominent\": " << (harmonic.prominent ? "true" : "false") << '}';
+    }
+    output << "]}";
+}
+
+void write_psd_summary(std::ostream& output, const PsdSummary& summary) {
+    output << "{\"segments_averaged\": " << summary.segments_averaged
+           << ", \"samples_processed\": " << summary.samples_processed
+           << ", \"bin_width_hz\": ";
+    write_number(output, summary.bin_width_hz);
+    output << ", \"density_unit\": \"dBFS^2/Hz\", \"broadband_median_dbfs2_per_hz\": ";
+    write_number(output, summary.broadband_median_dbfs2_per_hz);
+    output << ", \"source_classification\": null, \"mains_50_hz_psd\": ";
+    write_psd_harmonics(output, summary.mains_50);
+    output << ", \"mains_60_hz_psd\": ";
+    write_psd_harmonics(output, summary.mains_60);
+    output << '}';
+}
 } // namespace
 
 std::string serialize_report_json(const AnalysisReport& report) {
@@ -60,6 +96,11 @@ std::string serialize_report_json(const AnalysisReport& report) {
     write_number(output, report.support_threshold_dbfs);
     output << ",\n    \"minimum_prominence_db\": ";
     write_number(output, report.minimum_prominence_db);
+    output << ",\n    \"welch_psd\": {\"window\": \"hann\", \"segment_size_samples\": "
+           << report.welch.segment_size << ", \"hop_size_samples\": " << report.welch.hop_size
+           << ", \"density_unit\": \"dBFS^2/Hz\", \"dc_removed\": false, \"partial_segments\": \"excluded\", \"guard_bins\": 2, \"radius_bins\": 8, \"max_harmonics\": 10, \"minimum_prominence_db\": ";
+    write_number(output, report.minimum_prominence_db);
+    output << '}';
     output << ",\n    \"tracker\": {\"fixed_hz_tolerance\": ";
     write_number(output, report.tracker.fixed_hz_tolerance);
     output << ", \"relative_tolerance\": ";
@@ -94,6 +135,18 @@ std::string serialize_report_json(const AnalysisReport& report) {
                 output << "null";
             else
                 write_number(output, static_cast<double>(frame.start_sample) / report.sample_rate_hz);
+            output << ", \"sample_levels\": ";
+            if (frame.levels) {
+                const auto& levels = *frame.levels;
+                output << "{\"sample_count\": " << levels.sample_count << ", \"mean\": ";
+                write_number(output, levels.mean);
+                output << ", \"rms_dbfs\": "; write_number(output, levels.rms_dbfs);
+                output << ", \"sample_peak_dbfs\": "; write_number(output, levels.sample_peak_dbfs);
+                output << ", \"rms_below_numeric_floor\": " << (levels.rms_below_numeric_floor ? "true" : "false")
+                       << ", \"peak_below_numeric_floor\": " << (levels.peak_below_numeric_floor ? "true" : "false")
+                       << ", \"floor_dbfs\": " << sample_level_floor_dbfs
+                       << ", \"reference\": \"normalized amplitude 1.0; RMS includes DC; unwindowed sample peak\"}";
+            } else output << "null";
             output << ", \"strongest_peak\": {\"frequency_hz\": ";
             write_number(output, frame.strongest_peak.frequency_hz);
             output << ", \"level_dbfs\": ";
@@ -133,7 +186,10 @@ std::string serialize_report_json(const AnalysisReport& report) {
             }
             output << "]}";
         }
-        output << "]}";
+        output << "], \"psd\": ";
+        if (channel.psd) write_psd_summary(output, *channel.psd);
+        else output << "null";
+        output << '}';
     }
     if (!report.channel_results.empty()) output << '\n' << "  ";
     output << "],\n  \"interpretation\": {\n    \"source_classification\": null,\n"

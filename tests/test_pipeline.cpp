@@ -44,6 +44,9 @@ int main() {
         require(last == 1.0, "progress reaches completion");
         require(report.channel_results.size() == 1 && report.channel_results[0].frames.size() == 5,
                 "overlapping frames are produced");
+        const auto& levels = report.channel_results[0].frames[0].levels;
+        require(levels.has_value() && levels->sample_count == 4096, "raw sample levels attached to every frame");
+        require(std::abs(levels->rms_dbfs + 10.0) < 0.01, "two orthogonal tones have expected RMS power");
         const auto& tracks = report.channel_results[0].tracks;
         require(tracks.size() == 2, "both tones form separate tracks");
         require(tracks[0].observed_frames == 5 && tracks[1].observed_frames == 5, "tracks persist across frames");
@@ -135,6 +138,16 @@ int main() {
         const auto report = humtrace::analyze_wav(reader, s);
         require(report.channel_results[0].tracks.empty() && report.channel_results[0].suppressed_tracks == 2, "short tracks are counted, not silently lost");
         require(!report.warnings.empty() && report.warnings.back().find("not listed") != std::string::npos, "suppression produces a warning");
+    }
+    { // Each decoded sample must enter Welch exactly once, including the partial final hop.
+        std::istringstream in(two_tone_wav(4096, 10000), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto report = humtrace::analyze_wav(reader, {});
+        const auto& psd = report.channel_results[0].psd;
+        require(psd.has_value(), "pipeline produces a Welch summary");
+        require(psd->samples_processed == 10000 && psd->segments_averaged == 3,
+                "Welch counts unique samples and complete segments only");
+        require(psd->mains_50.prominent_harmonics > 0, "Welch detects the synthetic 50 Hz tone");
     }
     std::cout << "All pipeline tests passed.\n";
 }

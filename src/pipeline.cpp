@@ -21,6 +21,10 @@ void validate_settings(const PipelineSettings& s) {
     if (s.max_peaks_per_frame == 0 || s.waveform_buckets == 0 || s.spectrogram_rows == 0 ||
         s.tracker.min_observed_frames == 0 || s.max_interleaved_window_samples == 0 || s.max_result_bytes == 0)
         throw std::invalid_argument("count and size settings must be at least 1");
+    if (s.welch.segment_size < 4 || s.welch.segment_size > max_welch_segment_size ||
+        (s.welch.segment_size & (s.welch.segment_size - 1)) != 0 ||
+        s.welch.hop_size == 0 || s.welch.hop_size > s.welch.segment_size)
+        throw std::invalid_argument("invalid Welch segment or hop size");
     const auto& t = s.tracker;
     if (!finite(t.fixed_hz_tolerance) || t.fixed_hz_tolerance < 0.0 || !finite(t.relative_tolerance) ||
         t.relative_tolerance < 0.0 || !finite(t.bin_fraction) || t.bin_fraction < 0.0)
@@ -61,11 +65,19 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         const std::uint64_t per_window = metadata.channels *
             (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
              settings.spectrogram_rows * sizeof(float) + settings.max_peaks_per_frame * 64 * 3 / 2 + 128);
-        if (windows > settings.max_result_bytes / per_window)
+        const std::uint64_t psd_bytes = metadata.channels *
+            (sizeof(PsdSummary) + 20 * sizeof(PsdHarmonicMeasurement));
+        if (psd_bytes >= settings.max_result_bytes ||
+            windows > (settings.max_result_bytes - psd_bytes) / per_window)
             throw std::runtime_error("recording is too long for the configured result memory limit");
     }
 
+    // Each estimator retains a window, ring, FFT scratch and power accumulator. Account
+    // for this separately from rolling FFT storage before allocating for many channels.
+    if (settings.welch.segment_size > settings.max_interleaved_window_samples / metadata.channels)
+        throw std::runtime_error("too many channels for the selected Welch segment");
     AnalysisReport report;
+    report.welch = settings.welch;
     report.sample_rate_hz = metadata.sample_rate_hz;
     report.channels = metadata.channels;
     report.bit_depth = metadata.bit_depth;
@@ -87,6 +99,10 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     if (window.size() != samples_per_window)
         throw std::runtime_error("could not read the first complete analysis window");
 
+    std::vector<WelchPsd> estimators;
+    estimators.reserve(metadata.channels);
+    for (std::size_t c = 0; c < metadata.channels; ++c)
+        estimators.emplace_back(metadata.sample_rate_hz, settings.welch);
     std::vector<double> samples(window_size);
     std::vector<std::vector<FramePeaks>> peaks(metadata.channels);
     std::vector<ChannelView> local_views(metadata.channels);
@@ -103,6 +119,8 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
         for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
             for (std::size_t i = 0; i < window_size; ++i)
                 samples[i] = window[i * metadata.channels + channel];
+            // Overlapping FFT windows revisit samples; Welch receives only the new suffix.
+            estimators[channel].push(std::span<const double>(samples).subspan(new_from));
             const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
             if (row_edges.empty()) {
                 // Keep the lowest row below Nyquist for very low sample rates.
@@ -118,6 +136,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                 if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
             report.channel_results[channel].frames.push_back(
                 measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db));
+            report.channel_results[channel].frames.back().levels = measure_sample_levels(samples);
             FramePeaks entry{start, {}};
             for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
                                                settings.peak_min_prominence_db, settings.max_peaks_per_frame))
@@ -171,6 +190,10 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     for (std::size_t c = 0; c < peaks.size(); ++c)
         report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker,
                                                        &report.channel_results[c].suppressed_tracks);
+    PsdNoiseFloorSettings floor_settings;
+    floor_settings.minimum_prominence_db = settings.minimum_prominence_db;
+    for (std::size_t c = 0; c < estimators.size(); ++c)
+        report.channel_results[c].psd = summarize_welch_psd(estimators[c].finish(), floor_settings);
     for (const auto& channel : report.channel_results) {
         if (channel.clipped_samples >= 10)
             report.warnings.push_back("channel " + std::to_string(channel.channel_number) + ": " +

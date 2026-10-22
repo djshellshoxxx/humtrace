@@ -154,7 +154,8 @@ std::string make_wav(const Step& s, Rng& r) {
         }
     std::string body = "fmt ";
     put(body, 16, 4); put(body, s.format >= 4 ? 3 : 1, 2); put(body, s.channels, 2); put(body, s.rate, 4);
-    put(body, static_cast<std::uint64_t>(s.rate) * s.channels * (depth / 8), 4); put(body, static_cast<std::uint64_t>(s.channels) * (depth / 8), 2);
+    put(body, static_cast<std::uint64_t>(s.rate) * static_cast<std::uint64_t>(s.channels) * static_cast<std::uint64_t>(depth / 8), 4);
+    put(body, static_cast<std::uint64_t>(s.channels) * static_cast<std::uint64_t>(depth / 8), 2);
     put(body, static_cast<std::uint64_t>(depth), 2);
     body += "data"; put(body, data.size(), 4); body += data;
     if (data.size() & 1U) body.push_back('\0');
