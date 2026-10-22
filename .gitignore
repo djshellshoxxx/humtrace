@@ -3,3 +3,4 @@
 *.aiff
 *.flac
 *.mp3
+/build-*/

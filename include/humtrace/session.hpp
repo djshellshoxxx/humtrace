@@ -1,0 +1,40 @@
+#pragma once
+
+#include "humtrace/pipeline.hpp"
+
+#include <filesystem>
+#include <functional>
+#include <string>
+#include <vector>
+
+namespace humtrace {
+
+enum class Stage { Hashing, Analyzing, Done };
+
+struct SessionCallbacks {
+    std::function<void(Stage, double)> progress; // fraction in [0, 1] within the stage
+    std::function<bool()> cancelled;
+};
+
+struct AnalysisResult {
+    AnalysisReport report;
+    std::vector<ChannelView> views; // filled only when want_views is true
+};
+
+// All path arguments are UTF-8 (converted to the native encoding, so non-ASCII names work on Windows).
+[[nodiscard]] std::filesystem::path path_from_utf8(const std::string& utf8);
+
+// Read-only analysis of a file on disk: hash the exact bytes, then stream-analyze.
+// Throws std::runtime_error (including AnalysisCancelled) on failure; never writes the input.
+[[nodiscard]] AnalysisResult analyze_file(const std::string& path, const PipelineSettings& settings,
+                                          const SessionCallbacks& callbacks, bool want_views);
+
+// Throws std::runtime_error if `output` and `input` name the same file (exports must never
+// overwrite a recording). Safe when either path does not exist yet.
+void require_distinct_paths(const std::string& output, const std::string& input);
+
+// Write text to `path` by writing a sibling temp file then renaming, so a failed export
+// never leaves a truncated report. Throws std::runtime_error on failure.
+void write_file_atomically(const std::string& path, const std::string& content);
+
+} // namespace humtrace
