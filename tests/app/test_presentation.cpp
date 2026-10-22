@@ -82,5 +82,17 @@ int main() {
         require(text.find("does not identify a device") != std::string::npos, "limitations are stated");
         require(text.find("ground loop detected") == std::string::npos, "no source attribution");
     }
+    {
+        humtrace::AnalysisReport r;
+        r.channel_results.resize(1);
+        r.channel_results[0].channel_number = 1;
+        humtrace::PsdSummary psd;
+        psd.segments_averaged = 5;
+        psd.broadband_median_dbfs2_per_hz = -90;
+        r.channel_results[0].psd = psd;
+        const auto text = summarize_report(r, {});
+        require(text.find("Welch PSD") != std::string::npos && text.find("dBFS^2/Hz") != std::string::npos,
+                "desktop summary exposes PSD with explicit density units");
+    }
     std::cout << "All presentation tests passed.\n";
 }

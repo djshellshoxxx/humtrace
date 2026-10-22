@@ -37,6 +37,12 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["schema_version"] == "1.2"
+    assert report["settings"]["welch_psd"]["segment_size_samples"] == 4096
+    for channel in report["channels"]:
+        assert channel["psd"]["samples_processed"] == 8192
+        assert channel["psd"]["segments_averaged"] == 3
+        assert channel["psd"]["density_unit"] == "dBFS^2/Hz"
+    assert "Welch PSD" in result.stdout
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
@@ -197,12 +203,31 @@ def check_csv_and_notes(executable: pathlib.Path, directory: pathlib.Path) -> No
     assert bad.returncode != 0 and "--a4" in bad.stderr, bad.stderr
 
 
+def check_welch_options(executable, directory):
+    source = directory / "welch-options.wav"
+    write_stereo_tones(source)
+    target = directory / "welch-options.json"
+    result = subprocess.run([str(executable), str(source), "--psd-segment-size", "1024",
+                             "--psd-hop-size", "512", "--json", str(target), "--quiet"],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    report = json.loads(target.read_text())
+    assert report["settings"]["welch_psd"]["segment_size_samples"] == 1024
+    assert report["channels"][0]["psd"]["segments_averaged"] == 15
+    for args in [("--psd-segment-size", "3"), ("--psd-hop-size", "0"),
+                 ("--psd-hop-size", "8192"), ("--psd-segment-size", "1024x"),
+                 ("--psd-segment-size", "-1024")]:
+        result = subprocess.run([str(executable), str(source), *args], capture_output=True, text=True)
+        assert result.returncode != 0, args
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_cli.py <humtrace executable>")
     executable = pathlib.Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix="humtrace-cli-") as temporary:
         directory = pathlib.Path(temporary)
+        check_welch_options(executable, directory)
         check_stereo_report(executable, directory)
         check_invalid_file_fails(executable, directory)
         check_compare(executable, directory)

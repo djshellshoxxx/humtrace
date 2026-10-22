@@ -136,5 +136,15 @@ int main() {
         require(report.channel_results[0].tracks.empty() && report.channel_results[0].suppressed_tracks == 2, "short tracks are counted, not silently lost");
         require(!report.warnings.empty() && report.warnings.back().find("not listed") != std::string::npos, "suppression produces a warning");
     }
+    { // Each decoded sample must enter Welch exactly once, including the partial final hop.
+        std::istringstream in(two_tone_wav(4096, 10000), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto report = humtrace::analyze_wav(reader, {});
+        const auto& psd = report.channel_results[0].psd;
+        require(psd.has_value(), "pipeline produces a Welch summary");
+        require(psd->samples_processed == 10000 && psd->segments_averaged == 3,
+                "Welch counts unique samples and complete segments only");
+        require(psd->mains_50.prominent_harmonics > 0, "Welch detects the synthetic 50 Hz tone");
+    }
     std::cout << "All pipeline tests passed.\n";
 }

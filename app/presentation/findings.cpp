@@ -89,9 +89,22 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
 }
 
 std::string summarize_report(const AnalysisReport& report, const std::vector<FindingRow>& rows) {
-    return "Recording of " + fmt("%.1f", report.duration_seconds) + " seconds, " +
+    std::string text = "Recording of " + fmt("%.1f", report.duration_seconds) + " seconds, " +
            std::to_string(report.channels) + " channel(s) at " + std::to_string(report.sample_rate_hz) +
            " Hz. " + std::to_string(rows.size()) + " track(s) measured. Measurements only; no source attribution.";
+    for (const auto& channel : report.channel_results) {
+        text += "\nChannel " + std::to_string(channel.channel_number) + " Welch PSD: ";
+        if (!channel.psd) {
+            text += "unavailable (no complete segment).";
+            continue;
+        }
+        const auto& psd = *channel.psd;
+        text += std::to_string(psd.segments_averaged) + " segments, median density " +
+                fmt("%.2f", psd.broadband_median_dbfs2_per_hz) + " dBFS^2/Hz; prominent 50/60 Hz harmonic bins " +
+                std::to_string(psd.mains_50.prominent_harmonics) + "/" +
+                std::to_string(psd.mains_60.prominent_harmonics) + ".";
+    }
+    return text;
 }
 
 } // namespace humtrace::ui

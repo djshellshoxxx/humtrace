@@ -1,6 +1,7 @@
 #pragma once
 
 #include "humtrace/spectrum.hpp"
+#include "humtrace/psd.hpp"
 #include "humtrace/tracker.hpp"
 
 #include <cstddef>
@@ -13,6 +14,7 @@ namespace humtrace {
 struct ReportChannel {
     std::uint16_t channel_number{};
     std::vector<InterferenceFrame> frames;
+    std::optional<PsdSummary> psd;
     std::vector<Track> tracks; // dominant-peak persistence; descriptive only
     std::size_t suppressed_tracks{};  // tracks below min_observed_frames, not listed
     std::uint64_t clipped_samples{};  // samples at or beyond full scale (analyzed region)
@@ -31,6 +33,7 @@ struct AnalysisReport {
     double support_threshold_dbfs{-60.0};
     double minimum_prominence_db{10.0};
     TrackerSettings tracker;
+    WelchSettings welch;
     // Remaining pipeline settings that change results (serialized so a report is reproducible).
     double peak_min_level_dbfs{-80.0};
     double peak_min_prominence_db{10.0};

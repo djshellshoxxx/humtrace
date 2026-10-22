@@ -7,7 +7,7 @@ ifeq ($(OS),Windows_NT)
 LDLIBS += -lshell32
 endif
 CORE_SOURCES = $(filter-out src/main.cpp,$(wildcard src/*.cpp))
-CORE_HEADERS = $(wildcard include/humtrace/*.hpp)
+CORE_HEADERS = $(wildcard include/humtrace/*.hpp src/*.hpp)
 TESTS = $(patsubst tests/test_%.cpp,%,$(wildcard tests/test_*.cpp))
 
 .PHONY: all test fuzz clean

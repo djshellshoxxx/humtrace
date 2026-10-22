@@ -45,6 +45,15 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
     for (const auto& channel : report.channel_results) {
         std::cout << "Channel " << channel.channel_number << " measured frames: "
                   << channel.frames.size() << '\n';
+        if (channel.psd) {
+            const auto& psd = *channel.psd;
+            std::cout << "  Welch PSD: " << psd.segments_averaged << " segments, "
+                      << psd.bin_width_hz << " Hz/bin; median " << psd.broadband_median_dbfs2_per_hz
+                      << " dBFS^2/Hz; prominent 50/60 Hz harmonic bins: "
+                      << psd.mains_50.prominent_harmonics << '/' << psd.mains_60.prominent_harmonics << '\n';
+        } else {
+            std::cout << "  Welch PSD unavailable: fewer than one complete segment.\n";
+        }
         if (!quiet)
         for (const auto& frame : channel.frames) {
             const auto& peak = frame.strongest_peak;
@@ -75,10 +84,10 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
     std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
 }
 
-humtrace::AnalysisReport run(const std::string& path) {
+humtrace::AnalysisReport run(const std::string& path, const humtrace::PipelineSettings& settings) {
     humtrace::SessionCallbacks callbacks;
     callbacks.cancelled = [] { return g_cancel.load(); };
-    return humtrace::analyze_file(path, {}, callbacks, false).report;
+    return humtrace::analyze_file(path, settings, callbacks, false).report;
 }
 
 int usage() {
@@ -87,6 +96,8 @@ int usage() {
                  "                        [--json <comparison.json>] [--full-path] [--force]\n"
                  "  --csv        write one CSV row per track (with note name and cents)\n"
                  "  --a4 <Hz>    tuning reference for note names, 400-480 (default 440)\n"
+                 "  --psd-segment-size <samples>  Welch power-of-two segment (default 4096)\n"
+                 "  --psd-hop-size <samples>      Welch hop, 1 to segment size (default 2048)\n"
                  "  --quiet      omit the per-frame lines\n"
                  "  --full-path  store input paths as typed (default: file name only)\n"
                  "  --force      replace an existing output file (default: refuse)\n";
@@ -101,6 +112,7 @@ struct Options {
     bool full_path{false};
     bool force{false};
     humtrace::CompareSettings compare;
+    humtrace::PipelineSettings pipeline;
 };
 
 // Parses options after the positional arguments; returns false on a usage error.
@@ -113,6 +125,16 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
         };
         if (a == "--json") out.json_path = value();
         else if (a == "--csv") out.csv_path = value();
+        else if (a == "--psd-segment-size" || a == "--psd-hop-size") {
+            const auto& v = value();
+            if (v.empty() || v.find_first_not_of("0123456789") != std::string::npos)
+                throw std::invalid_argument(a + " needs a positive integer");
+            const auto n = std::stoull(v);
+            if (n == 0 || n > humtrace::max_welch_segment_size)
+                throw std::invalid_argument(a + " is out of range");
+            if (a == "--psd-segment-size") out.pipeline.welch.segment_size = static_cast<std::size_t>(n);
+            else out.pipeline.welch.hop_size = static_cast<std::size_t>(n);
+        }
         else if (a == "--a4") {
             const auto& v = value();
             std::size_t used = 0;
@@ -145,6 +167,7 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             return false;
         }
     }
+    humtrace::validate_settings(out.pipeline);
     return true;
 }
 
@@ -217,8 +240,8 @@ int main(int argc, char** argv) {
                         throw std::invalid_argument("channel map must pair each channel at most once");
                 }
             }
-            auto a = run(args[1]);
-            auto b = run(args[2]);
+            auto a = run(args[1], options.pipeline);
+            auto b = run(args[2], options.pipeline);
             a.input_path = display_path(a.input_path, options.full_path);
             b.input_path = display_path(b.input_path, options.full_path);
             const auto comparison = humtrace::compare_reports(a, b, options.compare);
@@ -243,7 +266,7 @@ int main(int argc, char** argv) {
         if (!options.json_path.empty()) check_output(options.json_path, {args[0]}, options.force);
         if (!options.csv_path.empty()) check_output(options.csv_path, {args[0]}, options.force);
         g_a4_hz = options.a4_hz;
-        auto report = run(args[0]);
+        auto report = run(args[0], options.pipeline);
         report.input_path = display_path(report.input_path, options.full_path);
         print_summary(report, options.quiet);
         if (!options.json_path.empty()) {
