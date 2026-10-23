@@ -45,11 +45,15 @@ void AnalysisWorker::run() {
             if (!input) throw std::runtime_error("could not open input file");
             humtrace::WavStreamReader reader(input);
             const auto& metadata = reader.metadata();
-            const auto window = humtrace::select_window_size(metadata, settings_.max_interleaved_window_samples);
-            const auto windows = (metadata.frame_count - window) / (window / 2) + 2;
+            const auto window = humtrace::select_window_size(metadata, settings_);
+            const auto hop = settings_.hop_size_samples ? settings_.hop_size_samples : window / 2;
+            const auto windows = (metadata.frame_count - window) / hop + 2;
+            const auto peakCost = 2 * (sizeof(humtrace::Track) + sizeof(humtrace::TrackObservation) +
+                sizeof(humtrace::TrackPeak) + 4 * sizeof(std::size_t) + 64);
             const auto cost = static_cast<std::uint64_t>(metadata.channels) *
                 (sizeof(humtrace::InterferenceFrame) + 20 * sizeof(humtrace::HarmonicMeasurement) +
-                 settings_.spectrogram_rows * sizeof(float) + settings_.max_peaks_per_frame * 128 + 128);
+                 settings_.spectrogram_rows * sizeof(float) + settings_.max_peaks_per_frame * peakCost +
+                 sizeof(humtrace::TrackAmbiguity) + sizeof(humtrace::FramePeaks) + 128);
             const auto threshold = std::min<std::uint64_t>(16ULL * 1024 * 1024, settings_.max_result_bytes);
             const bool paged = forcePaged_ || windows > threshold / cost;
             auto result = std::make_shared<humtrace::AnalysisResult>();

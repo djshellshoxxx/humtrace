@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
@@ -15,7 +16,14 @@
 namespace humtrace {
 namespace {
 ComparisonInput describe(const AnalysisReport& r) {
-    return {r.input_path, r.input_sha256, r.sample_rate_hz, r.channels, r.duration_seconds};
+    return {r.input_path, r.input_sha256, r.sample_rate_hz, r.channels, r.duration_seconds,
+            AnalysisSettingsSnapshot(r)};
+}
+
+std::string settings_json(const AnalysisReport& report) {
+    std::ostringstream out;
+    write_analysis_settings_json(out, AnalysisSettingsSnapshot(report));
+    return out.str();
 }
 
 using ChannelIndex = std::unordered_map<std::uint16_t, const ReportChannel*>;
@@ -43,6 +51,9 @@ void write_input(std::ostream& out, const ComparisonInput& in) {
     out << ", \"sample_rate_hz\": " << in.sample_rate_hz << ", \"channels\": " << in.channels
         << ", \"duration_seconds\": ";
     write_number(out, in.duration_seconds);
+    out << ", \"analysis_settings\": ";
+    if (in.analysis_settings) write_analysis_settings_json(out, *in.analysis_settings);
+    else out << "null";
     out << '}';
 }
 
@@ -62,12 +73,29 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
     auto checkpoint = [&] { if (cancelled && cancelled()) throw AnalysisCancelled(); };
     checkpoint();
     constexpr std::uint64_t max_tracks = 131072, max_search_pairs = 16 * 1024 * 1024;
+    if (settings.channel_map.size() > std::numeric_limits<std::uint16_t>::max())
+        throw std::invalid_argument("channel map has too many pairs");
     for (const auto* report : {&a, &b}) {
+        if (report->channel_results.size() != report->channels)
+            throw std::invalid_argument("report channel count does not match channel summaries");
+        std::unordered_set<std::uint16_t> channel_ids;
         std::uint64_t count = 0;
         for (const auto& channel : report->channel_results) {
+            checkpoint();
+            if (channel.channel_number == 0 || channel.channel_number > report->channels ||
+                !channel_ids.insert(channel.channel_number).second)
+                throw std::invalid_argument("report channel identities must be unique and in range");
             if (channel.tracks.size() > max_tracks - count)
                 throw std::runtime_error("comparison track-summary memory limit exceeded");
             count += channel.tracks.size();
+            std::unordered_set<std::size_t> track_ids;
+            for (const auto& track : channel.tracks) {
+                if (track.id == 0 || !track_ids.insert(track.id).second)
+                    throw std::invalid_argument("track identities must be nonzero and unique within a channel");
+                if (!(track.median_frequency_hz > 0.0) || !std::isfinite(track.median_frequency_hz) ||
+                    !std::isfinite(track.median_level_dbfs))
+                    throw std::invalid_argument("comparison track measurements must be finite with positive frequency");
+            }
         }
     }
     std::uint64_t work = 0;
@@ -83,6 +111,8 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
         out.warnings.push_back("sample rates differ; no resampling was applied");
     if (a.frame_size_samples != b.frame_size_samples)
         out.warnings.push_back("analysis windows differ; frequency resolution is not equal");
+    if (settings_json(a) != settings_json(b))
+        out.warnings.push_back("analysis settings differ; track availability and summaries may not be directly comparable");
     if (std::abs(a.duration_seconds - b.duration_seconds) > 1e-9)
         out.warnings.push_back("durations differ; no time alignment was applied");
     if (a.channels != b.channels && settings.channel_map.empty())
@@ -126,7 +156,12 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
                 }
             }
         }
-        std::sort(candidates.begin(), candidates.end());
+        std::sort(candidates.begin(), candidates.end(), [&](const auto& lhs, const auto& rhs) {
+            const auto& [ld, li, lj] = lhs;
+            const auto& [rd, ri, rj] = rhs;
+            return std::tuple{ld, chan_a->tracks[li].id, chan_b->tracks[lj].id} <
+                   std::tuple{rd, chan_a->tracks[ri].id, chan_b->tracks[rj].id};
+        });
         checkpoint();
         std::vector<bool> taken_a(chan_a->tracks.size()), taken_b(chan_b->tracks.size());
         for (const auto& [d, i, j] : candidates) {
@@ -134,9 +169,12 @@ ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& 
             taken_a[i] = taken_b[j] = true;
             const auto& ta = chan_a->tracks[i];
             const auto& tb = chan_b->tracks[j];
+            const double level_delta = tb.median_level_dbfs - ta.median_level_dbfs;
+            if (!std::isfinite(level_delta))
+                throw std::invalid_argument("comparison level difference is outside the representable range");
             out.matches.push_back({ref(ca, ta), ref(cb, tb),
                                    tb.median_frequency_hz - ta.median_frequency_hz,
-                                   tb.median_level_dbfs - ta.median_level_dbfs});
+                                   level_delta});
         }
         for (std::size_t i = 0; i < taken_a.size(); ++i)
             if (!taken_a[i]) out.unmatched_a.push_back(ref(ca, chan_a->tracks[i]));
@@ -184,6 +222,7 @@ AnalysisReport comparison_summary(const DiskAnalysis& storage, const std::functi
 
 std::string serialize_comparison_json(const ComparisonReport& r) {
     std::ostringstream out;
+    const json::FormatGuard format(out);
     out << std::setprecision(17) << "{\n  \"schema_version\": \"comparison-1.0\",\n  \"application\": \"HumTrace\","
         << "\n  \"mode\": \"independent_summary\",\n  \"alignment\": {\"applied\": false, \"offset_seconds\": null},"
         << "\n  \"resampling\": {\"applied\": false},\n  \"settings\": {\"frequency_tolerance_hz\": ";

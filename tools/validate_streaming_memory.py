@@ -7,10 +7,12 @@ import math
 import os
 import pathlib
 import resource
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
+import time
 import wave
 
 if sys.platform != "linux":
@@ -59,6 +61,27 @@ with tempfile.TemporaryDirectory(prefix="humtrace-bounded-") as temporary:
         assert not list(root.glob("*.humtrace-tmp-*"))
         measurements.append(rss)
         print(f"{hours}h: {counts} complete measurements, {report.stat().st_size} report bytes, peak RSS {rss:.2f} MiB", flush=True)
+        if hours == 3:
+            cancelled_report = root / "cancelled.json"
+            with (root / "cancel-stdout").open("wb") as stdout, (root / "cancel-stderr").open("wb") as stderr:
+                process = subprocess.Popen([str(exe), str(source), "--stream", "--json", str(cancelled_report),
+                                            "--memory-limit-mib", "64", "--disk-limit-mib", "1024"],
+                                           stdout=stdout, stderr=stderr, preexec_fn=constrain)
+                time.sleep(0.1)
+                if process.poll() is None:
+                    started = time.monotonic()
+                    process.send_signal(signal.SIGINT)
+                    _, status, _ = os.wait4(process.pid, 0)
+                    process.returncode = os.waitstatus_to_exitcode(status)
+                    latency = time.monotonic() - started
+                else:
+                    latency = float("inf")
+            error_text = (root / "cancel-stderr").read_text(errors="replace")
+            assert process.returncode == 130 and latency < 1.0, (process.returncode, latency, error_text)
+            assert "cancelled" in error_text.lower() and not cancelled_report.exists(), error_text
+            assert not list(root.glob(".humtrace-stream-*"))
+            assert not list(root.glob("*.humtrace-tmp-*"))
+            print(f"3h bounded-memory cancellation: exit 130, {latency:.3f}s, no report or scratch files", flush=True)
         source.unlink(); report.unlink()
     assert measurements[1] <= measurements[0] + 8, measurements
 print("PASS: 1h/3h streaming reports complete under 96 MiB address-space limit; RSS growth <=8 MiB; source unchanged and scratch cleaned")

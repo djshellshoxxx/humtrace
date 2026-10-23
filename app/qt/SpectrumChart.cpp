@@ -24,6 +24,9 @@ void SpectrumChart::setFrame(const std::vector<float>* levels, const std::vector
     ceiling_ = std::max(ceilingDb, floorDb + 1.0); // never an empty or inverted range
     hoverRow_ = -1;
     readout_.clear();
+    setAccessibleDescription(levels_ && !levels_->empty()
+        ? tr("Use Left and Right to read display rows; the Spectrum table provides the values and units. Frequency uncertainty is not estimated.")
+        : tr("No frame selected"));
     update();
 }
 
@@ -79,8 +82,9 @@ void SpectrumChart::setHoverRow(int row) {
     hoverRow_ = std::clamp(row, 0, static_cast<int>(levels_->size()) - 1);
     const auto i = static_cast<std::size_t>(hoverRow_);
     const double hi = i + 1 < rowHz_->size() ? (*rowHz_)[i + 1] : nyquist_;
-    readout_ = tr("%1 to %2 Hz: %3 dBFS (maximum bin in row; resolution = row width)")
-                   .arg((*rowHz_)[i], 0, 'f', 1).arg(hi, 0, 'f', 1).arg((*levels_)[i], 0, 'f', 1);
+    readout_ = tr("%1 to %2 Hz: %3 dBFS (maximum FFT bin, floor-clamped; display row width %4 Hz; uncertainty is not estimated)")
+                   .arg((*rowHz_)[i], 0, 'f', 1).arg(hi, 0, 'f', 1).arg((*levels_)[i], 0, 'f', 1)
+                   .arg(hi - (*rowHz_)[i], 0, 'f', 1);
     setAccessibleDescription(readout_);
     emit readoutChanged(readout_);
     update();

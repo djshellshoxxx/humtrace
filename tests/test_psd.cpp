@@ -348,6 +348,33 @@ void silence_has_no_prominent_harmonics() {
 } // namespace
 
 int main() {
+    { // Segment detrending is independent of amplitude-spectrum detrending and preserves raw levels.
+        const std::vector<double> constant(64, 0.25);
+        const auto raw = humtrace::estimate_welch_psd(constant, 64, {64, 32});
+        const auto ac = humtrace::estimate_welch_psd(constant, 64, {64, 32, true});
+        require(std::isfinite(raw.bins[0].density_dbfs2_per_hz), "default PSD preserves DC power");
+        for (const auto& bin : ac.bins)
+            require(std::isinf(bin.density_dbfs2_per_hz) && bin.density_dbfs2_per_hz < 0,
+                    "configured segment mean removal eliminates constant-signal PSD power");
+    }
+    { // The bounded optional search is explicit; nominal bracketing remains the default.
+        auto samples = uniform_noise(16384, 76);
+        for (std::size_t i = 0; i < samples.size(); ++i)
+            samples[i] = 0.02 * samples[i] + 0.4 * std::sin(2 * std::numbers::pi * 63 * static_cast<double>(i) / 4096.0);
+        const auto psd = humtrace::estimate_welch_psd(samples, 4096, {4096, 2048});
+        humtrace::PsdNoiseFloorSettings settings;
+        settings.max_harmonics = 1;
+        const auto nominal = humtrace::measure_psd_harmonics(psd, 60, settings);
+        settings.harmonic_tolerance_hz = 4;
+        const auto searched = humtrace::measure_psd_harmonics(psd, 60, settings);
+        require(!nominal.harmonics[0].prominent && searched.harmonics[0].prominent &&
+                searched.harmonics[0].measured_bin_hz == 63, "bounded PSD search finds an off-nominal local maximum");
+        require(searched.harmonics[0].local_floor_available && searched.harmonics[0].search_tolerance_hz == 4,
+                "PSD exposes floor availability and search bound");
+        settings.harmonic_tolerance_hz = -1;
+        require(throws_invalid_argument([&] { (void)humtrace::measure_psd_harmonics(psd, 60, settings); }),
+                "invalid PSD harmonic search is rejected");
+    }
     { // Coarse resolution must not count the same broad bin as multiple mains harmonics.
         const auto psd = humtrace::estimate_welch_psd(std::vector<double>(64, 1.0), 48000, {64, 32});
         const auto candidate = humtrace::measure_psd_harmonics(psd, 50, {});

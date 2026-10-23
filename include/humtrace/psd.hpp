@@ -31,6 +31,8 @@ struct WelchSettings {
     std::size_t segment_size{4096};
     // From 1 to segment_size. Overlap is segment_size - hop_size.
     std::size_t hop_size{2048};
+    // Subtract each segment's mean before windowing. False preserves the original PSD convention.
+    bool remove_mean{false};
 };
 
 struct PsdBin {
@@ -104,6 +106,9 @@ struct PsdNoiseFloorSettings {
     // Prominence is the strongest of the two bins bracketing the nominal harmonic, minus the
     // local floor. Leakage from a stronger component in an adjacent bin can raise it.
     double minimum_prominence_db{10.0};
+    // Zero preserves nominal bracketing. Positive values search local maxima within
+    // max(tolerance, bin_width), capped below half the fundamental spacing.
+    double harmonic_tolerance_hz{0.0};
 };
 
 struct PsdHarmonicMeasurement {
@@ -117,6 +122,9 @@ struct PsdHarmonicMeasurement {
     double prominence_db{};
     // Prominence is at least minimum_prominence_db. This is a measurement flag, not attribution.
     bool prominent{};
+    double frequency_hz{};
+    double search_tolerance_hz{};
+    bool local_floor_available{};
 };
 
 struct PsdHarmonicCandidate {

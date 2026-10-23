@@ -28,7 +28,8 @@ void validate_estimator(double sample_rate_hz, const WelchSettings& settings) {
 void validate_floor_settings(const PsdNoiseFloorSettings& settings) {
     if (settings.max_harmonics == 0 || settings.max_harmonics > 1024 ||
         settings.radius_bins > max_welch_segment_size || settings.radius_bins <= settings.guard_bins ||
-        !std::isfinite(settings.minimum_prominence_db) || settings.minimum_prominence_db < 0.0)
+        !std::isfinite(settings.minimum_prominence_db) || settings.minimum_prominence_db < 0.0 ||
+        !std::isfinite(settings.harmonic_tolerance_hz) || settings.harmonic_tolerance_hz < 0)
         throw std::invalid_argument("invalid PSD harmonic settings");
 }
 
@@ -106,12 +107,17 @@ void WelchPsd::reset() noexcept {
 
 void WelchPsd::process_segment() {
     const auto size = settings_.segment_size;
+    double mean = 0.0;
+    if (settings_.remove_mean) {
+        for (const auto sample : ring_) mean += sample / static_cast<double>(size);
+        if (!std::isfinite(mean)) throw std::invalid_argument("sample magnitudes are too large for PSD detrending");
+    }
     // Oldest sample of the segment sits at write_index_.
     for (std::size_t i = 0; i < size; ++i) {
         std::size_t index = write_index_ + i;
         if (index >= size)
             index -= size;
-        work_[i] = {ring_[index] * window_[i], 0.0};
+        work_[i] = {(ring_[index] - mean) * window_[i], 0.0};
     }
     detail::fft_radix2(work_);
     const std::size_t nyquist = size / 2;
@@ -188,9 +194,25 @@ PsdHarmonicCandidate measure_psd_harmonics(const WelchResult& psd, double nomina
             if (bins[candidate_bin].density_dbfs2_per_hz > bins[peak].density_dbfs2_per_hz)
                 peak = candidate_bin;
 
+        const double tolerance = settings.harmonic_tolerance_hz == 0 ? psd.bin_width_hz :
+            std::min(std::max(settings.harmonic_tolerance_hz, psd.bin_width_hz), std::nextafter(nominal_hz / 2.0, 0.0));
+        bool local_maximum = true;
+        if (settings.harmonic_tolerance_hz > 0) {
+            std::optional<std::size_t> best;
+            const auto first = static_cast<std::size_t>(std::max(1.0, std::ceil((expected - tolerance) / psd.bin_width_hz)));
+            const auto last = static_cast<std::size_t>(std::min(static_cast<double>(last_interior), std::floor((expected + tolerance) / psd.bin_width_hz)));
+            for (std::size_t bin = first; bin <= last; ++bin) {
+                if (bins[bin].density_dbfs2_per_hz <= bins[bin - 1].density_dbfs2_per_hz ||
+                    bins[bin].density_dbfs2_per_hz <= bins[bin + 1].density_dbfs2_per_hz) continue;
+                if (!best || bins[bin].density_dbfs2_per_hz > bins[*best].density_dbfs2_per_hz) best = bin;
+            }
+            local_maximum = best.has_value();
+            if (best) peak = *best;
+        }
+
         // Median over interior bins within radius_bins, excluding the guard band around the harmonic.
         std::vector<double> neighbors;
-        const auto center = static_cast<long long>(index);
+        const auto center = static_cast<long long>(settings.harmonic_tolerance_hz == 0 ? index : peak);
         const auto radius = static_cast<long long>(settings.radius_bins);
         const auto guard = static_cast<long long>(settings.guard_bins);
         for (long long bin = center - radius; bin <= center + radius; ++bin) {
@@ -204,10 +226,11 @@ PsdHarmonicCandidate measure_psd_harmonics(const WelchResult& psd, double nomina
         const double floor_db = neighbors.empty() ? negative_infinity : median_of(neighbors);
         const double level_db = bins[peak].density_dbfs2_per_hz;
         const double prominence = prominence_of(level_db, floor_db);
-        const bool prominent = !neighbors.empty() && std::isfinite(level_db) && prominence >= settings.minimum_prominence_db;
+        const bool prominent = local_maximum && !neighbors.empty() && std::isfinite(level_db) && prominence >= settings.minimum_prominence_db;
         candidate.prominent_harmonics += prominent ? 1U : 0U;
         candidate.harmonics.push_back({harmonic, expected, bins[peak].frequency_hz, level_db,
-                                       floor_db, prominence, prominent});
+                                       floor_db, prominence, prominent, bins[peak].frequency_hz,
+                                       tolerance, !neighbors.empty()});
     }
     return candidate;
 }

@@ -3,6 +3,8 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <limits>
+#include <locale>
 
 namespace {
 void require(bool c, const char* m) { if (!c) { std::cerr << "FAIL: " << m << '\n'; std::exit(1); } }
@@ -28,9 +30,74 @@ humtrace::AnalysisReport report(std::uint32_t rate, std::vector<std::vector<doub
     }
     return r;
 }
+class CommaNumbers final : public std::numpunct<char> {
+    char do_decimal_point() const override { return ','; }
+    char do_thousands_sep() const override { return '.'; }
+    std::string do_grouping() const override { return "\3"; }
+};
 } // namespace
 
 int main() {
+    {
+        auto a = report(48000, {{50.0}});
+        auto b = report(48000, {{50.0}});
+        a.hop_size_samples = 2048;
+        b.hop_size_samples = 512;
+        b.peak_search.minimum_frequency_hz = 30;
+        const auto result = humtrace::compare_reports(a, b);
+        bool warned = false;
+        for (const auto& warning : result.warnings) warned = warned || warning.find("analysis settings differ") != std::string::npos;
+        require(warned, "different effective analysis settings are visible to comparison readers");
+        const auto json = humtrace::serialize_comparison_json(result);
+        require(json.find("\"analysis_settings\": {") != std::string::npos &&
+                json.find("\"hop_size_samples\": 512") != std::string::npos &&
+                json.find("\"minimum_frequency_hz\": 30") != std::string::npos,
+                "comparison retains lightweight effective settings for each source analysis");
+    }
+    {
+        auto a = report(48000, {{50.0}});
+        auto b = report(48000, {{50.0}});
+        a.channel_results[0].tracks[0].median_level_dbfs = -std::numeric_limits<double>::max();
+        b.channel_results[0].tracks[0].median_level_dbfs = std::numeric_limits<double>::max();
+        bool rejected = false;
+        try { (void)humtrace::compare_reports(a, b); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "comparison refuses an unrepresentable level difference");
+    }
+    {
+        auto a = report(48000, {{50.0}});
+        a.channel_results.push_back(a.channel_results[0]);
+        bool rejected = false;
+        try { (void)humtrace::compare_reports(a, report(48000, {{50.0}})); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "duplicate report channel identities cannot silently hide tracks");
+    }
+    {
+        auto a = report(48000, {{50.0, 50.0}});
+        auto b = report(48000, {{50.0, 50.0}});
+        std::swap(a.channel_results[0].tracks[0], a.channel_results[0].tracks[1]);
+        const auto matched = humtrace::compare_reports(a, b);
+        require(matched.matches.size() == 2 && matched.matches[0].a.local_id == 1 &&
+                matched.matches[0].b.local_id == 1,
+                "equal-distance matches use stable local IDs rather than storage order");
+    }
+    {
+        auto a = report(48000, {{50.0}});
+        a.channel_results[0].tracks[0].median_frequency_hz = std::numeric_limits<double>::quiet_NaN();
+        bool rejected = false;
+        try { (void)humtrace::compare_reports(a, report(48000, {{50.0}})); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "non-finite track summaries cannot produce a misleading comparison");
+    }
+    {
+        const auto result = humtrace::compare_reports(report(48000, {{50.0}}), report(48000, {{50.25}}));
+        const auto previous = std::locale::global(std::locale(std::locale::classic(), new CommaNumbers));
+        const auto json = humtrace::serialize_comparison_json(result);
+        std::locale::global(previous);
+        require(json.find("\"sample_rate_hz\": 48000") != std::string::npos &&
+                json.find("\"delta_frequency_hz\": 0.25") != std::string::npos,
+                "comparison JSON is independent of the application locale");
+    }
     {
         const auto result = humtrace::compare_reports(report(48000, {{50.0, 150.0}}), report(48000, {{50.4, 300.0}}));
         require(result.matches.size() == 1 && std::abs(result.matches[0].delta_frequency_hz - 0.4) < 1e-9, "matching tone found");

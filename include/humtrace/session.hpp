@@ -29,7 +29,8 @@ struct AnalysisResult {
 // All path arguments are UTF-8 (converted to the native encoding, so non-ASCII names work on Windows).
 [[nodiscard]] std::filesystem::path path_from_utf8(const std::string& utf8);
 
-// Read-only analysis of a file on disk: hash the exact bytes, then stream-analyze.
+// Read-only analysis: hash bytes, stream-analyze, then rehash for consistency.
+// Same metadata and hashes do not establish an immutable snapshot or recording origin.
 // Throws std::runtime_error (including AnalysisCancelled) on failure; never writes the input.
 [[nodiscard]] AnalysisResult analyze_file(const std::string& path, const PipelineSettings& settings,
                                           const SessionCallbacks& callbacks, bool want_views, FrameSink* sink = nullptr);

@@ -36,6 +36,67 @@ std::string two_tone_wav(std::uint32_t rate, std::uint32_t frames) {
 } // namespace
 
 int main() {
+    { // Explicit windows/hops change frame positions without skipping or duplicating PSD input.
+        humtrace::PipelineSettings s;
+        s.frame_size_samples = 1024;
+        s.hop_size_samples = 256;
+        s.peak_search.minimum_frequency_hz = 100;
+        s.peak_search.maximum_frequency_hz = 200;
+        std::istringstream in(two_tone_wav(4096, 4100), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto report = humtrace::analyze_wav(reader, s);
+        const auto& channel = report.channel_results[0];
+        require(report.frame_size_samples == 1024 && report.hop_size_samples == 256,
+                "effective explicit frame and hop sizes are reported");
+        require(channel.frames.size() == 14 && channel.frames[1].start_sample == 256 &&
+                channel.frames.back().start_sample == 3076, "configured hop and final end-aligned frame are honored");
+        require(channel.psd && channel.psd->samples_processed == 4100,
+                "custom overlapping windows feed every PSD sample exactly once");
+        require(channel.tracks.size() == 1 && std::abs(channel.tracks.front().median_frequency_hz - 120) < 0.3,
+                "configured frequency band changes the tracked evidence");
+    }
+    { // Settings invalid for the file are rejected before the first sample is read.
+        humtrace::PipelineSettings s;
+        s.frame_size_samples = 8192;
+        std::istringstream in(two_tone_wav(4096, 4096), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        const auto before = in.tellg();
+        bool rejected = false;
+        try { (void)humtrace::analyze_wav(reader, s); } catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected && in.tellg() == before, "an impossible explicit window is rejected before reading samples");
+    }
+    { // An explicit small window is not refused because the automatic choice would exceed the budget.
+        humtrace::PipelineSettings s;
+        s.frame_size_samples = 1024;
+        s.max_interleaved_window_samples = 1024;
+        humtrace::WavMetadata metadata;
+        metadata.channels = 1;
+        metadata.sample_rate_hz = 4096;
+        metadata.frame_count = 8192;
+        require(humtrace::select_window_size(metadata, s) == 1024,
+                "explicit frame is checked against its own working-memory requirement");
+    }
+    { // Every permitted peak may start a separate short track and ambiguity component.
+        humtrace::PipelineSettings s;
+        s.max_peaks_per_frame = 1024;
+        s.max_result_bytes = 1024 * 1024;
+        std::istringstream in(two_tone_wav(4096, 4096 * 3), std::ios::binary);
+        humtrace::WavStreamReader reader(in);
+        bool rejected = false;
+        try { (void)humtrace::analyze_wav(reader, s); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "retained budget includes worst-case per-peak track and ambiguity growth");
+    }
+    {
+        humtrace::WavMetadata metadata;
+        metadata.sample_rate_hz = 4096;
+        metadata.frame_count = 8192;
+        metadata.channels = 0;
+        bool rejected = false;
+        try { (void)humtrace::select_window_size(metadata, humtrace::PipelineSettings{}); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "zero-channel metadata is rejected instead of dividing by zero");
+    }
     {
         std::istringstream in(two_tone_wav(4096, 4096 * 3), std::ios::binary);
         humtrace::WavStreamReader reader(in);
@@ -140,6 +201,14 @@ int main() {
         require(rejects([](auto& s) { s.spectrogram_rows = std::size_t{1} << 62; }), "huge rows cannot wrap the memory estimate");
         require(rejects([](auto& s) { s.max_peaks_per_frame = 100000; }), "huge peak count");
         require(rejects([](auto& s) { s.spectrogram_min_hz = 0.0; }), "zero min frequency");
+        require(rejects([](auto& s) { s.frame_size_samples = 1000; }), "non-power-of-two explicit frame");
+        require(rejects([](auto& s) { s.frame_size_samples = 131072; }), "excessive explicit frame");
+        require(rejects([](auto& s) { s.frame_size_samples = 1024; s.hop_size_samples = 1025; }), "hop exceeds explicit frame");
+        require(rejects([](auto& s) { s.harmonic_tolerance_hz = -1; }), "negative harmonic tolerance");
+        require(rejects([](auto& s) { s.peak_search.minimum_frequency_hz = NAN; }), "non-finite band minimum");
+        require(rejects([](auto& s) { s.peak_search.minimum_frequency_hz = 100; s.peak_search.maximum_frequency_hz = 90; }), "inverted frequency band");
+        require(rejects([](auto& s) { s.peak_search.minimum_separation_hz = -1; }), "negative peak separation");
+        require(rejects([](auto& s) { s.peak_search.floor_guard_bins = 8; }), "guard consumes floor radius");
         humtrace::validate_settings({}); // defaults are valid
     }
     { // suppressed tracks are counted and reported

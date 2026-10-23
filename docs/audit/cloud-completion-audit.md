@@ -47,8 +47,9 @@ an isolated package smoke test before the Windows package gate can close.
   oversized track/candidate workloads fail explicitly rather than discard data.
   JSON export is incremental and cancellable. The CLI and desktop hour-scale
   acceptances independently measure actual working set and source immutability.
-- Track split/merge lineage, full event intervals, fit-quality/quantile output and
-  independently validated persistence rules remain incomplete.
+- Candidate split/merge/competing ambiguity graph events and local references are
+  now recorded. Physical source lineage across those events, independently
+  validated event intervals, and persistence rules remain incomplete.
 - A labeled recording corpus split by source/session, field performance and
   forensic accuracy claims are unavailable. Synthetic or unlabeled real-file
   checks do not satisfy this gate.

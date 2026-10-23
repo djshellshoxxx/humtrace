@@ -16,11 +16,14 @@ struct FrameEvidence {
     std::size_t lo50{1000}, hi50{}, lo60{1000}, hi60{}, harmonic_count{};
     bool measured{}, below_floor{};
     double rms_lo{}, rms_hi{}, sample_peak{sample_level_floor_dbfs};
+    std::size_t harmonic_count_60{};
 };
 struct StoredTrack {
     std::size_t id{}, first_frame{}, last_frame{}, observed_frames{}, missing_frames{};
     double median_frequency_hz{}, median_level_dbfs{}, drift_hz_per_second{};
     FrameEvidence evidence;
+    std::optional<std::size_t> start_ambiguity_id{}, end_ambiguity_id{};
+    TrackEndReason end_reason{TrackEndReason::EndOfInput};
 };
 
 // Immutable private on-disk analysis with bounded random-access reads. Returned

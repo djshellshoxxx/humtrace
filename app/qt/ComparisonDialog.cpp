@@ -43,6 +43,7 @@ ComparisonDialog::ComparisonDialog(const humtrace::ComparisonReport& report, QWi
     table_->setHorizontalHeaderLabels({tr("Status"), tr("Channel A"), tr("Freq A (Hz)"), tr("Channel B"), tr("Freq B (Hz)"), tr("Delta freq (Hz)"), tr("Delta level (dB)")});
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_->setAccessibleName(tr("Comparison table"));
+    table_->setAccessibleDescription(tr("Measured track summaries. Unmatched frequencies and level differences are unavailable. No alignment or resampling is applied."));
     page_ = new QLabel;
     page_->setAccessibleName(tr("Comparison page and total count"));
     previous_ = new QPushButton(tr("Previous rows")); next_ = new QPushButton(tr("Next rows"));
@@ -77,7 +78,12 @@ void ComparisonDialog::setPage(std::size_t first) {
     table_->setRowCount(0);
     auto add = [&](const QStringList& cells) {
         const int row = table_->rowCount(); table_->insertRow(row);
-        for (int c = 0; c < 7; ++c) table_->setItem(row, c, new QTableWidgetItem(cells[c]));
+        for (int c = 0; c < 7; ++c) {
+            auto* item = new QTableWidgetItem(cells[c]);
+            item->setData(Qt::AccessibleTextRole, tr("%1: %2; %3")
+                .arg(table_->horizontalHeaderItem(c)->text(), cells[c] == "-" ? tr("unavailable") : cells[c], cells[0]));
+            table_->setItem(row, c, item);
+        }
     };
     for (auto i = first_; i < end; ++i) {
         if (i < report_.matches.size()) {

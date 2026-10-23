@@ -32,6 +32,35 @@ int main() {
         for (int i = 0; i < 16384; ++i) integer(out, i % 64 < 32 ? 8192U : static_cast<std::uint32_t>(-8192), 2);
     }
     const auto output = directory / "output.json";
+    for (const auto minimum : {std::size_t{1}, std::size_t{99}}) {
+        // Ambiguities remain reviewable even when every short segment is suppressed.
+        humtrace::PipelineSettings settings;
+        settings.tracker.fixed_hz_tolerance = 2000.0;
+        settings.tracker.bin_fraction = 0.0;
+        settings.tracker.min_observed_frames = minimum;
+        settings.max_peaks_per_frame = 4;
+        const auto retained = humtrace::analyze_file(input.string(), settings, {}, false).report;
+        require(!retained.channel_results[0].ambiguities.empty(), "fixture creates candidate ambiguity");
+        const auto paged = humtrace::analyze_file_paged(input.string(), settings);
+        require(paged->track_count(0) == retained.channel_results[0].tracks.size(),
+                "paged track index preserves suppression");
+        const auto target = directory / "ambiguities.json";
+        paged->export_json(target.string(), false, true);
+        std::ifstream exported(target, std::ios::binary);
+        std::ostringstream contents;
+        contents << exported.rdbuf();
+        require(contents.str() == humtrace::serialize_report_json(retained),
+                "paged JSON preserves ambiguity events and segment references exactly");
+        for (std::size_t i = 0; i < retained.channel_results[0].tracks.size(); ++i) {
+            const auto stored = paged->track(0, i);
+            const auto& track = retained.channel_results[0].tracks[i];
+            require(stored.start_ambiguity_id == track.start_ambiguity_id &&
+                    stored.end_ambiguity_id == track.end_ambiguity_id && stored.end_reason == track.end_reason,
+                    "paged inspector preserves ambiguity boundaries");
+        }
+        exported.close();
+        fs::remove(target);
+    }
     for (const auto stage : {humtrace::Stage::Hashing, humtrace::Stage::Analyzing, humtrace::Stage::Finalizing}) {
         bool cancel = false;
         humtrace::SessionCallbacks callbacks;

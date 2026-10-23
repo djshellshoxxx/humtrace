@@ -6,10 +6,13 @@
 #include "MainWindow.hpp"
 #include "Theme.hpp"
 #include "ViewState.hpp"
+#include "humtrace/version.hpp"
 
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTableView>
 #include <QTemporaryDir>
 #include <QTest>
@@ -73,20 +76,41 @@ int main(int argc, char** argv) {
             errors << QString("[%1] %2 (replay seed %3 step %4)").arg(feature, what).arg(seed).arg(steps);
         };
         ++steps;
-        // 1. Randomize EVERY setting.
-        humtrace::PipelineSettings s;
-        s.support_threshold_dbfs = real(-140, 0);
-        s.minimum_prominence_db = real(0, 60);
-        s.peak_min_level_dbfs = real(-140, 0);
-        s.peak_min_prominence_db = real(0, 60);
-        s.max_peaks_per_frame = std::size_t(integer(1, 32));
-        s.waveform_buckets = std::size_t(integer(1, 4096));
-        s.spectrogram_rows = std::size_t(integer(1, 256));
-        s.spectrogram_min_hz = real(1, 200);
-        s.tracker.fixed_hz_tolerance = real(0, 20);
-        s.tracker.bin_fraction = real(0, 4);
-        s.tracker.max_gap_frames = std::size_t(integer(0, 12));
-        s.tracker.min_observed_frames = std::size_t(integer(1, 10));
+        auto randomSettings = [&] {
+            humtrace::PipelineSettings s;
+            s.max_interleaved_window_samples = std::size_t(integer(65536, 1048576));
+            s.max_result_bytes = std::uint64_t(integer(64, 256)) * 1024 * 1024;
+            s.support_threshold_dbfs = real(-140, 0);
+            s.minimum_prominence_db = real(0, 60);
+            s.peak_min_level_dbfs = real(-140, 0);
+            s.peak_min_prominence_db = real(0, 60);
+            s.max_peaks_per_frame = std::size_t(integer(1, 32));
+            s.waveform_buckets = std::size_t(integer(1, 4096));
+            s.spectrogram_rows = std::size_t(integer(1, 256));
+            s.spectrogram_min_hz = real(1, 200);
+            s.spectrogram_floor_dbfs = real(-180, -100);
+            s.frame_size_samples = integer(0, 1) ? std::size_t{1} << integer(8, 12) : 0;
+            const auto effectiveFrame = s.frame_size_samples ? s.frame_size_samples : std::size_t{4096};
+            s.hop_size_samples = integer(0, 1) ? std::size_t(integer(int(effectiveFrame / 4), int(effectiveFrame))) : 0;
+            s.spectrum_remove_mean = integer(0, 1) == 1;
+            s.peak_search.minimum_frequency_hz = real(0, 100);
+            s.peak_search.maximum_frequency_hz = integer(0, 1) ? real(200, 2000) : 0;
+            s.peak_search.minimum_separation_hz = real(0, 20);
+            s.peak_search.floor_guard_bins = std::size_t(integer(0, 4));
+            s.peak_search.floor_radius_bins = std::size_t(integer(int(s.peak_search.floor_guard_bins + 1), 32));
+            s.harmonic_tolerance_hz = real(0, 5);
+            s.welch.segment_size = std::size_t{1} << integer(5, 12);
+            s.welch.hop_size = std::size_t(integer(int(s.welch.segment_size / 4), int(s.welch.segment_size)));
+            s.welch.remove_mean = integer(0, 1) == 1;
+            s.tracker.fixed_hz_tolerance = real(0, 20);
+            s.tracker.relative_tolerance = real(0, 0.05);
+            s.tracker.bin_fraction = real(0, 4);
+            s.tracker.max_gap_frames = std::size_t(integer(0, 12));
+            s.tracker.min_observed_frames = std::size_t(integer(1, 10));
+            return s;
+        };
+        // 1. Randomize every configurable setting with bounded, valid work sizes.
+        const auto s = randomSettings();
         const double floorDb = real(-160, -30), ceilDb = real(floorDb + 1 > -100 ? floorDb + 1 : -100, 0);
         const int feature = int(steps % 5);
         try {
@@ -119,9 +143,7 @@ int main(int argc, char** argv) {
             const auto* rep = w.report();
             if (!rep || rep->channel_results.size() != rep->channels) { fail("analyze", "report/channel mismatch"); continue; }
             // 2. Re-randomize everything again, then exercise the second feature on the same result.
-            humtrace::PipelineSettings s2 = s;
-            s2.support_threshold_dbfs = real(-140, 0);
-            s2.tracker.min_observed_frames = std::size_t(integer(1, 10));
+            const auto s2 = randomSettings();
             w.setPipelineSettings(s2);
             w.setDisplayOptions(integer(0, 1), integer(0, 1), -100.0 - real(0, 50), -real(10, 50));
             auto* vs = w.viewState();
@@ -132,7 +154,7 @@ int main(int argc, char** argv) {
                 const auto err = w.exportReport(out, integer(0, 1) == 1);
                 if (!err.isEmpty()) fail("export", err);
                 QFile f(out);
-                if (!f.open(QIODevice::ReadOnly) || !f.readAll().contains("\"schema_version\": \"1.2\"")) fail("export", "report missing or malformed");
+                if (!f.open(QIODevice::ReadOnly) || QJsonDocument::fromJson(f.readAll()).object()["schema_version"].toString() != QString::fromLatin1(humtrace::kReportSchemaVersion)) fail("export", "report missing or malformed");
                 break;
             }
             case 1: { // navigation: channel, cursor, zoom, selection

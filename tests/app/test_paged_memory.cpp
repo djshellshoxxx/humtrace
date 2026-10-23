@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QTemporaryDir>
 #include <QFile>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -43,8 +44,16 @@ int main(int argc, char** argv) {
         window.setErrorHandler([&](const QString& stage, const QString& message) { failure = stage + ": " + message; });
         window.show();
         std::uint64_t heartbeats = 0;
+        QElapsedTimer responsiveness;
+        responsiveness.start();
+        qint64 lastHeartbeat = 0, maxHeartbeatGap = 0;
         QTimer heartbeat;
-        QObject::connect(&heartbeat, &QTimer::timeout, [&] { ++heartbeats; });
+        QObject::connect(&heartbeat, &QTimer::timeout, [&] {
+            const auto now = responsiveness.elapsed();
+            maxHeartbeatGap = std::max(maxHeartbeatGap, now - lastHeartbeat);
+            lastHeartbeat = now;
+            ++heartbeats;
+        });
         heartbeat.start(10);
         window.openRecording(path);
         window.startAnalysis();
@@ -67,9 +76,13 @@ int main(int argc, char** argv) {
             if (window.pagedCacheBytes() > 6U*1024U*1024U || chart->imageBytes() > 2U*1024U*1024U)
                 throw std::runtime_error("GUI cache budget exceeded");
         }
+        maxHeartbeatGap = std::max(maxHeartbeatGap, responsiveness.elapsed() - lastHeartbeat);
+        if (maxHeartbeatGap > 1000)
+            throw std::runtime_error("GUI heartbeat gap exceeded 1000 ms during analysis or random access");
         if (digest() != before) throw std::runtime_error("source was modified");
         std::cout << "GUI_PAGED cache=" << window.pagedCacheBytes() << " image=" << chart->imageBytes()
-                  << " heartbeats=" << heartbeats << " elapsed_ms=" << deadline.elapsed() << '\n';
+                  << " heartbeats=" << heartbeats << " max_heartbeat_gap_ms=" << maxHeartbeatGap
+                  << " elapsed_ms=" << deadline.elapsed() << '\n';
         window.close();
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

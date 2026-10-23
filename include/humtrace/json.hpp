@@ -1,11 +1,40 @@
 #pragma once
 
 #include <cmath>
+#include <charconv>
 #include <cstdint>
+#include <limits>
+#include <locale>
 #include <ostream>
 #include <string>
 
 namespace humtrace::json {
+
+// Public streaming writers must also be safe with a GUI/caller-owned stream.
+// Restore its formatting after emitting locale-independent JSON numbers.
+class FormatGuard {
+public:
+    explicit FormatGuard(std::ostream& out)
+        : out_(out), locale_(out.getloc()), flags_(out.flags()), precision_(out.precision()), width_(out.width()) {
+        out_.imbue(std::locale::classic());
+        out_.flags(std::ios::dec | std::ios::skipws);
+        out_.precision(std::numeric_limits<double>::max_digits10);
+        out_.width(0);
+    }
+    ~FormatGuard() noexcept {
+        out_.flags(flags_);
+        out_.precision(precision_);
+        out_.width(width_);
+        try { out_.imbue(locale_); } catch (...) {}
+    }
+    FormatGuard(const FormatGuard&) = delete;
+    FormatGuard& operator=(const FormatGuard&) = delete;
+private:
+    std::ostream& out_;
+    std::locale locale_;
+    std::ios::fmtflags flags_;
+    std::streamsize precision_, width_;
+};
 
 // Write a JSON string. Control characters are escaped; invalid UTF-8 bytes are replaced with
 // U+FFFD so the output is always valid JSON (file names are not guaranteed to be UTF-8).
@@ -55,8 +84,11 @@ inline void write_string(std::ostream& out, const std::string& value) {
 }
 
 inline void write_number(std::ostream& out, double value) {
-    if (std::isfinite(value)) out << value;
-    else out << "null";
+    if (!std::isfinite(value)) { out << "null"; return; }
+    char buffer[64];
+    const auto result = std::to_chars(buffer, buffer + sizeof buffer, value,
+                                    std::chars_format::general, std::numeric_limits<double>::max_digits10);
+    out.write(buffer, result.ptr - buffer);
 }
 
 } // namespace humtrace::json

@@ -73,11 +73,11 @@ def sha(path):
 
 
 def max_rss_mb(args):
-    """Peak resident set of one child run (wait4 reports per-child rusage; KB on Linux)."""
+    """Return child peak RSS and exit status (wait4 reports per-child RSS in KB on Linux)."""
     proc = subprocess.Popen([str(EXE), *map(str, args)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     _, status, usage = os.wait4(proc.pid, 0)
     proc.returncode = os.waitstatus_to_exitcode(status)
-    return usage.ru_maxrss / 1024
+    return usage.ru_maxrss / 1024, proc.returncode
 
 
 def main():
@@ -114,16 +114,37 @@ def main():
             "empty": b"", "garbage": b"\x00" * 100, "truncated-header": good[:20], "truncated-data": good[: len(good) // 2],
             "bad-riff-size": good[:4] + struct.pack("<I", 0xFFFFFFF0) + good[8:],
             "zero-channels": good[:22] + b"\x00\x00" + good[24:], "zero-rate": good[:24] + b"\x00\x00\x00\x00" + good[28:],
+            "zero-block-align": good[:32] + b"\x00\x00" + good[34:],
+            "wrong-block-align": good[:32] + b"\x04\x00" + good[34:],
+            "unsupported-bit-depth": good[:34] + b"\x0c\x00" + good[36:],
             "unsupported-codec": good[:20] + struct.pack("<H", 0x55) + good[22:],
             "too-short": wav_bytes(8000, 1, "pcm16", 15 / 8000, [60.0]),
+        }
+        # A correctly-sized float WAV with a NaN sample exercises sample validation after parsing.
+        nan_sample = struct.pack("<f", float("nan")) + b"\0" * (4 * 4095)
+        nan_fmt = struct.pack("<HHIIHH", 3, 1, 8000, 32000, 4, 32)
+        nan_body = (b"fmt " + struct.pack("<I", 16) + nan_fmt + b"data"
+                    + struct.pack("<I", len(nan_sample)) + nan_sample)
+        cases["non-finite-float"] = b"RIFF" + struct.pack("<I", len(nan_body) + 4) + b"WAVE" + nan_body
+        partial_body = good[12:36] + b"data" + struct.pack("<I", 3) + good[44:47] + b"\0"
+        cases["incomplete-sample-frame"] = b"RIFF" + struct.pack("<I", len(partial_body) + 4) + b"WAVE" + partial_body
+        expected_errors = {
+            "zero-block-align": "invalid channel, rate, or alignment",
+            "wrong-block-align": "inconsistent WAVE sample format",
+            "unsupported-bit-depth": "inconsistent WAVE sample format",
+            "non-finite-float": "non-finite floating-point sample",
+            "incomplete-sample-frame": "incomplete sample frame",
         }
         for name, content in cases.items():
             path = d / f"bad-{name}.wav"
             path.write_bytes(content)
             out = d / f"bad-{name}.json"
             r = run([path, "--json", out], timeout=30)
-            record(f"corrupt {name}", r.returncode == 1 and "HumTrace:" in r.stderr and not out.exists()
-                   and path.read_bytes() == content, r.stderr.strip()[:80])
+            expected_error = expected_errors.get(name)
+            ok = (r.returncode == 1 and "HumTrace:" in r.stderr and not out.exists()
+                  and path.read_bytes() == content
+                  and (expected_error is None or expected_error in r.stderr))
+            record(f"corrupt {name}", ok, r.stderr.strip()[:100])
         record("missing file", run([d / "nope.wav"]).returncode == 1)
         record("usage error", run([]).returncode == 2)
         # 3. Determinism.
@@ -144,6 +165,19 @@ def main():
         run([path, "--json", existing, "--force"])
         record("--force replaces existing, no temp left",
                existing.read_text().startswith("{") and not list(d.glob("existing.json.humtrace-tmp*")))
+        unicode_source = d / "音声-über.wav"
+        unicode_source.write_bytes(path.read_bytes())
+        unicode_out = d / "résultat-解析.json"
+        unicode_run = run([unicode_source, "--json", unicode_out, "--full-path"])
+        unicode_ok = unicode_run.returncode == 0 and not list(d.glob("résultat-解析.json.humtrace-tmp*"))
+        if unicode_ok:
+            unicode_report = json.loads(unicode_out.read_text(encoding="utf-8"))
+            unicode_ok = pathlib.Path(unicode_report["input"]["path"]).name == unicode_source.name
+            first_bytes = unicode_out.read_bytes()
+            second_out = d / "répété.json"
+            repeated = run([unicode_source, "--json", second_out, "--full-path"])
+            unicode_ok = unicode_ok and repeated.returncode == 0 and second_out.read_bytes() == first_bytes
+        record("UTF-8 paths round-trip and export deterministically", unicode_ok, unicode_run.stderr.strip())
         # 5. Comparison semantics.
         a, b = d / "a.wav", d / "b.wav"
         a.write_bytes(wav_bytes(8000, 1, "pcm16", 4.0, [50.0, 150.0]))
@@ -170,8 +204,11 @@ def main():
                     f.write(chunk)
             return p
         p1, p3 = long_wav(1), long_wav(3)
-        m1, m3 = max_rss_mb([p1]), max_rss_mb([p3])
-        record("peak memory growth, 3 h vs 1 h recording", m3 < m1 * 2.5, f"1 h {m1:.0f} MB, 3 h {m3:.0f} MB")
+        m1, exit1 = max_rss_mb([p1])
+        m3, exit3 = max_rss_mb([p3])
+        memory_ok = exit1 == 0 and exit3 == 0 and m3 < m1 * 2.5
+        record("peak memory growth, 3 h vs 1 h recording", memory_ok,
+               f"1 h {m1:.0f} MB (exit {exit1}), 3 h {m3:.0f} MB (exit {exit3})")
         proc = subprocess.Popen([str(EXE), str(p3), "--json", str(d / "c.json")], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE, text=True)
         time.sleep(0.3)

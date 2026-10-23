@@ -209,6 +209,23 @@ void decodes_exact_values_for_every_encoding() {
         require(decode_fails(raw_wav(3, 32, inf32)), "infinite float sample rejected");
     }
 }
+void rejects_invalid_format_metadata_edges() {
+    const auto valid = raw_wav(1, 16, std::string("\x00\x40", 2));
+    auto changed = valid;
+    changed[24] = changed[25] = changed[26] = changed[27] = 0; // zero sample rate
+    require(decode_fails(changed), "zero sample rate is rejected");
+    changed = valid;
+    changed[22] = changed[23] = 0; // zero channels
+    require(decode_fails(changed), "zero channel count is rejected");
+    changed = valid;
+    changed[32] = changed[33] = 0; // zero block alignment
+    require(decode_fails(changed), "zero block alignment is rejected");
+    changed = valid;
+    changed[34] = 12; changed[35] = 0; // unsupported PCM depth
+    require(decode_fails(changed), "unsupported PCM depth is rejected");
+    require(decode_fails(raw_wav(1, 16, std::string("\x01", 1))),
+            "data ending inside a sample frame is rejected");
+}
 void rejects_duplicate_or_late_format_chunks_and_chunk_floods() {
     std::string fmt1; tag(fmt1, "fmt "); u32(fmt1, 16); u16(fmt1, 1); u16(fmt1, 1); u32(fmt1, 8000); u32(fmt1, 16000); u16(fmt1, 2); u16(fmt1, 16);
     std::string fmt2 = fmt1;
@@ -226,6 +243,7 @@ void rejects_duplicate_or_late_format_chunks_and_chunk_floods() {
 
 int main() {
     decodes_exact_values_for_every_encoding();
+    rejects_invalid_format_metadata_edges();
     rejects_duplicate_or_late_format_chunks_and_chunk_floods();
     accepts_missing_pad_on_final_odd_chunk();
     decodes_extensible_pcm_and_rejects_bad_subformat();

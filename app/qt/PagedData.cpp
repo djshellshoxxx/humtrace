@@ -22,7 +22,8 @@ humtrace::ui::FindingRow PagedData::finding(std::size_t c, std::uint64_t index) 
         static_cast<double>(storage_->frame_start_sample(c, track.first_frame)) / rate,
         static_cast<double>(storage_->frame_start_sample(c, track.last_frame) + report.frame_size_samples) / rate,
         track.median_frequency_hz, track.median_level_dbfs, track.drift_hz_per_second,
-        track.observed_frames, track.observed_frames + track.missing_frames, track.first_frame, track.last_frame};
+        track.observed_frames, track.observed_frames + track.missing_frames, track.first_frame, track.last_frame,
+        track.start_ambiguity_id, track.end_ambiguity_id, track.end_reason};
 }
 std::size_t PagedData::cachedBytesUpperBound() const {
     return frames_.entries.size() * 8192 + rows_.entries.size() * rowEntryBytes_;

@@ -16,10 +16,6 @@ import subprocess
 import sys
 import tempfile
 
-import numpy as np
-import soundfile as sf
-
-
 def numpy_peak(window, rate):
     n = len(window)
     w = np.hanning(n)  # 0.5 - 0.5 cos(2 pi i / (n - 1))
@@ -38,12 +34,23 @@ def numpy_peak(window, rate):
 
 
 def main():
+    global np, sf
     exe, folder = pathlib.Path(sys.argv[1]).resolve(), pathlib.Path(sys.argv[2])
+    if not folder.is_dir():
+        raise SystemExit(f"real-recordings directory does not exist: {folder}")
+    audio_paths = sorted(folder.glob("*.wav"))
+    if not audio_paths:
+        raise SystemExit(f"no real WAV recordings found in: {folder}")
+    try:
+        import numpy as np
+        import soundfile as sf
+    except ImportError as exc:
+        raise SystemExit(f"real-recording checks require numpy and soundfile: {exc}") from exc
     out_md = sys.argv[sys.argv.index("--markdown") + 1] if "--markdown" in sys.argv else None
     out_manifest = sys.argv[sys.argv.index("--manifest") + 1] if "--manifest" in sys.argv else None
     rows, manifest, problems = [], [], []
     with tempfile.TemporaryDirectory() as tmp:
-        for path in sorted(folder.glob("*.wav")):
+        for path in audio_paths:
             report_path = pathlib.Path(tmp) / (path.stem + ".json")
             proc = subprocess.run([str(exe), str(path), "--json", str(report_path)], capture_output=True, text=True)
             digest = hashlib.sha256(path.read_bytes()).hexdigest()

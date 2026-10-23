@@ -33,7 +33,9 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
         throw std::runtime_error("could not open input file");
     std::error_code ec;
     const auto size_before = std::filesystem::file_size(native, ec);
+    if (ec) throw std::runtime_error("could not read input file size");
     const auto time_before = std::filesystem::last_write_time(native, ec);
+    if (ec) throw std::runtime_error("could not read input file modification time");
     auto report_progress = [&](Stage stage, double fraction) {
         if (callbacks.progress)
             callbacks.progress(stage, fraction);
@@ -58,10 +60,28 @@ AnalysisResult analyze_file(const std::string& path, const PipelineSettings& set
     result.report = analyze_wav(
         reader, settings, [&](double f) { report_progress(Stage::Analyzing, f); }, callbacks.cancelled,
         want_views ? &result.views : nullptr, sink, [&] { report_progress(Stage::Finalizing, 0.0); });
-    std::error_code ec_after;
-    if (std::filesystem::file_size(native, ec_after) != size_before ||
-        std::filesystem::last_write_time(native, ec_after) != time_before)
+    auto verify_metadata = [&] {
+        std::error_code error;
+        const auto current_size = std::filesystem::file_size(native, error);
+        if (error || current_size != size_before)
+            throw std::runtime_error("input file changed during analysis; results discarded");
+        const auto current_time = std::filesystem::last_write_time(native, error);
+        if (error || current_time != time_before)
+            throw std::runtime_error("input file changed during analysis; results discarded");
+    };
+    verify_metadata();
+    // A persistent same-length edit can preserve the timestamp. Re-reading the
+    // same open file detects it without retaining input bytes. This is a bounded
+    // consistency check, not an immutable snapshot or proof of recording origin.
+    input.clear();
+    input.seekg(0);
+    report_progress(Stage::Finalizing, 0.0);
+    const auto verified = sha256_hex_cancellable(input, callbacks.cancelled,
+        [&](std::uint64_t bytes) { report_progress(Stage::Finalizing, static_cast<double>(bytes) / size); });
+    if (!verified) throw AnalysisCancelled();
+    if (*verified != digest)
         throw std::runtime_error("input file changed during analysis; results discarded");
+    verify_metadata();
     result.report.input_path = path;
     result.report.input_bytes = size_before;
     result.report.input_sha256 = digest;

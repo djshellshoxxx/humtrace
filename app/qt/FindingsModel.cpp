@@ -18,8 +18,12 @@ int FindingsModel::rowCount(const QModelIndex& parent) const {
 int FindingsModel::columnCount(const QModelIndex& parent) const { return parent.isValid() ? 0 : kColumns; }
 
 QVariant FindingsModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || index.row() >= rowCount()) return {};
+    if (!index.isValid() || index.row() >= rowCount() || index.column() >= kColumns) return {};
     const auto& r = rows_[static_cast<std::size_t>(index.row())];
+    if (role == Qt::AccessibleTextRole)
+        return tr("%1: %2; channel %3, track %4")
+            .arg(QString::fromLatin1(kHeaders[index.column()]), data(index, Qt::DisplayRole).toString())
+            .arg(r.channel).arg(r.track_id);
     if (role == Qt::TextAlignmentRole && index.column() >= 2 && index.column() <= 7)
         return int(Qt::AlignRight | Qt::AlignVCenter);
     if (role == Qt::UserRole) { // numeric key so explicit-column sorting is not lexical
@@ -35,7 +39,7 @@ QVariant FindingsModel::data(const QModelIndex& index, int role) const {
         default: return QStringLiteral("Observation");
         }
     }
-    if (role != Qt::DisplayRole && role != Qt::AccessibleTextRole) return {};
+    if (role != Qt::DisplayRole) return {};
     switch (index.column()) {
     case 0: return r.channel;
     case 1: return static_cast<qulonglong>(r.track_id);
@@ -51,7 +55,7 @@ QVariant FindingsModel::data(const QModelIndex& index, int role) const {
 }
 
 QVariant FindingsModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section < kColumns)
+    if (orientation == Qt::Horizontal && (role == Qt::DisplayRole || role == Qt::AccessibleTextRole) && section >= 0 && section < kColumns)
         return QString::fromLatin1(kHeaders[section]);
     return {};
 }

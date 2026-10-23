@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.2
+# HumTrace JSON report schema 1.3
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.2` (1.2 adds `generator`, `input.bytes`, `settings.pipeline`, `warnings`, and per-channel `suppressed_tracks`/`clipped_samples`; additive over 1.0: `input.sha256`, `settings.tracker` (including `min_observed_frames`), `channels[].tracks`).
+- `schema_version`: current string value `1.3` (1.2 adds `generator`, `input.bytes`, `settings.pipeline`, `warnings`, and per-channel `suppressed_tracks`/`clipped_samples`; additive over 1.0: `input.sha256`, `settings.tracker` (including `min_observed_frames`), `channels[].tracks`).
 - `application`: `HumTrace`.
 - `input`: source path, SHA-256 of the exact input bytes (`null` if not computed), and decoded sample rate, channels, bit depth, format code, and duration.
 - `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
@@ -16,6 +16,15 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 - Each frame contains start sample/time, strongest non-DC peak, and nominal 50/60 Hz measurements.
 - Each harmonic measurement contains harmonic number, expected and measured bin frequency, level, local floor, prominence, and a threshold-support boolean.
 - `interpretation`: null source classification and a statement that measurements do not prove a physical source.
+
+Schema 1.3 adds effective detrend/peak-search/harmonic-tolerance settings, raw/refined
+peak details, resolution/width/status fields and nullable calibrated uncertainty.
+Track quartiles, drift residual/R², observed intervals, explicit gaps and candidate
+ambiguity tables retain analysis-local parent/child references even when short
+segments are suppressed. JSON numbers are locale-independent and absent peak
+frequencies are null. Input hashes identify bytes; a bounded second hash checks
+persistent file edits but does not establish an immutable snapshot or authenticity.
+Comparison exports retain lightweight per-input settings snapshots.
 
 ## Encoding rules
 

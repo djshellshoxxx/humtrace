@@ -47,9 +47,9 @@ See [temporal tracking](../specs/temporal-tracking.md).
   peak preserves the track ID. Every other connected component that contains
   both sides ends all its prior tracks with `Ambiguous` and begins a fresh track
   for each current peak. A 1:N component is labeled `Split`, N:1 `Merge`, and
-  N:M `Competing`. Unequal distances, levels, or widths do not resolve a
-  connected component. Candidate labels describe graph shape only; they are
-  not physical split/merge lineage.
+  N:M `Competing`. The tracker receives frequency and level only; unequal
+  levels do not resolve a connected component. Candidate labels describe graph
+  shape only; they are not physical split/merge lineage.
 - Parent IDs are ascending, child IDs follow valid input peak order, and event
   IDs follow ascending smallest-parent ID within the frame. IDs restart for
   each channel analysis. Out-of-radius peaks start unlinked tracks; the tracker

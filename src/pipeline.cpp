@@ -2,13 +2,22 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
 namespace humtrace {
 
 void validate_settings(const PipelineSettings& s) {
+    validate_peak_search_settings(s.peak_search);
     auto finite = [](double v) { return std::isfinite(v); };
+    if (s.frame_size_samples != 0 && (s.frame_size_samples < 16 || s.frame_size_samples > 65536 ||
+        (s.frame_size_samples & (s.frame_size_samples - 1)) != 0))
+        throw std::invalid_argument("frame size must be zero (automatic) or a power of two from 16 to 65536");
+    if (s.hop_size_samples > 65536 || (s.frame_size_samples != 0 && s.hop_size_samples > s.frame_size_samples))
+        throw std::invalid_argument("hop size must be zero (half window) or from 1 to the frame size");
+    if (!finite(s.harmonic_tolerance_hz) || s.harmonic_tolerance_hz < 0)
+        throw std::invalid_argument("harmonic tolerance must be finite and non-negative");
     if (!finite(s.support_threshold_dbfs) || !finite(s.peak_min_level_dbfs) || !finite(s.spectrogram_floor_dbfs))
         throw std::invalid_argument("level settings must be finite");
     if (!finite(s.minimum_prominence_db) || s.minimum_prominence_db < 0.0 ||
@@ -33,6 +42,8 @@ void validate_settings(const PipelineSettings& s) {
 
 std::size_t select_window_size(const WavMetadata& metadata,
                                std::size_t max_interleaved_window_samples) {
+    if (metadata.channels == 0)
+        throw std::invalid_argument("channel count must be at least 1");
     if (metadata.frame_count < 16)
         throw std::runtime_error("audio is too short to analyze");
     if (metadata.sample_rate_hz < 8)
@@ -48,6 +59,23 @@ std::size_t select_window_size(const WavMetadata& metadata,
     return window_size;
 }
 
+std::size_t select_window_size(const WavMetadata& metadata, const PipelineSettings& settings) {
+    validate_settings(settings);
+    const auto automatic = select_window_size(metadata, settings.frame_size_samples == 0 ?
+        settings.max_interleaved_window_samples : std::numeric_limits<std::size_t>::max());
+    const auto window = settings.frame_size_samples == 0 ? automatic : settings.frame_size_samples;
+    if (window > metadata.frame_count)
+        throw std::invalid_argument("frame size exceeds the recording length");
+    if (window > settings.max_interleaved_window_samples / metadata.channels)
+        throw std::invalid_argument("frame size exceeds the interleaved window sample limit");
+    if (settings.hop_size_samples > window)
+        throw std::invalid_argument("hop size exceeds the selected frame size");
+    const double nyquist = static_cast<double>(metadata.sample_rate_hz) / 2.0;
+    if (settings.peak_search.minimum_frequency_hz >= nyquist || settings.peak_search.maximum_frequency_hz > nyquist)
+        throw std::invalid_argument("peak frequency band exceeds the recording Nyquist frequency");
+    return window;
+}
+
 AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& settings,
                            const std::function<void(double)>& progress,
                            const std::function<bool()>& cancelled,
@@ -57,18 +85,20 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     if (views && sink) throw std::invalid_argument("streaming sink cannot retain presentation views");
     const auto& metadata = reader.metadata();
     const auto frames = metadata.frame_count;
-    const auto window_size = select_window_size(metadata, settings.max_interleaved_window_samples);
-    const auto hop_size = window_size / 2;
+    const auto window_size = select_window_size(metadata, settings);
+    const auto hop_size = settings.hop_size_samples == 0 ? window_size / 2 : settings.hop_size_samples;
     if (sink) sink->begin(metadata, settings);
     if (!sink) {
         const std::uint64_t windows = (frames - window_size) / hop_size + 2; // + final aligned window
-        // Conservative per-window cost (values are bounded by validate_settings, so no overflow):
-        // frame + harmonics, spectrogram row, peaks (observation + peak entry, ~64 B each) with 1.5x
-        // vector growth, and bookkeeping.
+        // Ambiguity can fragment every observed peak into its own Track. Budget the
+        // worst permitted density, including observations, segment IDs and vector growth.
+        const std::uint64_t per_peak = 2ULL * (sizeof(Track) + sizeof(TrackObservation) +
+            sizeof(TrackPeak) + 4 * sizeof(std::size_t) + 64);
         const std::uint64_t per_window = metadata.channels *
             (sizeof(InterferenceFrame) + 20 * sizeof(HarmonicMeasurement) +
              (views ? settings.spectrogram_rows * sizeof(float) : 0) +
-             settings.max_peaks_per_frame * 64 * 3 / 2 + 128);
+             settings.max_peaks_per_frame * per_peak + 2 * sizeof(FramePeaks) +
+             2 * sizeof(TrackAmbiguity) + 128);
         const std::uint64_t psd_bytes = metadata.channels *
             (sizeof(PsdSummary) + 20 * sizeof(PsdHarmonicMeasurement));
         if (psd_bytes >= settings.max_result_bytes ||
@@ -94,6 +124,11 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     report.max_peaks_per_frame = settings.max_peaks_per_frame;
     report.support_threshold_dbfs = settings.support_threshold_dbfs;
     report.minimum_prominence_db = settings.minimum_prominence_db;
+    report.spectrum_remove_mean = settings.spectrum_remove_mean;
+    report.peak_search = settings.peak_search;
+    if (report.peak_search.maximum_frequency_hz == 0)
+        report.peak_search.maximum_frequency_hz = static_cast<double>(metadata.sample_rate_hz) / 2.0;
+    report.harmonic_tolerance_hz = settings.harmonic_tolerance_hz;
     report.channel_results.resize(metadata.channels);
     for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
         report.channel_results[channel].channel_number = static_cast<std::uint16_t>(channel + 1);
@@ -128,7 +163,7 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
                 samples[i] = window[i * metadata.channels + channel];
             // Overlapping FFT windows revisit samples; Welch receives only the new suffix.
             estimators[channel].push(std::span<const double>(samples).subspan(new_from));
-            const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
+            const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz, settings.spectrum_remove_mean);
             if (build_views) {
                 if (row_edges.empty()) {
                     // Keep the lowest row below Nyquist for very low sample rates.
@@ -144,11 +179,12 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
             }
             for (std::size_t i = new_from; i < window_size; ++i)
                 if (std::abs(samples[i]) >= clip_threshold) ++report.channel_results[channel].clipped_samples;
-            auto measured = measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db);
+            auto measured = measure_frame(spectrum, start, report.support_threshold_dbfs, 10, report.minimum_prominence_db,
+                                           settings.harmonic_tolerance_hz, settings.peak_search);
             measured.levels = measure_sample_levels(samples);
             FramePeaks entry{start, {}};
             for (const auto& peak : find_peaks(spectrum, settings.peak_min_level_dbfs,
-                                               settings.peak_min_prominence_db, settings.max_peaks_per_frame))
+                                               settings.peak_min_prominence_db, settings.max_peaks_per_frame, settings.peak_search))
                 entry.peaks.push_back({peak.frequency_hz, peak.level_dbfs});
             if (sink) sink->frame(channel, measured, entry);
             else {
@@ -204,9 +240,13 @@ AnalysisReport analyze_wav(WavStreamReader& reader, const PipelineSettings& sett
     for (std::size_t c = 0; c < peaks.size(); ++c)
         if (sink) sink->finish(c, report.channel_results[c]);
         else report.channel_results[c].tracks = track_peaks(peaks[c], metadata.sample_rate_hz, tracker,
-                                                       &report.channel_results[c].suppressed_tracks);
+                                                       &report.channel_results[c].suppressed_tracks,
+                                                       &report.channel_results[c].ambiguities);
     PsdNoiseFloorSettings floor_settings;
     floor_settings.minimum_prominence_db = settings.minimum_prominence_db;
+    floor_settings.guard_bins = settings.peak_search.floor_guard_bins;
+    floor_settings.radius_bins = settings.peak_search.floor_radius_bins;
+    floor_settings.harmonic_tolerance_hz = settings.harmonic_tolerance_hz;
     for (std::size_t c = 0; c < estimators.size(); ++c)
         report.channel_results[c].psd = summarize_welch_psd(estimators[c].finish(), floor_settings);
     for (const auto& channel : report.channel_results) {

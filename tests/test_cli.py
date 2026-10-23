@@ -36,7 +36,7 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.2"
+    assert report["schema_version"] == "1.3"
     assert report["settings"]["welch_psd"]["segment_size_samples"] == 4096
     for channel in report["channels"]:
         assert channel["psd"]["samples_processed"] == 8192
@@ -181,6 +181,33 @@ def check_unwritable_output_leaves_nothing(executable: pathlib.Path, directory: 
     assert not target.exists() and not list(directory.rglob("*.humtrace-tmp*"))
 
 
+def check_utf8_paths_and_atomic_export(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "音声-über.wav"
+    write_stereo_tones(source)
+    first = directory / "résultat-解析.json"
+    result = subprocess.run([str(executable), str(source), "--json", str(first), "--full-path"],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    first_bytes = first.read_bytes()
+    report = json.loads(first_bytes.decode("utf-8"))
+    assert pathlib.Path(report["input"]["path"]).name == source.name
+    assert not list(directory.glob("résultat-解析.json.humtrace-tmp*"))
+
+    repeated = directory / "répété.json"
+    result = subprocess.run([str(executable), str(source), "--json", str(repeated), "--full-path"],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert repeated.read_bytes() == first_bytes, "identical input must produce byte-identical UTF-8 report"
+    assert not list(directory.glob("répété.json.humtrace-tmp*"))
+
+    first.write_text("preserve until a successful atomic replacement", encoding="utf-8")
+    result = subprocess.run([str(executable), str(source), "--json", str(first), "--force"],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(first.read_text(encoding="utf-8"))["input"]["path"] == source.name
+    assert not list(directory.glob("résultat-解析.json.humtrace-tmp*"))
+
+
 def check_interrupt_cancels_without_output(executable: pathlib.Path, directory: pathlib.Path) -> None:
     if sys.platform == "win32":
         return
@@ -258,6 +285,7 @@ def main() -> None:
         check_early_option_validation(executable, directory)
         check_paths_overwrite_and_clipping(executable, directory)
         check_unwritable_output_leaves_nothing(executable, directory)
+        check_utf8_paths_and_atomic_export(executable, directory)
         check_interrupt_cancels_without_output(executable, directory)
         check_csv_and_notes(executable, directory)
         check_output_paths_are_distinct(executable, directory)

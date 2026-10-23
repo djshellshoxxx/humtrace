@@ -23,6 +23,7 @@ struct ComparisonInput {
     std::uint32_t sample_rate_hz{};
     std::uint16_t channels{};
     double duration_seconds{};
+    std::optional<AnalysisSettingsSnapshot> analysis_settings;
 };
 
 struct TrackRef {
@@ -49,7 +50,8 @@ struct ComparisonReport {
 
 // Independent-summary comparison (no time alignment, no resampling). Pure function of
 // two analysis reports. Throws std::invalid_argument for an invalid tolerance, an unknown
-// channel, or a map that uses a channel more than once.
+// channel, a map that uses a channel more than once, malformed channel/track
+// identities, non-finite track measurements, or an unrepresentable level delta.
 [[nodiscard]] ComparisonReport compare_reports(const AnalysisReport& a, const AnalysisReport& b,
                                                const CompareSettings& settings = {},
                                                const std::function<bool()>& cancelled = {});

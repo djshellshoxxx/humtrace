@@ -27,6 +27,14 @@ struct PipelineSettings {
     std::size_t spectrogram_rows{128};
     double spectrogram_min_hz{20.0};
     double spectrogram_floor_dbfs{-120.0};
+    // Zero retains automatic selection / half-window hop. Explicit windows are 16..65536,
+    // power of two; hops are 1..effective window, with complete sample coverage.
+    std::size_t frame_size_samples{0};
+    std::size_t hop_size_samples{0};
+    bool spectrum_remove_mean{true};
+    PeakSearchSettings peak_search;
+    // Zero preserves nominal-bin inspection; positive enables bounded local-maximum search.
+    double harmonic_tolerance_hz{0.0};
 };
 
 // Optional disk-backed consumer; measurements are delivered before scratch reuse.
@@ -50,8 +58,10 @@ void validate_settings(const PipelineSettings& settings);
 // std::runtime_error when the audio is too short or the channel count is excessive.
 [[nodiscard]] std::size_t select_window_size(const WavMetadata& metadata,
                                              std::size_t max_interleaved_window_samples);
+[[nodiscard]] std::size_t select_window_size(const WavMetadata& metadata,
+                                             const PipelineSettings& settings);
 
-// Stream a WAV through rolling windows (hop = window / 2), measuring each channel
+// Stream a WAV through configured rolling windows, measuring each channel
 // independently, then associate each channel's strongest peaks into tracks.
 // `progress` (optional) receives the fraction complete in [0, 1]; `cancelled` is polled
 // once per window and throws AnalysisCancelled when it returns true.

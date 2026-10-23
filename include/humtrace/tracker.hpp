@@ -36,7 +36,20 @@ struct TrackObservation {
     double level_dbfs{};
 };
 
-enum class TrackEndReason { EndOfInput, GapExceeded };
+enum class TrackEndReason { EndOfInput, GapExceeded, Ambiguous };
+
+enum class TrackAmbiguityKind { Split, Merge, Competing };
+
+// Candidate-graph relationships, not evidence of a physical source splitting or
+// merging. IDs are local to this channel/analysis, including suppressed segments.
+struct TrackAmbiguity {
+    std::size_t id{};
+    std::size_t frame_index{};
+    std::uint64_t start_sample{};
+    TrackAmbiguityKind kind{TrackAmbiguityKind::Competing};
+    std::vector<std::size_t> parent_track_ids;
+    std::vector<std::size_t> child_track_ids;
+};
 
 struct Track {
     std::size_t id{}; // local to one analysis; not stable across settings
@@ -52,6 +65,8 @@ struct Track {
     std::optional<double> drift_r_squared;
     std::optional<double> drift_residual_rms_hz;
     TrackEndReason end_reason{TrackEndReason::EndOfInput};
+    std::optional<std::size_t> start_ambiguity_id;
+    std::optional<std::size_t> end_ambiguity_id;
 };
 // Shared exact reduction for retained and disk-backed observations. The scan may
 // be called repeatedly; order_statistic returns the selected ascending rank.
@@ -62,13 +77,19 @@ void summarize_track(Track& track, double sample_rate_hz, const ObservationScan&
                      const ObservationOrderStatistic& order_statistic);
 
 // Incremental deterministic association. Storage of observations is delegated to
-// callbacks; only active track endpoints and bounded candidate pairs are retained.
+// callbacks; only bounded active endpoints and one frame's candidate graph are
+// retained. Only isolated 1:1 graph components continue an identity. Other
+// connected components end all parents and start fresh children.
 class PeakAssociator {
 public:
     using Observe = std::function<void(std::size_t, const TrackObservation&)>;
     using End = std::function<void(std::size_t, TrackEndReason)>;
+    using Event = std::function<void(const TrackAmbiguity&)>;
     explicit PeakAssociator(TrackerSettings settings, std::size_t max_active = 4096);
-    void push(const FramePeaks& frame, const Observe& observed, const End& ended);
+    // Event callbacks precede every affected end/observation callback. Parent IDs
+    // ascend; child IDs follow the input peak order. Event IDs ascend by the
+    // smallest parent ID in each ambiguous component.
+    void push(const FramePeaks& frame, const Observe& observed, const End& ended, const Event& event = {});
     void finish(const End& ended);
     [[nodiscard]] std::size_t active_count() const { return active_.size(); }
     [[nodiscard]] std::size_t tracks_created() const { return next_id_ - 1; }
@@ -78,16 +99,18 @@ private:
     std::size_t max_active_;
     std::size_t frame_index_{};
     std::size_t next_id_{1};
+    std::size_t next_ambiguity_id_{1};
     std::vector<Active> active_;
 };
 
-// Associate peaks across ordered frames of ONE channel. Deterministic: greedy
-// one-to-one matching by (distance, track id, peak index). Throws
-// std::invalid_argument on invalid settings or sample rate. If `suppressed` is given it
+// Associate peaks across ordered frames of ONE channel. Deterministic and
+// conservative at split/merge/competing candidates; levels never prove identity.
+// Throws std::invalid_argument on invalid settings or sample rate. If `suppressed` is given it
 // receives the number of tracks dropped for having fewer than min_observed_frames frames.
 [[nodiscard]] std::vector<Track> track_peaks(const std::vector<FramePeaks>& frames,
                                              double sample_rate_hz,
                                              const TrackerSettings& settings,
-                                             std::size_t* suppressed = nullptr);
+                                             std::size_t* suppressed = nullptr,
+                                             std::vector<TrackAmbiguity>* ambiguities = nullptr);
 
 } // namespace humtrace

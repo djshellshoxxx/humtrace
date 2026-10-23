@@ -6,12 +6,23 @@
 #include "humtrace/report.hpp"
 #include "MainWindow.hpp"
 #include "SpectrogramChart.hpp"
+#include "SpectrumChart.hpp"
 #include "ViewState.hpp"
 #include "WaveformChart.hpp"
 #include "humtrace/sha256.hpp"
+#include "humtrace/version.hpp"
 
 #include <QDir>
+#include <QAccessible>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QFileDialog>
+#include <QProgressDialog>
+#include <QSpinBox>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QJsonDocument>
@@ -28,6 +39,31 @@
 #include <numbers>
 
 namespace {
+// Intercept the queued comparison-thread completion before the nested loop handles it.
+// This makes the late-cancel race deterministic without slowing or mocking the worker.
+class CancelAtComparisonCompletion : public QObject {
+public:
+    bool cancelOnCompletion{true};
+    bool cancelledAtCompletion{false};
+    bool comparisonShown{false};
+    bool eventFilter(QObject* receiver, QEvent* event) override {
+        if (cancelOnCompletion && event->type() == QEvent::MetaCall && qobject_cast<QEventLoop*>(receiver) && !cancelledAtCompletion) {
+            for (auto* widget : QApplication::topLevelWidgets())
+                if (auto* progress = qobject_cast<QProgressDialog*>(widget);
+                    progress && progress->labelText().startsWith("Comparing measured")) {
+                    for (auto* button : progress->findChildren<QPushButton*>())
+                        if (button->text().contains("Cancel")) { cancelledAtCompletion = true; button->click(); }
+                }
+        }
+        if (event->type() == QEvent::Show)
+            if (auto* comparison = qobject_cast<ComparisonDialog*>(receiver)) {
+                comparisonShown = true;
+                QTimer::singleShot(0, comparison, &QDialog::reject);
+            }
+        return false;
+    }
+};
+
 // Qt 6.8 QTRY_* macros narrow a chrono duration inside the macro expansion
 // under -Wconversion. Keep the same bounded event-loop wait without narrowing.
 template<class Predicate>
@@ -69,6 +105,198 @@ class GuiTest : public QObject {
     Q_OBJECT
     QTemporaryDir dir_;
 private slots:
+    void findingsAccessibilityIncludesMeasurementAndUnits() {
+        FindingsModel model;
+        humtrace::ui::FindingRow row;
+        row.channel = 2;
+        row.median_frequency_hz = 60.125;
+        model.setRows({row});
+        const auto accessible = model.data(model.index(0, 4), Qt::AccessibleTextRole).toString();
+        QVERIFY2(accessible.contains("Median freq (Hz)") && accessible.contains("60.125"), qPrintable(accessible));
+        QCOMPARE(model.headerData(4, Qt::Horizontal, Qt::AccessibleTextRole).toString(), QString("Median freq (Hz)"));
+        QVERIFY(!model.headerData(-1, Qt::Horizontal, Qt::DisplayRole).isValid());
+    }
+
+    void spectrumReadoutDistinguishesDisplayWidthFromUncertainty() {
+        SpectrumChart chart;
+        const std::vector<float> levels{-30.0F, -40.0F};
+        const std::vector<double> hz{20.0, 40.0};
+        chart.setFrame(&levels, &hz, 80.0, -100.0, 0.0);
+        QTest::keyClick(&chart, Qt::Key_Right);
+        QVERIFY2(chart.accessibleDescription().contains("display row width"), qPrintable(chart.accessibleDescription()));
+        QVERIFY(chart.accessibleDescription().contains("uncertainty is not estimated"));
+        chart.setFrame(nullptr, nullptr, 0.0, -100.0, 0.0);
+        QVERIFY(!chart.accessibleDescription().contains("-30.0"));
+    }
+
+    void settingsDialogExposesDetectorControls() {
+        MainWindow window;
+        QStringList missing;
+        QTimer::singleShot(0, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (!dialog) { missing << "settings dialog"; return; }
+            const QStringList expected{
+                "Analysis frame size", "Analysis hop size", "Remove spectrum mean",
+                "Minimum search frequency", "Maximum search frequency", "Minimum peak separation",
+                "Local floor guard bins", "Local floor radius bins", "Harmonic search tolerance",
+                "Welch segment size", "Welch hop size", "Remove Welch mean", "Relative track match tolerance"};
+            for (const auto& name : expected) {
+                bool found = false;
+                for (auto* control : dialog->findChildren<QWidget*>())
+                    found = found || control->accessibleName() == name;
+                if (!found) missing << name;
+            }
+            dialog->reject();
+        });
+        QVERIFY(QMetaObject::invokeMethod(&window, "showSettings", Qt::DirectConnection));
+        QVERIFY2(missing.isEmpty(), qPrintable(missing.join(", ")));
+    }
+
+    void unchangedSettingsKeepCompletedResultsCurrent() {
+        MainWindow window;
+        window.openRecording(writeWav(dir_.path(), "same-settings.wav", 3.0));
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        window.setPipelineSettings({});
+        QCOMPARE(window.state(), humtrace::ui::JobState::Complete);
+        humtrace::PipelineSettings changed;
+        changed.peak_search.minimum_separation_hz = 2.5;
+        window.setPipelineSettings(changed);
+        QCOMPARE(window.state(), humtrace::ui::JobState::Invalidated);
+    }
+
+    void settingsDialogValuesReachTheWorkerSnapshot() {
+        MainWindow window;
+        QStringList missing;
+        QTimer::singleShot(0, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (!dialog) { missing << "dialog"; return; }
+            const auto control = [&](const QString& name) -> QWidget* {
+                for (auto* candidate : dialog->findChildren<QWidget*>())
+                    if (candidate->accessibleName() == name) return candidate;
+                missing << name;
+                return nullptr;
+            };
+            const auto combo = [&](const QString& name, int value) {
+                if (auto* input = qobject_cast<QComboBox*>(control(name))) input->setCurrentIndex(input->findData(value));
+            };
+            const auto integer = [&](const QString& name, int value) {
+                if (auto* input = qobject_cast<QSpinBox*>(control(name))) input->setValue(value);
+            };
+            const auto real = [&](const QString& name, double value) {
+                if (auto* input = qobject_cast<QDoubleSpinBox*>(control(name))) input->setValue(value);
+            };
+            const auto check = [&](const QString& name, bool value) {
+                if (auto* input = qobject_cast<QCheckBox*>(control(name))) input->setChecked(value);
+            };
+            combo("Analysis frame size", 1024); integer("Analysis hop size", 256);
+            check("Remove spectrum mean", false);
+            real("Minimum search frequency", 40); real("Maximum search frequency", 800);
+            real("Minimum peak separation", 10); integer("Local floor guard bins", 1);
+            integer("Local floor radius bins", 6); real("Harmonic search tolerance", 0.75);
+            combo("Welch segment size", 512); integer("Welch hop size", 256);
+            check("Remove Welch mean", true); real("Relative track match tolerance", 0.005);
+            dialog->accept();
+        });
+        QVERIFY(QMetaObject::invokeMethod(&window, "showSettings", Qt::DirectConnection));
+        QVERIFY2(missing.isEmpty(), qPrintable(missing.join(", ")));
+        window.openRecording(writeWav(dir_.path(), "dialog-snapshot.wav", 3.0));
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        const auto& report = *window.report();
+        QCOMPARE(report.frame_size_samples, std::size_t{1024}); QCOMPARE(report.hop_size_samples, std::size_t{256});
+        QVERIFY(!report.spectrum_remove_mean); QVERIFY(report.welch.remove_mean);
+        QCOMPARE(report.peak_search.minimum_frequency_hz, 40.0); QCOMPARE(report.peak_search.maximum_frequency_hz, 800.0);
+        QCOMPARE(report.peak_search.minimum_separation_hz, 10.0);
+        QCOMPARE(report.peak_search.floor_guard_bins, std::size_t{1}); QCOMPARE(report.peak_search.floor_radius_bins, std::size_t{6});
+        QCOMPARE(report.harmonic_tolerance_hz, 0.75); QCOMPARE(report.tracker.relative_tolerance, 0.005);
+        QCOMPARE(report.welch.segment_size, std::size_t{512}); QCOMPARE(report.welch.hop_size, std::size_t{256});
+    }
+
+    void customFrameAndHopChoosePagedStorageFromActualWindowCount() {
+        MainWindow window;
+        humtrace::PipelineSettings settings;
+        settings.frame_size_samples = 16;
+        settings.hop_size_samples = 16;
+        settings.welch.segment_size = 256;
+        settings.welch.hop_size = 128;
+        settings.max_peaks_per_frame = 1;
+        settings.spectrogram_rows = 8;
+        window.setPipelineSettings(settings);
+        window.openRecording(writeWav(dir_.path(), "custom-paging.wav", 45.0, 60.0, 50.0, 1));
+        QString error;
+        window.setErrorHandler([&](const QString&, const QString& message) { error = message; });
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return !humtrace::ui::is_active(window.state()); }, 20000));
+        QVERIFY2(window.state() == humtrace::ui::JobState::Complete, qPrintable(error));
+        QVERIFY(window.hasPagedResults());
+        QCOMPARE(window.report()->frame_size_samples, std::size_t{16});
+        QCOMPARE(window.report()->hop_size_samples, std::size_t{16});
+    }
+
+    void spectrumTableIncludesEveryDisplayedRowWithAccessibleUnits() {
+        const auto path = writeWav(dir_.path(), "table-values.wav", 3.0);
+        MainWindow window;
+        window.openRecording(path);
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        auto* table = window.findChild<QTableWidget*>();
+        QVERIFY(table);
+        auto* accessible = QAccessible::queryAccessibleInterface(table);
+        QVERIFY(accessible && accessible->tableInterface());
+        int plotRows = 0;
+        for (int r = 0; r < table->rowCount(); ++r) {
+            if (!table->item(r, 0)->text().startsWith("Display row ")) continue;
+            ++plotRows;
+            const auto text = table->item(r, 2)->data(Qt::AccessibleTextRole).toString();
+            QVERIFY2(text.contains("dBFS") && text.contains("maximum FFT bin"), qPrintable(text));
+        }
+        QCOMPARE(plotRows, 128);
+    }
+
+    void silentFramesDoNotInventAnInterpolatedPeak() {
+        MainWindow window;
+        humtrace::PipelineSettings settings;
+        settings.spectrum_remove_mean = false;
+        window.setPipelineSettings(settings);
+        window.openRecording(writeWav(dir_.path(), "silent-frame.wav", 3.0, 0.0, 0.0, 1));
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        auto* table = window.findChild<QTableWidget*>();
+        QVERIFY(table && table->rowCount());
+        QVERIFY2(table->item(0, 0)->text().contains("no non-DC peak"), qPrintable(table->item(0, 0)->text()));
+        QCOMPARE(table->item(0, 1)->text(), QString("unavailable"));
+        bool foundMethod = false;
+        for (auto* label : window.findChildren<QLabel*>())
+            if (label->accessibleName() == "Spectrum method and resolution") {
+                foundMethod = true;
+                QVERIFY(label->text().contains("frame mean retained"));
+                QVERIFY(label->text().contains("uncertainty is not estimated"));
+            }
+        QVERIFY(foundMethod);
+    }
+
+    void recordingHeaderRefreshesDigestAndClearsPreviousMethod() {
+        MainWindow window;
+        const auto path = writeWav(dir_.path(), "refresh-header.wav", 3.0);
+        window.openRecording(path);
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        const auto firstDigest = window.report()->input_sha256;
+        writeWav(dir_.path(), "refresh-header.wav", 3.0, 120.0, 100.0);
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        QVERIFY(firstDigest != window.report()->input_sha256);
+        for (auto* label : window.findChildren<QLabel*>())
+            if (label->accessibleName() == "Recording identity") {
+                QVERIFY2(label->text().contains(QString::fromStdString(window.report()->input_sha256).left(16)), qPrintable(label->text()));
+                QCOMPARE(label->accessibleDescription(), label->text());
+            }
+        window.openRecording(writeWav(dir_.path(), "new-method.wav", 2.0));
+        for (auto* label : window.findChildren<QLabel*>())
+            if (label->accessibleName() == "Spectrum method and resolution") QVERIFY(label->text().isEmpty());
+    }
+
     void comparisonPagesPreserveBoundaryRows() {
         humtrace::ComparisonReport report;
         for (std::size_t i = 0; i < 513; ++i) {
@@ -85,6 +313,8 @@ private slots:
             if (button->text() == "Previous rows") previous = button;
         }
         QVERIFY(table && next && previous);
+        QVERIFY(table->item(0, 4)->data(Qt::AccessibleTextRole).toString().contains("unavailable"));
+        QVERIFY(QAccessible::queryAccessibleInterface(table)->tableInterface());
         QCOMPARE(table->rowCount(), 256);
         QVERIFY(!previous->isEnabled());
         next->click();
@@ -96,6 +326,75 @@ private slots:
         previous->click();
         QCOMPARE(table->rowCount(), 256);
         QCOMPARE(table->item(255, 2)->text(), QString("511.000"));
+    }
+
+    void comparisonCancelAndCloseJoinWorkersAndKeepTheOriginalReport() {
+        const auto original = writeWav(dir_.path(), "comparison-a.wav", 3.0);
+        const auto other = writeWav(dir_.path(), "comparison-b.wav", 1500.0);
+        MainWindow window;
+        window.openRecording(original);
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        const auto digest = window.report()->input_sha256;
+        QString error;
+        window.setErrorHandler([&](const QString&, const QString& message) { error = message; });
+        for (bool closeWindow : {false, true}) {
+            bool opened = false, stopped = false, timedOut = false;
+            QElapsedTimer deadline; deadline.start();
+            QTimer driver;
+            connect(&driver, &QTimer::timeout, [&] {
+                if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget())) {
+                    chooser->selectFile(other);
+                    opened = true;
+                    QMetaObject::invokeMethod(chooser, "accept", Qt::DirectConnection);
+                } else if (auto* progress = window.findChild<QProgressDialog*>(); progress && opened && !stopped) {
+                    stopped = true;
+                    if (closeWindow) window.close();
+                    else for (auto* button : progress->findChildren<QPushButton*>())
+                        if (button->text().contains("Cancel")) button->click();
+                }
+                if (deadline.elapsed() > 15000) {
+                    timedOut = true;
+                    if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget())) modal->reject();
+                }
+            });
+            driver.start(1);
+            QVERIFY(QMetaObject::invokeMethod(&window, "chooseAndCompare", Qt::DirectConnection));
+            driver.stop();
+            QVERIFY(opened && stopped && !timedOut);
+            QVERIFY2(error.isEmpty(), qPrintable(error));
+            QCOMPARE(window.state(), humtrace::ui::JobState::Complete);
+            QCOMPARE(window.report()->input_sha256, digest);
+            QVERIFY(!window.findChild<QProgressDialog*>());
+        }
+    }
+
+    void lateComparisonCancelDoesNotOpenResults() {
+        const auto other = writeWav(dir_.path(), "late-comparison-b.wav", 4.0);
+        MainWindow window;
+        window.show();
+        window.openRecording(writeWav(dir_.path(), "late-comparison-a.wav", 4.0));
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        for (bool cancel : {false, true}) {
+            CancelAtComparisonCompletion filter;
+            filter.cancelOnCompletion = cancel;
+            qApp->installEventFilter(&filter);
+            QTimer chooser;
+            connect(&chooser, &QTimer::timeout, [&] {
+                if (auto* dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget())) {
+                    dialog->selectFile(other);
+                    QMetaObject::invokeMethod(dialog, "accept", Qt::DirectConnection);
+                }
+            });
+            chooser.start(1);
+            const bool invoked = QMetaObject::invokeMethod(&window, "chooseAndCompare", Qt::DirectConnection);
+            chooser.stop();
+            qApp->removeEventFilter(&filter);
+            QVERIFY(invoked);
+            QCOMPARE(filter.cancelledAtCompletion, cancel);
+            QCOMPARE(filter.comparisonShown, !cancel);
+        }
     }
     void initTestCase() { QVERIFY(dir_.isValid()); }
 
@@ -362,7 +661,7 @@ private slots:
         const auto json = f.readAll();
         QVERIFY(json.contains("\"path\": \"export.wav\""));
         QVERIFY(!json.contains(dir_.path().toUtf8()));
-        QVERIFY(json.contains("\"schema_version\": \"1.2\""));
+        QCOMPARE(QJsonDocument::fromJson(json).object()["schema_version"].toString(), QString::fromLatin1(humtrace::kReportSchemaVersion));
         QVERIFY(QDir(dir_.path()).entryList({"*.humtrace-tmp*"}).isEmpty());
         // Unwritable destination reports an error and leaves no temp file.
         QVERIFY(!w.exportReport(dir_.path() + "/missing-dir/report.json", false).isEmpty());
@@ -460,6 +759,27 @@ private slots:
             QVERIFY(cache.cachedBytesUpperBound() <= 65536);
         }
         QCOMPARE(cache.frame(0, 0).start_sample, std::uint64_t{0});
+    }
+
+    void narrowSearchBandPreservesBothHarmonicDenominatorsInPagedInspector() {
+        const auto path = writeWav(dir_.path(), "band-support.wav", 4.0, 120.0, 120.0, 1);
+        humtrace::PipelineSettings settings;
+        settings.peak_search.minimum_frequency_hz = 110;
+        settings.peak_search.maximum_frequency_hz = 130;
+        const auto plain = humtrace::analyze_file(path.toStdString(), settings, {}, true);
+        const auto rows = humtrace::ui::build_findings(plain.report);
+        QVERIFY(!rows.empty());
+        const auto expected = QString::fromStdString(humtrace::ui::describe_finding(plain.report, rows[0]));
+        QVERIFY(expected.contains("50 Hz harmonic bins above threshold: 0 to 0 of 0"));
+        QVERIFY(expected.contains("60 Hz harmonic bins above threshold: 1 to 1 of 1"));
+        MainWindow window;
+        window.setPipelineSettings(settings);
+        window.setPagedAnalysis(true);
+        window.openRecording(path);
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        window.findingsTable()->selectRow(0);
+        QCOMPARE(window.findChild<QTextBrowser*>()->toPlainText(), expected);
     }
 
 };

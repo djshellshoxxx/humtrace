@@ -35,6 +35,11 @@ test: $(BUILD_DIR)/humtrace $(addprefix $(BUILD_DIR)/test_,$(TESTS))
 	@set -e; for t in $(TESTS); do $(BUILD_DIR)/test_$$t; done
 	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
 	$(PYTHON) tests/test_streaming.py $(BUILD_DIR)/humtrace
+	$(PYTHON) tests/test_cli_paging.py $(BUILD_DIR)/humtrace
+	$(PYTHON) tests/test_detector_cli.py $(BUILD_DIR)/humtrace
+	$(PYTHON) tests/test_packaging.py
+	$(PYTHON) tests/test_package_licenses.py
+	$(PYTHON) tests/test_qt_sources.py
 
 # 30-second randomized settings-matrix fuzz (override: make fuzz FUZZ_SECONDS=60).
 FUZZ_SECONDS ?= 30

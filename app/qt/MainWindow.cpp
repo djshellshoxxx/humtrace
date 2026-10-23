@@ -12,6 +12,7 @@
 #include "WaveformChart.hpp"
 #include "humtrace/compare.hpp"
 #include "humtrace/wav.hpp"
+#include "humtrace/version.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -38,6 +39,7 @@
 #include <QProgressBar>
 #include <QProgressDialog>
 #include <QSettings>
+#include <QScrollArea>
 #include <QSortFilterProxyModel>
 #include <QSpinBox>
 #include <QStatusBar>
@@ -49,10 +51,28 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <fstream>
+#include <tuple>
 
 using humtrace::ui::JobState;
 
 namespace {
+bool sameSettings(const humtrace::PipelineSettings& a, const humtrace::PipelineSettings& b) {
+    const auto values = [](const humtrace::PipelineSettings& s) {
+        return std::tie(s.max_interleaved_window_samples, s.max_result_bytes,
+            s.tracker.fixed_hz_tolerance, s.tracker.relative_tolerance, s.tracker.bin_spacing_hz,
+            s.tracker.bin_fraction, s.tracker.max_gap_frames, s.tracker.min_observed_frames,
+            s.welch.segment_size, s.welch.hop_size, s.welch.remove_mean,
+            s.peak_min_level_dbfs, s.peak_min_prominence_db, s.max_peaks_per_frame,
+            s.support_threshold_dbfs, s.minimum_prominence_db, s.waveform_buckets,
+            s.spectrogram_rows, s.spectrogram_min_hz, s.spectrogram_floor_dbfs,
+            s.frame_size_samples, s.hop_size_samples, s.spectrum_remove_mean,
+            s.peak_search.minimum_frequency_hz, s.peak_search.maximum_frequency_hz,
+            s.peak_search.minimum_separation_hz, s.peak_search.floor_guard_bins,
+            s.peak_search.floor_radius_bins, s.harmonic_tolerance_hz);
+    };
+    return values(a) == values(b);
+}
+
 QString stageText(int stage) {
     switch (static_cast<humtrace::Stage>(stage)) {
     case humtrace::Stage::Hashing: return QObject::tr("Hashing input");
@@ -61,6 +81,14 @@ QString stageText(int stage) {
     case humtrace::Stage::Done: return QObject::tr("Complete");
     }
     return {};
+}
+
+QString spectrumMethod(const humtrace::AnalysisReport& r) {
+    return QObject::tr("Spectrum: Hann window, %1 samples (%2 s), FFT length %1, bin spacing %3 Hz, peak-amplitude dBFS, frame mean %4. "
+                       "Display rows show floor-clamped maximum FFT bins. Frequency uncertainty is not estimated; bin spacing is not an error bound.")
+        .arg(QString::number(r.frame_size_samples), QString::number(double(r.frame_size_samples) / r.sample_rate_hz, 'f', 3),
+             QString::number(double(r.sample_rate_hz) / double(r.frame_size_samples), 'f', 3),
+             r.spectrum_remove_mean ? QObject::tr("removed") : QObject::tr("retained"));
 }
 } // namespace
 
@@ -136,10 +164,11 @@ void MainWindow::buildUi() {
     connect(spectrogram_, &SpectrogramChart::readFailed, this, &MainWindow::dataReadFailed, Qt::QueuedConnection);
     spectrum_ = new SpectrumChart;
     frameTable_ = new QTableWidget(0, 3);
-    frameTable_->setHorizontalHeaderLabels({tr("Measurement"), tr("Frequency (Hz)"), tr("Level (dBFS)")});
+    frameTable_->setHorizontalHeaderLabels({tr("Measurement"), tr("Frequency or range (Hz)"), tr("Level (dBFS)")});
     frameTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     frameTable_->horizontalHeader()->setStretchLastSection(true);
     frameTable_->setAccessibleName(tr("Spectrum measurement table for the frame at the cursor"));
+    frameTable_->setAccessibleDescription(tr("Strongest peak, harmonic measurements and every plotted display row. Display rows are maximum FFT bin levels with a stored floor; row width is not frequency uncertainty."));
     auto* tabs = new QTabWidget;
     tabs->addTab(spectrum_, tr("Spectrum"));
     tabs->addTab(frameTable_, tr("Spectrum table"));
@@ -333,7 +362,10 @@ void MainWindow::clearResults() {
     spectrogram_->setData(nullptr, nullptr, nullptr);
     spectrum_->setFrame(nullptr, nullptr, 0, -100, 0);
     frameTable_->setRowCount(0);
+    spectrumInfo_->clear();
+    spectrumInfo_->setAccessibleDescription({});
     summary_->clear();
+    summary_->setAccessibleDescription({});
     inspector_->setPlainText(tr("Select a finding to see measurements, evidence, settings and limitations."));
     view_->reset(0.0, 1.0);
 }
@@ -460,10 +492,7 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
         channels_->clear();
         for (int c = 1; c <= int(r.channels); ++c) channels_->addItem(tr("Channel %1").arg(c));
     }
-    spectrumInfo_->setText(tr("Spectrum: Hann window, %1 samples (%2 s), FFT length %1, bin spacing %3 Hz, peak-amplitude dBFS, "
-                              "parabolic peak interpolation, frame mean removed. Plot rows show the maximum bin per log-frequency row.")
-        .arg(QString::number(r.frame_size_samples), QString::number(double(r.frame_size_samples) / r.sample_rate_hz, 'f', 3),
-             QString::number(double(r.sample_rate_hz) / double(r.frame_size_samples), 'f', 3)));
+    spectrumInfo_->setText(spectrumMethod(r));
     spectrumInfo_->setAccessibleDescription(spectrumInfo_->text());
     if (paged_) loadFindingPage(0);
     else { findings_ = humtrace::ui::build_findings(r); model_->setRows(findings_); }
@@ -478,8 +507,13 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
     if (paged_) { trackCount = 0; for (std::size_t c = 0; c < r.channels; ++c) trackCount += static_cast<std::size_t>(paged_->storage().track_count(c)); }
     const auto text = QString::fromStdString(humtrace::ui::summarize_report(r, trackCount));
     summary_->setText(text + tr(" SHA-256: ") + QString::fromStdString(r.input_sha256));
+    summary_->setAccessibleDescription(summary_->text());
     for (QWidget* w : std::initializer_list<QWidget*>{waveform_, spectrogram_}) static_cast<TimeChart*>(w)->setAccessibleSummary(text);
-    header_->setText(header_->text().replace(tr("SHA-256 computed during analysis"), tr("SHA-256 %1").arg(QString::fromStdString(r.input_sha256).left(16) + "...")));
+    header_->setText(tr("%1 | %2 s | %3 Hz | %4 channel(s) | %5-bit %6 | SHA-256 %7")
+        .arg(header_->fontMetrics().elidedText(QFileInfo(path_).fileName(), Qt::ElideMiddle, 420), QString::number(r.duration_seconds, 'f', 2),
+             QString::number(r.sample_rate_hz), QString::number(r.channels), QString::number(r.bit_depth),
+             r.format_code == 3 ? tr("float") : tr("PCM"), QString::fromStdString(r.input_sha256).left(16) + "..."));
+    header_->setAccessibleDescription(header_->text());
     setState(JobState::Complete);
     updateFrameViews();
     // Auto-select the first finding on the restored channel (never switch the user's channel).
@@ -563,21 +597,54 @@ void MainWindow::updateFrameViews() {
     spectrum_->setFrame(row, &v.row_frequency_hz, r.sample_rate_hz / 2.0, floorBox_->value(), ceilingBox_->value());
     const auto& frame = paged_ ? paged_->frame(ch, static_cast<std::uint64_t>(f)) : r.channel_results[ch].frames[std::size_t(f)];
     frameTable_->setRowCount(0);
-    auto add = [&](const QString& kind, double hz, double level) {
+    auto add = [&](const QString& kind, const QString& hz, double level) {
         const int row = frameTable_->rowCount();
         frameTable_->insertRow(row);
-        frameTable_->setItem(row, 0, new QTableWidgetItem(kind));
-        frameTable_->setItem(row, 1, new QTableWidgetItem(QString::number(hz, 'f', 3)));
-        frameTable_->setItem(row, 2, new QTableWidgetItem(std::isfinite(level) ? QString::number(level, 'f', 2) : tr("silence")));
+        const QStringList values{kind, hz, std::isfinite(level) ? QString::number(level, 'f', 2) : tr("silence")};
+        for (int column = 0; column < 3; ++column) {
+            auto* item = new QTableWidgetItem(values[column]);
+            item->setData(Qt::AccessibleTextRole, tr("%1: %2; %3; channel %4, frame %5")
+                .arg(frameTable_->horizontalHeaderItem(column)->text(), values[column], kind).arg(ch + 1).arg(f));
+            frameTable_->setItem(row, column, item);
+        }
     };
     const QString noteLabel = frame.strongest_peak.frequency_hz > 0.0
         ? QString::fromStdString(" [" + humtrace::format_note(humtrace::nearest_note(frame.strongest_peak.frequency_hz)) + "]")
         : QString();
-    add(tr("Frame %1 strongest non-DC peak (interpolated)%2").arg(f).arg(noteLabel), frame.strongest_peak.frequency_hz, frame.strongest_peak.level_dbfs);
+    const auto& peak = frame.strongest_peak;
+    const bool havePeak = peak.frequency_hz > 0.0 && std::isfinite(peak.level_dbfs);
+    add(havePeak ? tr("Frame %1 strongest non-DC peak (%2)%3").arg(f)
+            .arg(peak.interpolation_applied ? tr("interpolation applied") : tr("interpolation not applied"), noteLabel)
+        : tr("Frame %1 no non-DC peak in search band").arg(f),
+        havePeak ? QString::number(peak.frequency_hz, 'f', 3) : tr("unavailable"), peak.level_dbfs);
+    QString details = tr("No non-DC peak in the search band.");
+    if (havePeak) {
+        details = tr("Peak: raw bin %1 Hz; interpolation %2; Hann main-lobe width %3 Hz (first-zero to first-zero); half-power width %4 Hz. "
+                     "Local median floor %5 dBFS; prominence %6 dB. Frequency uncertainty %7. Flags: %8.")
+            .arg(QString::number(peak.raw_bin_frequency_hz, 'f', 3), peak.interpolation_applied ? tr("applied") : tr("not applied"),
+                 QString::number(peak.hann_main_lobe_width_hz, 'f', 3),
+                 peak.width_hz ? QString::number(*peak.width_hz, 'f', 3) : tr("unavailable"),
+                 peak.local_floor_available ? QString::number(peak.local_floor_dbfs, 'f', 2) : tr("unavailable"),
+                 peak.local_floor_available ? QString::number(peak.prominence_db, 'f', 2) : tr("unavailable"),
+                 peak.frequency_uncertainty_hz ? QString::number(*peak.frequency_uncertainty_hz, 'f', 3) + " Hz" : tr("is not estimated"),
+                 peak.boundary_peak || peak.competing_peak ?
+                    (peak.boundary_peak ? tr("boundary peak; ") : QString()) + (peak.competing_peak ? tr("nearby competing peak") : QString()) : tr("none flagged"));
+    }
+    spectrumInfo_->setText(spectrumMethod(r) + "\n" + details);
+    spectrumInfo_->setAccessibleDescription(spectrumInfo_->text());
+    for (int column = 0; column < 3; ++column) {
+        frameTable_->item(0, column)->setData(Qt::AccessibleDescriptionRole, details);
+        frameTable_->item(0, column)->setToolTip(details);
+    }
     for (const auto* cand : {&frame.mains_50, &frame.mains_60})
         for (const auto& h : cand->harmonics)
             add(tr("%1 Hz harmonic %2 bin%3").arg(cand->nominal_frequency_hz, 0, 'f', 0).arg(h.harmonic_number)
-                    .arg(h.supports_threshold ? tr(" (above threshold)") : QString()), h.measured_bin_hz, h.level_dbfs);
+                    .arg(h.supports_threshold ? tr(" (above threshold)") : QString()), QString::number(h.measured_bin_hz, 'f', 3), h.level_dbfs);
+    for (std::size_t i = 0; i < row->size(); ++i) {
+        const double endHz = i + 1 < v.row_frequency_hz.size() ? v.row_frequency_hz[i + 1] : r.sample_rate_hz / 2.0;
+        add(tr("Display row %1 maximum FFT bin (floor-clamped)").arg(i + 1),
+            tr("%1 to %2").arg(v.row_frequency_hz[i], 0, 'f', 3).arg(endHz, 0, 'f', 3), (*row)[i]);
+    }
     frameTable_->resizeColumnsToContents();
     } catch (const std::exception& error) { dataReadFailed(QString::fromUtf8(error.what())); }
 }
@@ -648,9 +715,9 @@ void MainWindow::chooseAndExport() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Export preview"));
     auto* layout = new QVBoxLayout(&dialog);
-    auto* info = new QLabel(tr("Schema version 1.2 (JSON)\nInput SHA-256: %1\nStatus: complete, %2 frames per channel, %3 track(s)\n"
-                               "Warnings: %4\nThis file records measurements only; it is not a chain-of-custody record.")
-                                .arg(QString::fromStdString(r.input_sha256)).arg(paged_ ? paged_->storage().frame_count(0) : (r.channel_results.empty() ? 0 : r.channel_results[0].frames.size())).arg([&] { std::uint64_t count = findings_.size(); if (paged_) { count = 0; for (std::size_t c = 0; c < r.channels; ++c) count += paged_->storage().track_count(c); } return count; }())
+    auto* info = new QLabel(tr("Schema version %1 (JSON)\nInput SHA-256: %2\nStatus: complete, %3 frames per channel, %4 track(s)\n"
+                               "Warnings: %5\nThis file records measurements only; it is not a chain-of-custody record.")
+                                .arg(QString::fromLatin1(humtrace::kReportSchemaVersion), QString::fromStdString(r.input_sha256)).arg(paged_ ? paged_->storage().frame_count(0) : (r.channel_results.empty() ? 0 : r.channel_results[0].frames.size())).arg([&] { std::uint64_t count = findings_.size(); if (paged_) { count = 0; for (std::size_t c = 0; c < r.channels; ++c) count += paged_->storage().track_count(c); } return count; }())
                                 .arg(r.warnings.empty() ? tr("none recorded (clipping and hidden short tracks are checked)") : [&] { QStringList l; for (const auto& w : r.warnings) l << QString::fromStdString(w); return l.join("; "); }()));
     info->setWordWrap(true);
     info->setTextInteractionFlags(Qt::TextSelectableByKeyboard);
@@ -721,27 +788,76 @@ void MainWindow::chooseAndCompare() {
     connect(task.get(), &QThread::finished, &loop, &QEventLoop::quit);
     connect(&progress, &QProgressDialog::canceled, task.get(), &QThread::requestInterruption);
     task->start(); loop.exec(); task->wait(); comparisonThread_ = nullptr;
+    const bool userCancelled = cancelled || progress.wasCanceled();
     progress.close(); compareBusy_ = false;
     if (!failure.isEmpty()) { showError(tr("Comparison"), failure); return; }
-    if (!cancelled && comparison) ComparisonDialog(*comparison, this).exec();
+    if (!userCancelled && comparison) ComparisonDialog(*comparison, this).exec();
 }
 
 void MainWindow::showSettings() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Analysis settings"));
-    auto* form = new QFormLayout(&dialog);
+    dialog.resize(560, 600);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* scroll = new QScrollArea;
+    scroll->setWidgetResizable(true);
+    auto* content = new QWidget;
+    auto* form = new QFormLayout(content);
+    scroll->setWidget(content);
+    layout->addWidget(scroll);
     auto spin = [&](double lo, double hi, double v, const QString& suffix, const QString& name) {
         auto* s = new QDoubleSpinBox;
         s->setRange(lo, hi);
+        s->setDecimals(3);
         s->setValue(v);
         s->setSuffix(suffix);
         s->setAccessibleName(name);
         return s;
     };
+    auto integer = [&](int lo, int hi, std::size_t value, const QString& name) {
+        auto* s = new QSpinBox;
+        s->setRange(lo, hi);
+        s->setValue(static_cast<int>(std::min(value, static_cast<std::size_t>(hi))));
+        s->setAccessibleName(name);
+        return s;
+    };
+    auto powers = [&](int lo, int hi, std::size_t value, const QString& name, bool automatic = false) {
+        auto* s = new QComboBox;
+        if (automatic) s->addItem(tr("Automatic"), 0);
+        for (int v = lo; v <= hi; v *= 2) s->addItem(QString::number(v), v);
+        s->setCurrentIndex(std::max(0, s->findData(static_cast<int>(value))));
+        s->setAccessibleName(name);
+        return s;
+    };
+    auto check = [&](bool value, const QString& name) {
+        auto* s = new QCheckBox(name);
+        s->setAccessibleName(name);
+        s->setChecked(value);
+        return s;
+    };
+    auto* frameSize = powers(16, 65536, settings_.frame_size_samples, tr("Analysis frame size"), true);
+    auto* hopSize = integer(0, 65536, settings_.hop_size_samples, tr("Analysis hop size"));
+    hopSize->setSpecialValueText(tr("Automatic (half window)"));
+    auto* removeMean = check(settings_.spectrum_remove_mean, tr("Remove spectrum mean"));
+    auto* searchMin = spin(0, 1e9, settings_.peak_search.minimum_frequency_hz, " Hz", tr("Minimum search frequency"));
+    auto* searchMax = spin(0, 1e9, settings_.peak_search.maximum_frequency_hz, " Hz", tr("Maximum search frequency"));
+    searchMax->setSpecialValueText(tr("Nyquist"));
+    auto* separation = spin(0, 1e9, settings_.peak_search.minimum_separation_hz, " Hz", tr("Minimum peak separation"));
+    auto* guard = integer(0, 1048575, settings_.peak_search.floor_guard_bins, tr("Local floor guard bins"));
+    auto* radius = integer(1, 1048576, settings_.peak_search.floor_radius_bins, tr("Local floor radius bins"));
+    connect(guard, &QSpinBox::valueChanged, radius, [radius](int value) { radius->setMinimum(value + 1); });
+    radius->setMinimum(guard->value() + 1);
+    auto* harmonicTolerance = spin(0, 1e9, settings_.harmonic_tolerance_hz, " Hz", tr("Harmonic search tolerance"));
+    harmonicTolerance->setSpecialValueText(tr("Nominal bins (legacy)"));
+    auto* welchSize = powers(4, 1048576, settings_.welch.segment_size, tr("Welch segment size"));
+    auto* welchHop = integer(1, static_cast<int>(settings_.welch.segment_size), settings_.welch.hop_size, tr("Welch hop size"));
+    connect(welchSize, &QComboBox::currentIndexChanged, welchHop, [welchSize, welchHop] { welchHop->setMaximum(welchSize->currentData().toInt()); });
+    auto* welchMean = check(settings_.welch.remove_mean, tr("Remove Welch mean"));
     auto* threshold = spin(-160, 0, settings_.support_threshold_dbfs, " dBFS", tr("Harmonic support threshold"));
     auto* prominence = spin(0, 80, settings_.minimum_prominence_db, " dB", tr("Minimum local prominence"));
     auto* tolerance = spin(0, 50, settings_.tracker.fixed_hz_tolerance, " Hz", tr("Track match tolerance"));
     auto* fraction = spin(0, 8, settings_.tracker.bin_fraction, " bins", tr("Track match radius in FFT bins"));
+    auto* relative = spin(0, 1e6, settings_.tracker.relative_tolerance, "", tr("Relative track match tolerance"));
     auto* peakLevel = spin(-160, 0, settings_.peak_min_level_dbfs, " dBFS", tr("Minimum peak level"));
     auto* peakProm = spin(0, 80, settings_.peak_min_prominence_db, " dB", tr("Minimum peak prominence"));
     auto* gap = new QSpinBox;
@@ -756,6 +872,15 @@ void MainWindow::showSettings() {
     peaks->setRange(1, 32);
     peaks->setValue(int(settings_.max_peaks_per_frame));
     peaks->setAccessibleName(tr("Peaks per frame"));
+    form->addRow(tr("Analysis frame size (samples)"), frameSize);
+    form->addRow(tr("Analysis hop size (samples)"), hopSize);
+    form->addRow(removeMean);
+    form->addRow(tr("Minimum search frequency"), searchMin);
+    form->addRow(tr("Maximum search frequency"), searchMax);
+    form->addRow(tr("Minimum peak separation"), separation);
+    form->addRow(tr("Local floor guard (bins)"), guard);
+    form->addRow(tr("Local floor radius (bins)"), radius);
+    form->addRow(tr("Harmonic search tolerance"), harmonicTolerance);
     form->addRow(tr("Harmonic support threshold"), threshold);
     form->addRow(tr("Minimum local prominence"), prominence);
     form->addRow(tr("Minimum peak level"), peakLevel);
@@ -763,15 +888,31 @@ void MainWindow::showSettings() {
     form->addRow(tr("Peaks per frame"), peaks);
     form->addRow(tr("Track match tolerance"), tolerance);
     form->addRow(tr("Track match radius"), fraction);
+    form->addRow(tr("Relative track tolerance (fraction)"), relative);
     form->addRow(tr("Gap tolerance (frames)"), gap);
     form->addRow(tr("Minimum frames per track"), minFrames);
+    form->addRow(tr("Welch segment size (samples)"), welchSize);
+    form->addRow(tr("Welch hop size (samples)"), welchHop);
+    form->addRow(welchMean);
     form->addRow(new QLabel(tr("Analysis settings mark results stale; re-run Analyze to apply.")));
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    form->addRow(buttons);
+    layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     if (dialog.exec() != QDialog::Accepted) return;
     auto next = settings_;
+    next.frame_size_samples = static_cast<std::size_t>(frameSize->currentData().toInt());
+    next.hop_size_samples = static_cast<std::size_t>(hopSize->value());
+    next.spectrum_remove_mean = removeMean->isChecked();
+    next.peak_search.minimum_frequency_hz = searchMin->value();
+    next.peak_search.maximum_frequency_hz = searchMax->value();
+    next.peak_search.minimum_separation_hz = separation->value();
+    next.peak_search.floor_guard_bins = static_cast<std::size_t>(guard->value());
+    next.peak_search.floor_radius_bins = static_cast<std::size_t>(radius->value());
+    next.harmonic_tolerance_hz = harmonicTolerance->value();
+    next.welch.segment_size = static_cast<std::size_t>(welchSize->currentData().toInt());
+    next.welch.hop_size = static_cast<std::size_t>(welchHop->value());
+    next.welch.remove_mean = welchMean->isChecked();
     next.support_threshold_dbfs = threshold->value();
     next.minimum_prominence_db = prominence->value();
     next.peak_min_level_dbfs = peakLevel->value();
@@ -779,22 +920,16 @@ void MainWindow::showSettings() {
     next.max_peaks_per_frame = std::size_t(peaks->value());
     next.tracker.fixed_hz_tolerance = tolerance->value();
     next.tracker.bin_fraction = fraction->value();
+    next.tracker.relative_tolerance = relative->value();
     next.tracker.max_gap_frames = std::size_t(gap->value());
     next.tracker.min_observed_frames = std::size_t(minFrames->value());
-    const bool changed = next.support_threshold_dbfs != settings_.support_threshold_dbfs ||
-        next.minimum_prominence_db != settings_.minimum_prominence_db || next.peak_min_level_dbfs != settings_.peak_min_level_dbfs ||
-        next.peak_min_prominence_db != settings_.peak_min_prominence_db || next.max_peaks_per_frame != settings_.max_peaks_per_frame ||
-        next.tracker.fixed_hz_tolerance != settings_.tracker.fixed_hz_tolerance || next.tracker.bin_fraction != settings_.tracker.bin_fraction ||
-        next.tracker.max_gap_frames != settings_.tracker.max_gap_frames ||
-        next.tracker.min_observed_frames != settings_.tracker.min_observed_frames;
-    settings_ = next;
-    if (changed && state_ == JobState::Complete) {
-        setState(JobState::Invalidated); // results stay visible but are labeled stale; export disabled
-        summary_->setText(tr("Settings changed: these results are stale. Re-run Analyze (Ctrl+R)."));
-    }
+    try { humtrace::validate_settings(next); }
+    catch (const std::exception& error) { showError(tr("Settings"), QString::fromUtf8(error.what())); return; }
+    setPipelineSettings(next);
 }
 
 void MainWindow::setPipelineSettings(const humtrace::PipelineSettings& next) {
+    if (sameSettings(settings_, next)) return;
     settings_ = next;
     if (state_ == JobState::Complete) {
         setState(JobState::Invalidated);

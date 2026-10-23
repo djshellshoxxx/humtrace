@@ -5,6 +5,7 @@
 #include <iostream>
 #include <numbers>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace {
@@ -184,9 +185,116 @@ void unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected() {
     try { (void)humtrace::analyze_spectrum(huge, 48000.0); } catch (const std::invalid_argument&) { threw = true; }
     require(threw, "overflowing sample magnitudes are rejected, not turned into NaN peaks");
 }
+void absent_floor_does_not_establish_peak_or_harmonic_prominence() {
+    const std::vector<humtrace::SpectrumBin> spectrum{{0, -100}, {25, -100}, {50, -10}, {75, -100}};
+    require(humtrace::find_peaks(spectrum, -60, 10, 8).empty(),
+            "an empty floor neighborhood cannot establish peak prominence");
+    require(humtrace::measure_harmonics(spectrum, 50, -60, 1).supporting_harmonics == 0,
+            "an empty floor neighborhood cannot establish harmonic prominence");
+}
+
+void a_flat_maximum_is_not_interpolated() {
+    const std::vector<humtrace::SpectrumBin> spectrum{{0, -100}, {1, -20}, {2, -10}, {3, -10}, {4, -30}};
+    const auto peak = humtrace::strongest_peak(spectrum);
+    require(peak.frequency_hz == 2.0, "flat peaks retain the raw bin instead of an invented refinement");
+}
+
+void peak_metadata_distinguishes_resolution_from_uncertainty() {
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.5 * std::sin(2 * std::numbers::pi * 60.4 * static_cast<double>(i) / 4096.0);
+    const auto peak = humtrace::strongest_peak(humtrace::analyze_spectrum(samples, 4096));
+    require(peak.raw_bin_frequency_hz == 60 && peak.bin_spacing_hz == 1,
+            "raw frequency and FFT bin spacing survive interpolation");
+    require(peak.interpolation_applied && std::abs(peak.frequency_hz - 60.4) < 0.1,
+            "an applied valid refinement is identified");
+    require(peak.hann_main_lobe_width_hz > 4 && peak.hann_main_lobe_width_hz < 4.01,
+            "symmetric Hann null-to-null main lobe is about four bin spacings");
+    require(!peak.frequency_uncertainty_hz.has_value(),
+            "bin spacing and interpolation do not fabricate calibrated uncertainty");
+    require(peak.width_hz && *peak.width_hz > 1 && *peak.width_hz < 2,
+            "a measured half-power width is separate from uncertainty");
+    require(peak.local_floor_available && peak.prominence_db > 20,
+            "peak retains its local spectral floor evidence");
+    require(std::abs(peak.prominence_db - (peak.level_dbfs - peak.local_floor_dbfs)) < 1e-12,
+            "exported prominence uses the same corrected peak level as the measurement");
+    static_assert(std::is_trivially_copyable_v<humtrace::SpectralPeak>);
+}
+
+void configurable_peak_search_honors_band_separation_and_floor() {
+    std::vector<humtrace::SpectrumBin> bins;
+    for (int i = 0; i <= 100; ++i) bins.push_back({static_cast<double>(i), -100});
+    bins[20].level_dbfs = -10;
+    bins[25].level_dbfs = -20;
+    bins[70].level_dbfs = -30;
+    humtrace::PeakSearchSettings search;
+    search.minimum_frequency_hz = 10;
+    search.maximum_frequency_hz = 50;
+    search.minimum_separation_hz = 6;
+    const auto peaks = humtrace::find_peaks(bins, -60, 10, 8, search);
+    require(peaks.size() == 1 && peaks[0].raw_bin_frequency_hz == 20,
+            "band excludes distant tones and separation retains the strongest nearby peak");
+    search.minimum_frequency_hz = 50;
+    search.maximum_frequency_hz = 90;
+    require(humtrace::strongest_peak(bins, search).raw_bin_frequency_hz == 70,
+            "strongest-peak measurement honors the same configured band");
+    search.minimum_frequency_hz = 10;
+    search.maximum_frequency_hz = 50;
+    search.minimum_separation_hz = 0;
+    require(humtrace::find_peaks(bins, -60, 10, 8, search).size() == 2,
+            "zero separation retains independently resolvable local maxima");
+    search.floor_guard_bins = 0;
+    search.floor_radius_bins = 1;
+    bins[19].level_dbfs = bins[21].level_dbfs = -15;
+    require(humtrace::find_peaks(bins, -60, 10, 8, search).size() == 1,
+            "configured immediate-neighbor floor rejects a low-prominence peak");
+}
+
+void configured_harmonic_search_measures_off_nominal_local_maxima() {
+    std::vector<double> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const auto t = static_cast<double>(i) / 4096;
+        samples[i] = 0.4 * std::sin(2 * std::numbers::pi * 63 * t) +
+                     0.2 * std::sin(2 * std::numbers::pi * 126 * t);
+    }
+    const auto spectrum = humtrace::analyze_spectrum(samples, 4096);
+    const auto legacy = humtrace::measure_harmonics(spectrum, 60, -40, 2);
+    const auto searched = humtrace::measure_harmonics(spectrum, 60, -40, 2, 10, 7);
+    require(legacy.supporting_harmonics == 0 && searched.supporting_harmonics == 2,
+            "opt-in bounded search recovers the off-nominal family missed at nominal bins");
+    require(searched.harmonics[0].measured_bin_hz == 63 && searched.harmonics[1].measured_bin_hz == 126,
+            "observed partials retain their measured bins instead of nominal labels");
+    require(searched.harmonics[1].search_tolerance_hz == 7,
+            "the actual bounded search tolerance is exposed");
+    const auto clamped = humtrace::measure_harmonics(spectrum, 60, -40, 2, 10, 100);
+    require(clamped.harmonics[0].search_tolerance_hz < 30,
+            "search regions are clamped before adjacent harmonic regions overlap");
+    for (std::size_t i = 0; i < samples.size(); ++i)
+        samples[i] = 0.4 * std::sin(2 * std::numbers::pi * 63.4 * static_cast<double>(i) / 4096.0);
+    const auto beyond_bound = humtrace::measure_harmonics(humtrace::analyze_spectrum(samples, 4096), 60, -40, 1, 10, 3);
+    require(beyond_bound.harmonics[0].measured_bin_hz == 63 && beyond_bound.harmonics[0].frequency_hz > 63 &&
+            !beyond_bound.harmonics[0].supports_threshold,
+            "refinement beyond the configured search bound cannot establish harmonic support");
+}
+
+void spectrum_detrending_is_explicit_and_preserves_the_input() {
+    const std::vector<double> samples(64, 0.25);
+    const auto ac = humtrace::analyze_spectrum(samples, 64);
+    const auto raw = humtrace::analyze_spectrum(samples, 64, false);
+    require(std::isinf(ac[0].level_dbfs), "mean removal eliminates a constant signal");
+    require(std::abs(raw[0].level_dbfs + 12.0411998266) < 1e-8,
+            "disabled mean removal retains the coherent-gain-corrected DC amplitude");
+    require(samples.front() == 0.25 && samples.back() == 0.25, "detrending preserves source samples");
+}
 } // namespace
 
 int main() {
+    absent_floor_does_not_establish_peak_or_harmonic_prominence();
+    a_flat_maximum_is_not_interpolated();
+    peak_metadata_distinguishes_resolution_from_uncertainty();
+    configurable_peak_search_honors_band_separation_and_floor();
+    configured_harmonic_search_measures_off_nominal_local_maxima();
+    spectrum_detrending_is_explicit_and_preserves_the_input();
     unresolvable_harmonics_yield_no_evidence_and_huge_samples_are_rejected();
     dc_offset_does_not_masquerade_as_the_strongest_component();
     finds_multiple_prominent_peaks();

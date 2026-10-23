@@ -86,6 +86,30 @@ int main() {
         try { (void)humtrace::analyze_file(path, {}, cb, false); } catch (const humtrace::AnalysisCancelled&) { threw = true; }
         require(threw, "cancel before start");
     }
+    { // a persistent edit can retain both size and timestamp, so metadata is insufficient
+        const auto path = dir / "same-metadata.wav";
+        { std::ofstream f(path, std::ios::binary); const auto w = wav(16384); f.write(w.data(), static_cast<std::streamsize>(w.size())); }
+        const auto original_time = fs::last_write_time(path);
+        const auto original_size = fs::file_size(path);
+        bool touched = false;
+        humtrace::SessionCallbacks callbacks;
+        callbacks.progress = [&](humtrace::Stage stage, double fraction) {
+            if (stage == humtrace::Stage::Analyzing && fraction > 0.2 && !touched) {
+                touched = true;
+                std::fstream f(path, std::ios::binary | std::ios::in | std::ios::out);
+                f.seekp(44);
+                f.put('\x7f');
+                f.close();
+                fs::last_write_time(path, original_time);
+            }
+        };
+        bool rejected = false;
+        try { (void)humtrace::analyze_file(utf8(path), {}, callbacks, false); }
+        catch (const std::runtime_error& error) { rejected = std::string(error.what()).find("changed during analysis") != std::string::npos; }
+        require(touched && fs::file_size(path) == original_size && fs::last_write_time(path) == original_time,
+                "mutation fixture preserves original file metadata");
+        require(rejected, "hash consistency verification catches same-size edits with restored timestamps");
+    }
     { // exports may not overwrite the recording (same path, or same file through another spelling)
         const auto path = (dir / "keep.wav").string();
         { std::ofstream f(path, std::ios::binary); const auto w = wav(8192); f.write(w.data(), static_cast<std::streamsize>(w.size())); }

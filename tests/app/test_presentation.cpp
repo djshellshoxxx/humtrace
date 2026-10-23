@@ -57,6 +57,13 @@ int main() {
         r.channels = 2;
         r.frame_size_samples = 100;
         r.hop_size_samples = 50;
+        r.support_threshold_dbfs = -60.25;
+        r.minimum_prominence_db = 10.75;
+        r.spectrum_remove_mean = false;
+        r.peak_search.minimum_frequency_hz = 20;
+        r.peak_search.maximum_frequency_hz = 400;
+        r.peak_search.minimum_separation_hz = 2.5;
+        r.tracker.relative_tolerance = 0.005;
         r.channel_results.resize(2);
         r.channel_results[0].channel_number = 1;
         r.channel_results[1].channel_number = 2;
@@ -68,6 +75,9 @@ int main() {
             t.missing_frames = 1;
             t.median_frequency_hz = hz;
             t.median_level_dbfs = -20.0;
+            t.start_ambiguity_id = 7;
+            t.end_ambiguity_id = 9;
+            t.end_reason = humtrace::TrackEndReason::Ambiguous;
             return t;
         };
         r.channel_results[1].tracks = {track(1, 0, 100, 50.0)};
@@ -79,12 +89,32 @@ int main() {
         require(std::abs(rows[0].coverage() - 2.0 / 3.0) < 1e-9, "coverage = observed / spanned");
         r.channel_results[0].frames.resize(2);
         r.channel_results[0].frames[0].levels = humtrace::SampleLevels{};
+        r.channel_results[0].frames[0].mains_60.harmonics.resize(1);
+        r.channel_results[0].frames[0].mains_60.supporting_harmonics = 1;
         const auto text = describe_finding(r, rows[0]);
         require(text.find("RMS") != std::string::npos && text.find("includes DC") != std::string::npos,
                 "inspector distinguishes raw RMS from spectral peak levels");
         require(text.find("observed in 2 of 3 frames") != std::string::npos, "descriptive wording");
         require(text.find("does not identify a device") != std::string::npos, "limitations are stated");
         require(text.find("ground loop detected") == std::string::npos, "no source attribution");
+        require(text.find("-60.25 dBFS") != std::string::npos && text.find("10.75 dB") != std::string::npos,
+                "inspector preserves configured threshold precision");
+        require(text.find("Bin spacing: 10.000 Hz") != std::string::npos,
+                "inspector reports frequency bin spacing from the actual analysis window");
+        require(text.find("uncertainty is not estimated") != std::string::npos,
+                "inspector does not imply interpolation or decimal places establish uncertainty");
+        require(text.find("Spectrum frame mean: retained") != std::string::npos,
+                "inspector describes the actual mean-removal setting");
+        require(text.find("Peak search: 20 to 400 Hz; minimum separation 2.5 Hz") != std::string::npos,
+                "inspector exposes the search band and separation");
+        require(text.find("guard 2 bins, radius 8 bins") != std::string::npos,
+                "inspector exposes the local floor method");
+        require(text.find("0.005 x previous frequency") != std::string::npos,
+                "inspector includes the relative track association tolerance");
+        require(text.find("start 7; end 9") != std::string::npos && text.find("ambiguous association") != std::string::npos,
+                "inspector exposes channel-local ambiguity segment links");
+        require(text.find("60 Hz harmonic bins above threshold: 1 to 1 of 1") != std::string::npos,
+                "each harmonic family has its own support-count denominator");
     }
     {
         humtrace::AnalysisReport r;

@@ -57,8 +57,9 @@ peak continues the previous ID. Every other connected component that contains
 both a prior track and current peak ends all its parents as ambiguous and starts
 a fresh child ID for each current peak. One parent with multiple peaks is
 classified `split`; multiple parents with one peak is `merge`; multiple parents
-and multiple peaks is `competing`. Level, width, and edge distance remain
-measurements and do not select an identity inside a connected component.
+and multiple peaks is `competing`. The tracker currently receives frequency
+and level only; unequal levels do not select an identity inside a connected
+component. Width is not part of the tracking input.
 
 Consequently, a candidate “split” or “merge” describes only the shape of one
 frame's tolerance graph. It makes no claim about a real source splitting or

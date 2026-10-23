@@ -33,6 +33,9 @@ std::vector<FindingRow> build_findings(const AnalysisReport& report) {
             row.spanned_frames = track.observed_frames + track.missing_frames;
             row.first_frame = track.first_frame;
             row.last_frame = track.last_frame;
+            row.start_ambiguity_id = track.start_ambiguity_id;
+            row.end_ambiguity_id = track.end_ambiguity_id;
+            row.end_reason = track.end_reason;
             rows.push_back(row);
         }
     std::stable_sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
@@ -48,6 +51,14 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
                        std::to_string(row.track_id) + " (analysis-local id)\n";
     text += "Track observed in " + std::to_string(row.observed_frames) + " of " +
             std::to_string(row.spanned_frames) + " frames.\n\n";
+    text += std::string("Segment end: ") + (row.end_reason == TrackEndReason::Ambiguous ? "ambiguous association" :
+        row.end_reason == TrackEndReason::GapExceeded ? "gap exceeded" : "end of input") + ".\n";
+    if (row.start_ambiguity_id || row.end_ambiguity_id) {
+        text += "Association ambiguity links (channel-local): start " +
+            (row.start_ambiguity_id ? std::to_string(*row.start_ambiguity_id) : "none") + "; end " +
+            (row.end_ambiguity_id ? std::to_string(*row.end_ambiguity_id) : "none") + ".\n";
+        text += "These links describe candidate associations, not physical sources splitting or merging.\n";
+    }
     text += "Measurements\n";
     text += fmt("  Median frequency: %.3f Hz\n", row.median_frequency_hz);
     if (row.median_frequency_hz > 0.0)
@@ -60,18 +71,20 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
     text += "\nHarmonic evidence over this track's frames (measurement only)\n";
     for (const auto& channel : report.channel_results) {
         if (channel.channel_number != row.channel) continue;
-        std::size_t lo50 = 1000, hi50 = 0, lo60 = 1000, hi60 = 0, total = 0;
+        std::size_t lo50 = 1000, hi50 = 0, lo60 = 1000, hi60 = 0, total50 = 0, total60 = 0;
         for (std::size_t f = row.first_frame; f <= row.last_frame && f < channel.frames.size(); ++f) {
             const auto& frame = channel.frames[f];
             lo50 = std::min(lo50, frame.mains_50.supporting_harmonics);
             hi50 = std::max(hi50, frame.mains_50.supporting_harmonics);
             lo60 = std::min(lo60, frame.mains_60.supporting_harmonics);
             hi60 = std::max(hi60, frame.mains_60.supporting_harmonics);
-            total = frame.mains_50.harmonics.size();
+            total50 = frame.mains_50.harmonics.size();
+            total60 = frame.mains_60.harmonics.size();
         }
         if (evidence) {
             lo50 = evidence->lo50; hi50 = evidence->hi50;
-            lo60 = evidence->lo60; hi60 = evidence->hi60; total = evidence->harmonic_count;
+            lo60 = evidence->lo60; hi60 = evidence->hi60;
+            total50 = evidence->harmonic_count; total60 = evidence->harmonic_count_60;
         }
         if (channel.psd) {
             const auto& psd = *channel.psd;
@@ -103,19 +116,38 @@ std::string describe_finding(const AnalysisReport& report, const FindingRow& row
             if (below_floor) text += "  Some RMS values are below the -300 dBFS numeric reporting floor.\n";
         }
         text += "  50 Hz harmonic bins above threshold: " + std::to_string(lo50 > hi50 ? 0 : lo50) + " to " +
-                std::to_string(hi50) + " of " + std::to_string(total) + "\n";
+                std::to_string(hi50) + " of " + std::to_string(total50) + "\n";
         text += "  60 Hz harmonic bins above threshold: " + std::to_string(lo60 > hi60 ? 0 : lo60) + " to " +
-                std::to_string(hi60) + " of " + std::to_string(total) + "\n";
+                std::to_string(hi60) + " of " + std::to_string(total60) + "\n";
     }
-    text += fmt("  Thresholds: level >= %.0f dBFS and >= %.0f dB over local floor\n",
+    text += fmt("  Thresholds: level >= %.6g dBFS and >= %.6g dB over local floor\n",
                 report.support_threshold_dbfs, report.minimum_prominence_db);
     text += "\nSettings\n";
     text += "  Hann window, " + std::to_string(report.frame_size_samples) + " samples, hop " +
             std::to_string(report.hop_size_samples) + " samples, " +
             std::to_string(report.sample_rate_hz) + " Hz\n";
+    if (report.frame_size_samples > 0)
+        text += fmt("  Bin spacing: %.3f Hz; interpolation does not establish resolving power.\n",
+                    static_cast<double>(report.sample_rate_hz) / static_cast<double>(report.frame_size_samples));
+    text += std::string("  Spectrum frame mean: ") + (report.spectrum_remove_mean ? "removed\n" : "retained\n");
+    text += fmt("  Peak search: %.6g to %.6g Hz; minimum separation %.6g Hz\n",
+                report.peak_search.minimum_frequency_hz,
+                report.peak_search.maximum_frequency_hz > 0 ? report.peak_search.maximum_frequency_hz : report.sample_rate_hz / 2.0,
+                report.peak_search.minimum_separation_hz);
+    text += "  Local floor: median, guard " + std::to_string(report.peak_search.floor_guard_bins) +
+            " bins, radius " + std::to_string(report.peak_search.floor_radius_bins) + " bins\n";
+    text += fmt("  Harmonic search tolerance: %.6g Hz (0 = nominal bins)\n", report.harmonic_tolerance_hz);
+    text += fmt("  Peak thresholds: level >= %.6g dBFS, prominence >= %.6g dB\n",
+                report.peak_min_level_dbfs, report.peak_min_prominence_db);
+    text += "  Welch PSD: Hann window, " + std::to_string(report.welch.segment_size) + " samples, hop " +
+            std::to_string(report.welch.hop_size) + "; segment mean " +
+            (report.welch.remove_mean ? "removed\n" : "retained\n");
     text += fmt("  Track match radius: max(%.2f Hz, ", report.tracker.fixed_hz_tolerance);
-    text += fmt("%.2f x bin spacing %.3f Hz)\n", report.tracker.bin_fraction, report.tracker.bin_spacing_hz);
+    text += fmt("%.2f x bin spacing %.3f Hz, ", report.tracker.bin_fraction, report.tracker.bin_spacing_hz);
+    text += fmt("%.6g x previous frequency)\n", report.tracker.relative_tolerance);
     text += "\nLimitations\n"
+            "  Frequency uncertainty is not estimated. Displayed decimal places are not an\n"
+            "  uncertainty bound; nearby tones may be unresolved by the analysis window.\n"
             "  A frequency pattern alone does not identify a device, ground loop, location,\n"
             "  recording date, or authenticity. Persistence labels are not validated against\n"
             "  a labeled corpus; this is a descriptive observation.\n";

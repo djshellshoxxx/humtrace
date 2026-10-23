@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <map>
 #include <random>
 #include <sstream>
 #include <streambuf>
@@ -170,6 +171,7 @@ void merge_evidence(FrameEvidence& all, const FrameEvidence& frame) {
     all.lo50 = std::min(all.lo50, frame.lo50); all.hi50 = std::max(all.hi50, frame.hi50);
     all.lo60 = std::min(all.lo60, frame.lo60); all.hi60 = std::max(all.hi60, frame.hi60);
     all.harmonic_count = frame.harmonic_count;
+    all.harmonic_count_60 = frame.harmonic_count_60;
     if (frame.measured) {
         if (!all.measured) { all.rms_lo = frame.rms_lo; all.rms_hi = frame.rms_hi; }
         all.measured = true;
@@ -203,10 +205,10 @@ public:
         rows_ = settings.spectrogram_rows;
         tracker_ = settings.tracker;
         tracker_.bin_spacing_hz = static_cast<double>(rate_) /
-            static_cast<double>(select_window_size(metadata, settings.max_interleaved_window_samples));
+            static_cast<double>(select_window_size(metadata, settings));
         // Conservative scratch bound: interleaved rolling window + Welch buffers,
         // one channel's FFT, bounded association candidates and active endpoints.
-        const auto window = select_window_size(metadata, settings.max_interleaved_window_samples);
+        const auto window = select_window_size(metadata, settings);
         const auto scratch = static_cast<std::uint64_t>(metadata.channels) *
             (window * sizeof(double) + 6 * settings.welch.segment_size * sizeof(double)) +
             window * 64ULL + 32ULL * 1024 * 1024 + budget_.limits.max_active_tracks * 128ULL +
@@ -217,10 +219,13 @@ public:
         counts_.resize(metadata.channels);
         suppressed_.resize(metadata.channels);
         reported_.resize(metadata.channels);
+        lineage_.resize(metadata.channels);
+        ambiguity_counts_.resize(metadata.channels);
         if (retain_views_) views_.resize(metadata.channels);
         for (std::size_t c = 0; c < metadata.channels; ++c) {
             associations_.emplace_back(tracker_, budget_.limits.max_active_tracks);
             append(frames(c), budget_, [](std::ostream&) {});
+            append(ambiguities(c), budget_, [](std::ostream&) {});
         }
     }
     [[nodiscard]] bool wants_views() const override { return retain_views_; }
@@ -254,6 +259,7 @@ public:
             evidence.lo50 = evidence.hi50 = measured.mains_50.supporting_harmonics;
             evidence.lo60 = evidence.hi60 = measured.mains_60.supporting_harmonics;
             evidence.harmonic_count = measured.mains_50.harmonics.size();
+            evidence.harmonic_count_60 = measured.mains_60.harmonics.size();
             if (measured.levels) {
                 evidence.measured = true;
                 evidence.rms_lo = evidence.rms_hi = measured.levels->rms_dbfs;
@@ -268,7 +274,15 @@ public:
             append(observations(channel, id), budget_, [&](std::ostream& output) {
                 output.write(reinterpret_cast<const char*>(&observation), sizeof(observation));
             });
-        }, [&](std::size_t id, TrackEndReason reason) { end_track(channel, id, reason); });
+        }, [&](std::size_t id, TrackEndReason reason) { end_track(channel, id, reason); },
+        [&](const TrackAmbiguity& event) {
+            append(ambiguities(channel), budget_, [&](std::ostream& out) {
+                if (ambiguity_counts_[channel]++) out << ", ";
+                write_ambiguity_json(out, event);
+            });
+            for (const auto id : event.parent_track_ids) lineage_[channel][id].end = event.id;
+            for (const auto id : event.child_track_ids) lineage_[channel][id].start = event.id;
+        });
         std::size_t active = 0;
         for (const auto& association : associations_) active += association.active_count();
         if (active > budget_.limits.max_active_tracks)
@@ -300,6 +314,7 @@ public:
         output.exceptions(std::ios::badbit | std::ios::failbit);
         ReportArrays arrays;
         arrays.frames = [&](std::ostream& out, std::size_t c) { copy_file_contents(out, frames(c), publication); };
+        arrays.ambiguities = [&](std::ostream& out, std::size_t c) { copy_file_contents(out, ambiguities(c), publication); };
         arrays.tracks = [&](std::ostream& out, std::size_t c) {
             bool first = true;
             for (std::size_t id = 1; id <= associations_[c].tracks_created(); ++id) {
@@ -358,6 +373,7 @@ public:
     std::vector<std::uint64_t> counts_;
 private:
     fs::path frames(std::size_t c) const { return directory_ / (std::to_string(c) + "-frames.json"); }
+    fs::path ambiguities(std::size_t c) const { return directory_ / (std::to_string(c) + "-ambiguities.json"); }
     fs::path observations(std::size_t c, std::size_t id) const {
         return directory_ / (std::to_string(c) + "-" + std::to_string(id) + ".observations");
     }
@@ -399,6 +415,12 @@ private:
         const auto path = observations(channel, id);
         Track track;
         track.id = id;
+        const auto link = lineage_[channel].find(id);
+        if (link != lineage_[channel].end()) {
+            track.start_ambiguity_id = link->second.start;
+            track.end_ambiguity_id = link->second.end;
+            lineage_[channel].erase(link);
+        }
         scan(path, budget_, [&](const TrackObservation& observation) {
             if (track.observed_frames++ == 0) track.first_frame = observation.frame_index;
             track.last_frame = observation.frame_index;
@@ -440,6 +462,9 @@ private:
         if (retain_views_) {
             StoredTrack stored{track.id, track.first_frame, track.last_frame, track.observed_frames,
                 track.missing_frames, track.median_frequency_hz, track.median_level_dbfs, track.drift_hz_per_second, {}};
+            stored.start_ambiguity_id = track.start_ambiguity_id;
+            stored.end_ambiguity_id = track.end_ambiguity_id;
+            stored.end_reason = track.end_reason;
             for (std::size_t f = track.first_frame; f <= track.last_frame; ++f) {
                 if ((f % 1024) == 0) budget_.checkpoint();
                 merge_evidence(stored.evidence, read_record<FrameEvidence>(evidence_path(channel), f));
@@ -461,6 +486,9 @@ private:
     TrackerSettings tracker_;
     std::vector<PeakAssociator> associations_;
     std::vector<std::size_t> suppressed_;
+    struct Lineage { std::optional<std::size_t> start, end; };
+    std::vector<std::map<std::size_t, Lineage>> lineage_;
+    std::vector<std::size_t> ambiguity_counts_;
 };
 } // namespace
 

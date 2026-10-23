@@ -22,6 +22,9 @@ struct FindingRow {
     std::size_t spanned_frames{};
     std::size_t first_frame{};
     std::size_t last_frame{};
+    std::optional<std::size_t> start_ambiguity_id{};
+    std::optional<std::size_t> end_ambiguity_id{};
+    TrackEndReason end_reason{TrackEndReason::EndOfInput};
 
     [[nodiscard]] double duration_seconds() const { return end_seconds - start_seconds; }
     [[nodiscard]] double coverage() const {

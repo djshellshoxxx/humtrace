@@ -25,6 +25,8 @@ jobs:
         run: make test
         env:
           HUMTRACE_REQUIRE_JSONSCHEMA: "1"
+      - name: Packaging regression tests
+        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
@@ -103,7 +105,17 @@ jobs:
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' ../CMakeLists.txt)
-          cd bin && windeployqt6 humtrace-gui.exe && cp ../../docs/release/THIRD_PARTY_NOTICES.md . && cp ../../docs/user-guide/limitations.md . && zip -r ../humtrace-$VER-windows.zip humtrace.exe humtrace-gui.exe '*.dll' platforms styles imageformats THIRD_PARTY_NOTICES.md limitations.md
+          cd ..
+          mkdir build-cmake/package
+          cp build-cmake/bin/humtrace.exe build-cmake/bin/humtrace-gui.exe build-cmake/package/
+          windeployqt6 --compiler-runtime --dir build-cmake/package build-cmake/package/humtrace-gui.exe
+          cp docs/release/THIRD_PARTY_NOTICES.md docs/user-guide/limitations.md build-cmake/SOURCE_COMMIT.txt build-cmake/package/
+          python3 tools/package_windows.py --stage build-cmake/package --runtime /ucrt64/bin
+          python3 tools/package_licenses.py --stage build-cmake/package --runtime /ucrt64/bin
+          mkdir build-cmake/package/qtbase-source
+          python3 tools/package_qt_sources.py --stage build-cmake/package/qtbase-source --version "$(qmake6 -query QT_VERSION)"
+          pacman -Q > build-cmake/package/MSYS2_PACKAGES.txt
+          python3 tools/package_windows.py --stage build-cmake/package --runtime /ucrt64/bin --archive build-cmake/humtrace-$VER-windows.zip
       - name: Windows smoke test (extracted package runs on a generated WAV)
         run: |
           cd build-cmake
@@ -115,8 +127,7 @@ jobs:
               o.writeframes(b''.join(struct.pack('<h', round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
           "
           mkdir -p pkgtest && cd pkgtest && unzip -o -q ../humtrace-$VER-windows.zip
-          ./humtrace.exe ../smoke.wav --json ../smoke.json --quiet
-          python3 -c "import json; d=json.load(open('../smoke.json')); assert d['channels'][0]['tracks'], d"
+          python3 ../../tools/smoke_package.py --cli humtrace.exe --gui humtrace-gui.exe
           cd .. && sha256sum humtrace-$VER-windows.zip | tee SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
@@ -148,10 +159,14 @@ jobs:
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           cd build-cmake/bin
           "$(brew --prefix qt)/bin/macdeployqt" humtrace-gui.app -codesign=-
-          cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md .
-          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md
+          cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md ../SOURCE_COMMIT.txt .
+          mkdir qtbase-source
+          python3 ../../tools/package_qt_sources.py --stage qtbase-source --version "$("$(brew --prefix qt)/bin/qmake" -query QT_VERSION)"
+          brew info --json=v2 qt > qtbase-source/BREW_INFO.json
+          codesign --verify --deep --strict humtrace-gui.app
+          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt qtbase-source
           cd .. && shasum -a 256 humtrace-*.zip | tee SHA256SUMS
-      - name: Smoke test the packaged CLI
+      - name: Smoke test extracted CLI and GUI
         run: |
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           python3 - <<'PY'
@@ -161,8 +176,7 @@ jobs:
               o.writeframes(b"".join(struct.pack("<h", round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
           PY
           mkdir pkgtest && cd pkgtest && unzip -q ../build-cmake/humtrace-$VER-macos-${{ matrix.arch }}.zip
-          ./humtrace ../smoke.wav --json ../smoke.json --quiet
-          python3 -c "import json; d=json.load(open('../smoke.json')); assert d['channels'][0]['tracks'], d"
+          python3 ../tools/smoke_package.py --cli humtrace --gui humtrace-gui.app/Contents/MacOS/humtrace-gui
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}-zip
@@ -180,14 +194,33 @@ jobs:
       - uses: actions/checkout@v4
       - id: v
         run: echo "version=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+      - name: Validate release identity
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            test "$GITHUB_REF_NAME" = "v$VERSION" || { echo "Tag/project version mismatch"; exit 1; }
+            test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          fi
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: Record tested source
+        run: |
+          printf '%s\n' '${{ github.sha }}' > dist/SOURCE_COMMIT.txt
+          git archive --format=tar.gz --prefix=humtrace-source/ HEAD > dist/humtrace-${{ steps.v.outputs.version }}-source.tar.gz
       - name: Combine checksums
         run: |
           cd dist && ls -l
           sha256sum humtrace-* > SHA256SUMS.txt && rm -f SHA256SUMS && cat SHA256SUMS.txt
+      - name: Refuse to replace a published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          status=$(gh api "repos/${{ github.repository }}/releases/tags/v$VERSION" --silent --include 2>&1) && { echo "Release v$VERSION already exists; refusing replacement"; exit 1; }
+          printf '%s' "$status" | grep -q '404' || { printf '%s\n' "$status"; exit 1; }
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.v.outputs.version }}

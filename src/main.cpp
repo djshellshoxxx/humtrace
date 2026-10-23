@@ -12,6 +12,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #endif
+#include <algorithm>
 #include <atomic>
 #include <csignal>
 #include <cmath>
@@ -31,7 +32,7 @@ std::atomic<bool> g_cancel{false};
 double g_a4_hz = 440.0; // note-name tuning reference (--a4)
 extern "C" void on_interrupt(int) { g_cancel = true; }
 
-void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
+void print_summary(const humtrace::AnalysisReport& report, bool quiet, const humtrace::DiskAnalysis* storage = nullptr) {
     const auto rate = static_cast<double>(report.sample_rate_hz);
     const auto window = static_cast<double>(report.frame_size_samples);
     std::cout << std::fixed << std::setprecision(3)
@@ -46,7 +47,7 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
               << "Input SHA-256: " << report.input_sha256 << '\n';
     for (const auto& channel : report.channel_results) {
         std::cout << "Channel " << channel.channel_number << " measured frames: "
-                  << channel.frames.size() << '\n';
+                  << (storage ? storage->frame_count(channel.channel_number - 1) : channel.frames.size()) << '\n';
         if (channel.psd) {
             const auto& psd = *channel.psd;
             std::cout << "  Welch PSD: " << psd.segments_averaged << " segments, "
@@ -57,7 +58,9 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
             std::cout << "  Welch PSD unavailable: fewer than one complete segment.\n";
         }
         if (!quiet)
-        for (const auto& frame : channel.frames) {
+        for (std::uint64_t f = 0, count = storage ? storage->frame_count(channel.channel_number - 1) : channel.frames.size(); f < count; ++f) {
+            if (g_cancel.load()) throw humtrace::AnalysisCancelled();
+            const auto frame = storage ? storage->frame(channel.channel_number - 1, f) : channel.frames[static_cast<std::size_t>(f)];
             const auto& peak = frame.strongest_peak;
             std::cout << "  " << static_cast<double>(frame.start_sample) / rate << " s: ";
             if (peak.frequency_hz == 0.0)
@@ -71,7 +74,8 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
                       << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
                       << frame.mains_60.harmonics.size() << '\n';
         }
-        for (const auto& track : channel.tracks)
+        auto print_track = [&](const auto& track) {
+            if (g_cancel.load()) throw humtrace::AnalysisCancelled();
             std::cout << "  Track " << track.id << ": observed in " << track.observed_frames << " of "
                       << track.observed_frames + track.missing_frames << " frames, median "
                       << track.median_frequency_hz << " Hz ("
@@ -80,15 +84,41 @@ void print_summary(const humtrace::AnalysisReport& report, bool quiet) {
                               : std::string("-"))
                       << "), drift " << track.drift_hz_per_second
                       << " Hz/s\n";
+        };
+        if (storage) {
+            for (std::uint64_t t = 0; t < storage->track_count(channel.channel_number - 1); ++t)
+                print_track(storage->track(channel.channel_number - 1, t));
+        } else for (const auto& track : channel.tracks) print_track(track);
     }
     for (const auto& w : report.warnings)
         std::cout << "Warning: " << w << '\n';
     std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
 }
 
-humtrace::AnalysisReport run(const std::string& path, const humtrace::PipelineSettings& settings) {
+bool should_page(const std::string& path, const humtrace::PipelineSettings& settings) {
+    std::ifstream input(humtrace::path_from_utf8(path), std::ios::binary);
+    if (!input) throw std::runtime_error("could not open input file");
+    humtrace::WavStreamReader reader(input);
+    const auto& metadata = reader.metadata();
+    const auto window = humtrace::select_window_size(metadata, settings);
+    const auto hop = settings.hop_size_samples ? settings.hop_size_samples : window / 2;
+    const auto windows = (metadata.frame_count - window) / hop + 2;
+    const auto peak_cost = 2 * (sizeof(humtrace::Track) + sizeof(humtrace::TrackObservation) +
+        sizeof(humtrace::TrackPeak) + 4 * sizeof(std::size_t) + 64);
+    const auto cost = static_cast<std::uint64_t>(metadata.channels) *
+        (sizeof(humtrace::InterferenceFrame) + 20 * sizeof(humtrace::HarmonicMeasurement) +
+         settings.max_peaks_per_frame * peak_cost + 2 * sizeof(humtrace::TrackAmbiguity) +
+         2 * sizeof(humtrace::FramePeaks) + 128);
+    return windows > std::min<std::uint64_t>(16ULL * 1024 * 1024, settings.max_result_bytes) / cost;
+}
+
+humtrace::AnalysisReport run(const std::string& path, const humtrace::PipelineSettings& settings, bool summary_only = false) {
     humtrace::SessionCallbacks callbacks;
     callbacks.cancelled = [] { return g_cancel.load(); };
+    if (summary_only && should_page(path, settings)) {
+        const auto storage = humtrace::analyze_file_paged(path, settings, callbacks);
+        return humtrace::comparison_summary(*storage, callbacks.cancelled);
+    }
     return humtrace::analyze_file(path, settings, callbacks, false).report;
 }
 
@@ -103,6 +133,17 @@ int usage() {
                  "  --a4 <Hz>    tuning reference for note names, 400-480 (default 440)\n"
                  "  --psd-segment-size <samples>  Welch power-of-two segment (default 4096)\n"
                  "  --psd-hop-size <samples>      Welch hop, 1 to segment size (default 2048)\n"
+                 "  --frame-size / --hop-size <samples>  power-of-two frame (16-65536), hop <= frame; 0 = automatic\n"
+                 "  --window hann  only supported analysis window\n"
+                 "  --keep-dc / --psd-remove-mean  explicit spectrum/Welch detrending choices\n"
+                 "  --band-min-hz / --band-max-hz <Hz>  peak search band (max 0 = Nyquist)\n"
+                 "  --peak-separation-hz <Hz>  minimum retained peak spacing\n"
+                 "  --floor-guard-bins / --floor-radius-bins <bins>  local baseline neighborhood\n"
+                 "  --peak-min-dbfs / --peak-prominence-db <dB>  peak thresholds\n"
+                 "  --harmonic-min-dbfs / --harmonic-prominence-db <dB>  harmonic thresholds\n"
+                 "  --harmonic-tolerance-hz <Hz>  bounded off-nominal search (0 = nearest bin)\n"
+                 "  --max-peaks / --track-min-frames / --track-max-gap <count>\n"
+                 "  --track-tolerance-hz / --track-relative-tolerance / --track-bin-fraction <number>\n"
                  "  --quiet      omit the per-frame lines\n"
                  "  --full-path  store input paths as typed (default: file name only)\n"
                  "  --force      replace an existing output file (default: refuse)\n";
@@ -143,6 +184,48 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             if (a == "--psd-segment-size") out.pipeline.welch.segment_size = static_cast<std::size_t>(n);
             else out.pipeline.welch.hop_size = static_cast<std::size_t>(n);
         }
+        else if (a == "--keep-dc") out.pipeline.spectrum_remove_mean = false;
+        else if (a == "--psd-remove-mean") out.pipeline.welch.remove_mean = true;
+        else if (a == "--window") {
+            if (value() != "hann") throw std::invalid_argument("only the hann window is supported");
+        }
+        else if (a == "--frame-size" || a == "--hop-size" || a == "--floor-guard-bins" ||
+                 a == "--floor-radius-bins" || a == "--max-peaks" || a == "--track-min-frames" ||
+                 a == "--track-max-gap") {
+            const auto& v = value();
+            if (v.empty() || v.find_first_not_of("0123456789") != std::string::npos)
+                throw std::invalid_argument(a + " needs a non-negative integer");
+            const auto n = std::stoull(v);
+            if (n > std::numeric_limits<std::size_t>::max()) throw std::invalid_argument(a + " is out of range");
+            const auto count = static_cast<std::size_t>(n);
+            if (a == "--frame-size") out.pipeline.frame_size_samples = count;
+            else if (a == "--hop-size") out.pipeline.hop_size_samples = count;
+            else if (a == "--floor-guard-bins") out.pipeline.peak_search.floor_guard_bins = count;
+            else if (a == "--floor-radius-bins") out.pipeline.peak_search.floor_radius_bins = count;
+            else if (a == "--max-peaks") out.pipeline.max_peaks_per_frame = count;
+            else if (a == "--track-min-frames") out.pipeline.tracker.min_observed_frames = count;
+            else out.pipeline.tracker.max_gap_frames = count;
+        }
+        else if (a == "--band-min-hz" || a == "--band-max-hz" || a == "--peak-separation-hz" ||
+                 a == "--peak-min-dbfs" || a == "--peak-prominence-db" || a == "--harmonic-min-dbfs" ||
+                 a == "--harmonic-prominence-db" || a == "--harmonic-tolerance-hz" ||
+                 a == "--track-tolerance-hz" || a == "--track-relative-tolerance" || a == "--track-bin-fraction") {
+            const auto& v = value();
+            std::size_t used = 0;
+            const auto number = std::stod(v, &used);
+            if (used != v.size() || !std::isfinite(number)) throw std::invalid_argument(a + " needs a finite number");
+            if (a == "--band-min-hz") out.pipeline.peak_search.minimum_frequency_hz = number;
+            else if (a == "--band-max-hz") out.pipeline.peak_search.maximum_frequency_hz = number;
+            else if (a == "--peak-separation-hz") out.pipeline.peak_search.minimum_separation_hz = number;
+            else if (a == "--peak-min-dbfs") out.pipeline.peak_min_level_dbfs = number;
+            else if (a == "--peak-prominence-db") out.pipeline.peak_min_prominence_db = number;
+            else if (a == "--harmonic-min-dbfs") out.pipeline.support_threshold_dbfs = number;
+            else if (a == "--harmonic-prominence-db") out.pipeline.minimum_prominence_db = number;
+            else if (a == "--harmonic-tolerance-hz") out.pipeline.harmonic_tolerance_hz = number;
+            else if (a == "--track-tolerance-hz") out.pipeline.tracker.fixed_hz_tolerance = number;
+            else if (a == "--track-relative-tolerance") out.pipeline.tracker.relative_tolerance = number;
+            else out.pipeline.tracker.bin_fraction = number;
+        }
         else if (a == "--a4") {
             const auto& v = value();
             std::size_t used = 0;
@@ -171,7 +254,9 @@ bool parse_options(const std::vector<std::string>& args, std::size_t first, bool
             out.compare.frequency_tolerance_hz = std::stod(v, &used);
             if (used != v.size()) throw std::invalid_argument("--tolerance needs a number");
         } else if (allow_compare && a == "--map") {
-            std::stringstream list(value());
+            const auto& mapping = value();
+            if (mapping.empty() || mapping.back() == ',') throw std::invalid_argument("--map entries look like 1:2");
+            std::stringstream list(mapping);
             std::string pair;
             while (std::getline(list, pair, ',')) {
                 const auto colon = pair.find(':');
@@ -262,8 +347,8 @@ int main(int argc, char** argv) {
                         throw std::invalid_argument("channel map must pair each channel at most once");
                 }
             }
-            auto a = run(args[1], options.pipeline);
-            auto b = run(args[2], options.pipeline);
+            auto a = run(args[1], options.pipeline, true);
+            auto b = run(args[2], options.pipeline, true);
             a.input_path = display_path(a.input_path, options.full_path);
             b.input_path = display_path(b.input_path, options.full_path);
             const auto comparison = humtrace::compare_reports(a, b, options.compare, [] { return g_cancel.load(); });
@@ -308,6 +393,20 @@ int main(int argc, char** argv) {
             return 0;
         }
         g_a4_hz = options.a4_hz;
+        if (options.csv_path.empty() && should_page(args[0], options.pipeline)) {
+            humtrace::SessionCallbacks callbacks;
+            callbacks.cancelled = [] { return g_cancel.load(); };
+            const auto storage = humtrace::analyze_file_paged(args[0], options.pipeline, callbacks);
+            auto summary = storage->report();
+            summary.input_path = display_path(summary.input_path, options.full_path);
+            std::cout << "Storage: disk-backed (complete measurements, bounded working memory)\n";
+            print_summary(summary, options.quiet, storage.get());
+            if (!options.json_path.empty()) {
+                storage->export_json(options.json_path, options.force, options.full_path, callbacks);
+                std::cout << "JSON report saved: " << options.json_path << '\n';
+            }
+            return 0;
+        }
         auto report = run(args[0], options.pipeline);
         report.input_path = display_path(report.input_path, options.full_path);
         print_summary(report, options.quiet);

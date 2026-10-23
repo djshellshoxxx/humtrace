@@ -29,7 +29,27 @@ The left rail lists recently opened recordings (stored locally in the applicatio
 
 - **Export** (Ctrl+E) shows a preview (schema version, input SHA-256, track count). The default stores the file name only, not the directory. Saving is atomic: a failed export never leaves a partial file.
 - **Compare** (Ctrl+Shift+C) analyzes a second recording and lists matched and unmatched tracks. No time alignment or resampling is applied (shown in a banner and recorded in the exported comparison). Unmatched tracks stay unmatched; absence is not scored as zero.
-- CLI: `humtrace file.wav --json report.json [--quiet] [--full-path] [--force]`, `humtrace compare a.wav b.wav --tolerance 1.0 --map 1:2,2:1 --json c.json`. Reports store only the input file name unless `--full-path` is given; an existing output file is refused unless `--force`; an output may never be the input. Ctrl+C cancels. On Windows the CLI expects ASCII paths; use the GUI for other names.
+- CLI: `humtrace file.wav --json report.json [--quiet] [--full-path] [--force]`, `humtrace compare a.wav b.wav --tolerance 1.0 --map 1:2,2:1 --json c.json`. Reports store only the input file name unless `--full-path` is given; an existing output file is refused unless `--force`; an output may never be the input. Ctrl+C cancels. Both CLI and desktop accept UTF-8 paths on Windows.
+
+## Reproducible detector configuration
+
+The desktop Settings dialog and CLI expose frame/hop, spectrum and Welch detrending,
+peak frequency band/separation, baseline guard/radius, thresholds, and bounded nominal
+harmonic search. Only the Hann window is supported. For example:
+
+`humtrace file.wav --frame-size 4096 --hop-size 1024 --band-min-hz 20 --band-max-hz 1000 --harmonic-tolerance-hz 2 --json report.json`
+
+`--keep-dc` keeps the frame mean in the amplitude spectrum; `--psd-remove-mean`
+subtracts each Welch segment mean. The defaults are independent. Effective choices
+are stored in schema 1.3 reports. Search tolerance is a configured neighborhood, not
+an error bar or probability. A null uncertainty means no calibrated uncertainty model
+is available. Use the reported bin spacing, Hann width, boundary and competition flags
+when inspecting a peak. Candidate split/merge links mark unresolved associations;
+track IDs are local to a channel/run and can reference suppressed short segments.
+
+For long reports use `--stream --json report.json`. The desktop chooses disk-backed
+storage for long/dense analyses automatically. Exports retain complete measurements,
+including intervals with missing observations; storage never invents gap samples.
 
 ## Keyboard
 
