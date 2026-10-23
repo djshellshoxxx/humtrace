@@ -1,8 +1,15 @@
 # HumTrace product requirements and delivery plan
 
-## Beta v0.1 target
+## Release platform target
 
-Windows and Linux desktop tool for inspecting audio recordings for repeatable electrical and electronic interference. A result must show measurements and settings, identify plausible patterns with qualified language, and avoid asserting a physical cause from frequency alone.
+HumTrace is a standalone desktop tool and CLI for Windows, macOS, and Linux to
+inspect audio recordings for repeatable electrical and electronic interference.
+The three platform families share the release target, while support claims
+remain gated by platform-specific package and application evidence below. A
+result must show measurements and settings, identify plausible patterns with
+qualified language, and avoid asserting a physical cause from frequency alone.
+VST3 and CLAP are deferred applicability candidates, not included formats or
+supported host workflows; see [plugin adapter](plugin-adapter.md).
 
 ## v0.1 acceptance requirements
 
@@ -13,7 +20,7 @@ Windows and Linux desktop tool for inspecting audio recordings for repeatable el
 - Expose analysis settings and reproducibly export a versioned report.
 - Handle invalid files and cancellation without modifying the source recording.
 - Maintain a deterministic synthetic test suite with measurable frequency/level tolerances and false-positive negatives.
-- Package and natively verify Windows and Linux artifacts before claiming either platform complete.
+- Build and verify Linux, Windows, Apple silicon macOS, and Intel macOS artifacts on native runners. Claim a platform/architecture only after its package, GUI launch, install, and user-workflow checks pass; CI compilation or a CLI smoke test alone does not complete this gate.
 
 Detailed acceptance behavior is linked from the [design index](../design/index.md). In particular, v0.1 also requires input/report integrity metadata with bounded claims, keyboard and screen-reader access to measurements, no silent resampling/downmixing/alignment, and a validation corpus split by recording session/source to prevent leakage.
 
@@ -26,9 +33,9 @@ Detailed acceptance behavior is linked from the [design index](../design/index.m
 5. **Desktop application (implemented; accessibility unverified):** Qt 6 app with background analysis, waveform, spectrogram, spectrum with table, findings, inspector, comparison and export. Screen-reader verification and AT-SPI/Narrator tests remain.
 6. **Release hardening:** CI, sanitizer jobs, dependency/license audit, installers, native platform verification, user guide, beta notes.
 
-Optional plugin, ENF matching, hardware troubleshooting suggestions, and signature library are outside the first release gate unless the core beta is already verified.
+Optional plugin, ENF matching, hardware troubleshooting suggestions, and signature library are outside the standalone release gate unless the core beta is already verified. A plugin release, if later selected, targets the same Windows/macOS/Linux families but needs its own format, host, architecture, and validation gates; standalone artifacts do not constitute VST3 or CLAP support.
 
-Deferred feature specs: [ENF](enf-analysis.md), [diagnostic guidance](diagnostic-guidance.md), [signature library](signature-library.md), and [plugin adapter](plugin-adapter.md). Each remains gated by separate research, validation, and licensing review; none is implied to be implemented by its specification.
+Deferred feature specs: [ENF](enf-analysis.md), [diagnostic guidance](diagnostic-guidance.md), [signature library](signature-library.md), [plugin adapter](plugin-adapter.md), and the proposed [plugin capture interface](plugin-capture-interface.md). Each remains gated by separate product decisions, validation, and licensing review; none is implied to be implemented by its specification.
 
 Toolkit direction is provisionally Qt 6 Widgets, subject to the prototype gates and per-module license/SBOM review in [GUI toolkit decision research](../research/gui-toolkit-decision-research.md). This does not set the HumTrace product license.
 
