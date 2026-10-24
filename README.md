@@ -11,7 +11,7 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Desktop app (Qt 6): waveform, spectrogram, spectrum with table alternative, findings list and inspector, keyboard operation, high-contrast theme, cancellable analysis, atomic JSON export, two-recording comparison.
 - CLI: `humtrace file.wav --json report.json`; `humtrace compare a.wav b.wav`.
 
-This is a development build: synthetic validation does not establish forensic accuracy, source attribution, or chain of custody. Desktop and native package readiness must be established by the corresponding tests and release gates. See the [user guide](docs/user-guide/user-guide.md), [limitations](docs/user-guide/limitations.md), and [release notes](docs/release/release-notes-0.2.4.md).
+This is a development build: synthetic validation does not establish forensic accuracy, source attribution, or chain of custody. Desktop and native package readiness must be established by the corresponding tests and release gates. See the [user guide](docs/user-guide/user-guide.md), [limitations](docs/user-guide/limitations.md), and [release notes](docs/release/release-notes-0.2.5.md).
 
 ## Build and test
 

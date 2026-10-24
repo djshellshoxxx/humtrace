@@ -26,7 +26,7 @@ jobs:
         env:
           HUMTRACE_REQUIRE_JSONSCHEMA: "1"
       - name: Packaging regression tests
-        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py
+        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py && python3 tests/test_package_source.py && python3 tests/test_source_metadata.py --cmake "$(command -v cmake)"
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
@@ -52,7 +52,7 @@ jobs:
       - name: Install Qt 6 and packaging tools
         run: sudo apt-get update && sudo apt-get install -y qt6-base-dev cmake ninja-build
       - name: Configure and build
-        run: cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build-cmake
+        run: cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DHUMTRACE_SOURCE_REVISION="$GITHUB_SHA" && cmake --build build-cmake
       - name: Test (offscreen GUI tests and smoke fuzzers included)
         run: pip install jsonschema && cd build-cmake && HUMTRACE_REQUIRE_JSONSCHEMA=1 ctest --output-on-failure
       - name: Paged GUI long-file memory and heartbeat acceptance
@@ -67,15 +67,7 @@ jobs:
       - name: Smoke test the installed package
         run: |
           sudo apt-get install -y ./build-cmake/humtrace-*.deb
-          python3 - <<'PY'
-          import math, struct, wave
-          with wave.open("smoke.wav", "wb") as o:
-              o.setnchannels(1); o.setsampwidth(2); o.setframerate(4096)
-              o.writeframes(b"".join(struct.pack("<h", round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
-          PY
-          humtrace smoke.wav --json smoke.json
-          python3 -c "import json; d=json.load(open('smoke.json')); assert d['channels'][0]['tracks'], d"
-          QT_QPA_PLATFORM=offscreen timeout 5 humtrace-gui smoke.wav || test $? -eq 124
+          python3 tools/smoke_package.py --cli /usr/bin/humtrace --gui /usr/bin/humtrace-gui --expected-source-sha "$GITHUB_SHA" --source-file /usr/share/doc/humtrace/SOURCE_COMMIT.txt
       - uses: actions/upload-artifact@v4
         with:
           name: linux-packages
@@ -101,7 +93,7 @@ jobs:
         run: make test
       - name: Qt build, tests, and package
         run: |
-          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DHUMTRACE_SOURCE_REVISION="$GITHUB_SHA"
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' ../CMakeLists.txt)
@@ -129,7 +121,7 @@ jobs:
               o.writeframes(b''.join(struct.pack('<h', round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
           "
           mkdir -p pkgtest && cd pkgtest && unzip -o -q ../humtrace-$VER-windows.zip
-          python3 ../../tools/smoke_package.py --cli humtrace.exe --gui humtrace-gui.exe
+          python3 ../../tools/smoke_package.py --cli humtrace.exe --gui humtrace-gui.exe --expected-source-sha "$GITHUB_SHA" --source-file SOURCE_COMMIT.txt
           cd .. && sha256sum humtrace-$VER-windows.zip | tee SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
@@ -153,7 +145,7 @@ jobs:
         run: make test
       - name: Qt build and tests
         run: |
-          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.minimum_os }} -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
+          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DHUMTRACE_SOURCE_REVISION="$GITHUB_SHA" -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.minimum_os }} -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
       - name: Package (ad-hoc signed app bundle + CLI)
@@ -182,7 +174,7 @@ jobs:
               o.writeframes(b"".join(struct.pack("<h", round(9000*math.sin(2*math.pi*60*i/4096))) for i in range(16384)))
           PY
           mkdir pkgtest && cd pkgtest && unzip -q ../build-cmake/humtrace-$VER-macos-${{ matrix.arch }}.zip
-          python3 ../tools/smoke_package.py --cli humtrace --gui humtrace-gui.app/Contents/MacOS/humtrace-gui
+          python3 ../tools/smoke_package.py --cli humtrace --gui humtrace-gui.app/Contents/MacOS/humtrace-gui --expected-source-sha "$GITHUB_SHA" --source-file SOURCE_COMMIT.txt
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}-zip

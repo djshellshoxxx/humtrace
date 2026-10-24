@@ -9,7 +9,12 @@ metadata, conservative candidate split/merge events across retained and disk-bac
 storage, stronger provenance consistency checks, comparison settings snapshots,
 locale/encoding/extreme-number fixes, desktop accessibility alternatives and release
 runtime dependency checks. See the [acceptance ledger](release/acceptance-0.2.4.md),
-[current QA evidence](testing/qa-0.2.4.md) and [release notes](release/release-notes-0.2.4.md).
+[current QA evidence](testing/qa-0.2.4.md) and [release notes](release/release-notes-0.2.5.md).
+
+The 0.2.5 patch supplies source-revision metadata explicitly and checks it in each
+installed/extracted native package. Download verification found that the 0.2.4
+Windows package's embedded revision was `unknown`; its release-level source SHA
+and exact-tag CI trace were correct. That published tag and its assets are preserved.
 
 The package workflow includes a checksum-verified upstream QtBase source baseline,
 Windows runtime/plugin package and notice metadata, and a macOS per-image dependency,
