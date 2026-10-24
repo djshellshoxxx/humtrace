@@ -40,6 +40,7 @@ test: $(BUILD_DIR)/humtrace $(addprefix $(BUILD_DIR)/test_,$(TESTS))
 	$(PYTHON) tests/test_packaging.py
 	$(PYTHON) tests/test_package_licenses.py
 	$(PYTHON) tests/test_qt_sources.py
+	$(PYTHON) tests/test_macos_packaging.py
 
 # 30-second randomized settings-matrix fuzz (override: make fuzz FUZZ_SECONDS=60).
 FUZZ_SECONDS ?= 30

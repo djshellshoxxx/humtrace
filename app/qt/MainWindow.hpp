@@ -29,6 +29,7 @@ class SpectrogramChart;
 class SpectrumChart;
 class ViewState;
 class WaveformChart;
+class WaveformModel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -91,6 +92,7 @@ private:
     void dataReadFailed(const QString& message);
     int currentFrame() const;
     void updateFrameViews();
+    void updateWaveformView();
 
     humtrace::ui::JobState state_{humtrace::ui::JobState::Empty};
     QString path_;
@@ -116,6 +118,8 @@ private:
 
     ViewState* view_;
     WaveformChart* waveform_{nullptr};
+    WaveformModel* waveformModel_{nullptr};
+    QTableView* waveformTable_{nullptr};
     SpectrogramChart* spectrogram_{nullptr};
     SpectrumChart* spectrum_{nullptr};
     QTableWidget* frameTable_{nullptr};

@@ -9,6 +9,7 @@
 #include "SpectrumChart.hpp"
 #include "ViewState.hpp"
 #include "WaveformChart.hpp"
+#include "WaveformModel.hpp"
 #include "humtrace/sha256.hpp"
 #include "humtrace/version.hpp"
 
@@ -35,6 +36,9 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QToolButton>
+#include <QHeaderView>
+#include <QTabWidget>
+#include <QScrollBar>
 #include <cmath>
 #include <fstream>
 #include <numbers>
@@ -255,6 +259,110 @@ private slots:
         QCOMPARE(plotRows, 128);
     }
 
+    void waveformTablePreservesEnvelopeValuesAndPartialBoundsForBothStorageModes() {
+        const auto path = writeWav(dir_.path(), "waveform-table.wav", 3.017);
+        humtrace::PipelineSettings settings;
+        settings.waveform_buckets = 17;
+        const auto plain = humtrace::analyze_file(path.toStdString(), settings, {}, true);
+        const auto totalSamples = plain.report.channel_results[0].frames.back().start_sample + plain.report.frame_size_samples;
+        for (bool paged : {false, true}) {
+            if (!QFile::exists(path)) writeWav(dir_.path(), "waveform-table.wav", 3.017);
+            MainWindow window;
+            window.setPipelineSettings(settings);
+            window.setPagedAnalysis(paged);
+            QTableView* table = nullptr;
+            for (auto* candidate : window.findChildren<QTableView*>())
+                if (candidate->accessibleName() == "Waveform envelope table") table = candidate;
+            QVERIFY2(table, "waveform envelope has no table alternative");
+            QVERIFY(!qobject_cast<QTableWidget*>(table));
+            QCOMPARE(table->model()->rowCount(), 0);
+            window.openRecording(path);
+            QCOMPARE(table->model()->rowCount(), 0); // Ready must not retain old measurements.
+            window.startAnalysis();
+            QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+            QVERIFY(QFile::remove(path)); // Channel changes and bounds use stored results, never reopen input.
+            auto* model = table->model();
+            QVERIFY(model->inherits("QAbstractTableModel"));
+            QVERIFY(QAccessible::queryAccessibleInterface(table)->tableInterface());
+            for (int channel = 0; channel < 2; ++channel) {
+                window.viewState()->setChannel(channel);
+                const auto& expected = plain.views[static_cast<std::size_t>(channel)];
+                QCOMPARE(model->rowCount(), int(expected.waveform_min.size()));
+                QCOMPARE(model->columnCount(), 7);
+                for (int row = 0; row < model->rowCount(); ++row) {
+                    const auto i = static_cast<std::size_t>(row);
+                    const auto start = static_cast<std::uint64_t>(row) * expected.waveform_samples_per_bucket;
+                    const auto end = std::min(totalSamples, start + expected.waveform_samples_per_bucket);
+                    const auto value = [&](int column) { return model->data(model->index(row, column), Qt::UserRole); };
+                    QCOMPARE(value(0).toInt(), channel + 1);
+                    QCOMPARE(value(1).toULongLong(), start); QCOMPARE(value(2).toULongLong(), end);
+                    QCOMPARE(value(3).toDouble(), double(start) / plain.report.sample_rate_hz);
+                    QCOMPARE(value(4).toDouble(), double(end) / plain.report.sample_rate_hz);
+                    QCOMPARE(value(5).toDouble(), double(expected.waveform_min[i]));
+                    QCOMPARE(value(6).toDouble(), double(expected.waveform_max[i]));
+                }
+                const auto last = model->rowCount() - 1;
+                QCOMPARE(model->data(model->index(last, 2), Qt::UserRole).toULongLong(), totalSamples);
+                QVERIFY(totalSamples % expected.waveform_samples_per_bucket != 0);
+                const auto accessible = model->data(model->index(last, 5), Qt::AccessibleTextRole).toString();
+                QVERIFY2(accessible.contains("normalized FS") && accessible.contains(QString("channel %1").arg(channel + 1)), qPrintable(accessible));
+                QVERIFY(model->headerData(2, Qt::Horizontal, Qt::AccessibleTextRole).toString().contains("exclusive"));
+            }
+            if (const char* shots = std::getenv("HUMTRACE_SCREENSHOT_DIR")) {
+                for (auto* tabs : window.findChildren<QTabWidget*>())
+                    if (tabs->indexOf(table) >= 0) tabs->setCurrentWidget(table);
+                window.resize(1024, 680);
+                window.show();
+                QTest::qWait(30);
+                const auto mode = paged ? "paged" : "retained";
+                window.grab().save(QString("%1/waveform-table-%2-bounds.png").arg(shots, mode));
+                table->horizontalScrollBar()->setValue(table->horizontalScrollBar()->maximum());
+                QTest::qWait(20);
+                window.grab().save(QString("%1/waveform-table-%2-levels.png").arg(shots, mode));
+            }
+            window.openRecording(writeWav(dir_.path(), "waveform-table-next.wav", 2.0));
+            QCOMPARE(model->rowCount(), 0);
+        }
+    }
+
+    void waveformTableUsesVirtualRowsForAMillionExistingBuckets() {
+        constexpr std::size_t count = 1U << 20;
+        humtrace::ChannelView source;
+        source.waveform_min.assign(count, -0.125F);
+        source.waveform_max.assign(count, 0.5F);
+        source.waveform_samples_per_bucket = 7;
+        const auto residentBytes = []() -> std::uint64_t {
+            QFile status("/proc/self/smaps_rollup");
+            if (!status.open(QIODevice::ReadOnly)) return 0; // RSS accounting is Linux-specific.
+            for (const auto& line : status.readAll().split('\n'))
+                if (line.startsWith("Rss:")) return line.simplified().split(' ')[1].toULongLong() * 1024;
+            return 0;
+        };
+        const auto before = residentBytes();
+        WaveformModel model;
+        QTableView table;
+        table.verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+        table.horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+        table.setModel(&model);
+        const auto samples = std::uint64_t{7} * count - 3;
+        model.setEnvelope(&source, 48000, samples, 2);
+        QCOMPARE(model.rowCount(), int(count));
+        QCOMPARE(model.columnCount(), 7);
+        const auto last = int(count) - 1;
+        QCOMPARE(model.data(model.index(last, 2), Qt::UserRole).toULongLong(), samples);
+        QCOMPARE(model.data(model.index(last, 5), Qt::UserRole).toDouble(), -0.125);
+        QCOMPARE(model.data(model.index(last, 6), Qt::UserRole).toDouble(), 0.5);
+        QVERIFY(model.data(model.index(last, 5), Qt::AccessibleDescriptionRole).toString().contains("not individual raw audio"));
+        const auto after = residentBytes();
+        if (before && after) {
+            QVERIFY2(after <= before + 64U * 1024U * 1024U, "virtual envelope table allocated more than 64 MiB beyond its existing summary vectors");
+            qInfo("WAVEFORM_VIRTUAL rows=%d rss_growth_bytes=%llu", int(count), static_cast<unsigned long long>(after > before ? after - before : 0));
+        }
+        QVERIFY(!model.headerData(-1, Qt::Horizontal, Qt::DisplayRole).isValid());
+        model.setEnvelope(nullptr, 0, 0, 0);
+        QCOMPARE(model.rowCount(), 0);
+    }
+
     void silentFramesDoNotInventAnInterpolatedPeak() {
         MainWindow window;
         humtrace::PipelineSettings settings;
@@ -405,8 +513,24 @@ private slots:
         QVERIFY(w.report() == nullptr);
     }
 
+    void minimumWindowSizeKeepsEssentialControlsVisible_data() {
+        QTest::addColumn<bool>("largerControlFonts");
+        QTest::newRow("platform defaults") << false;
+        QTest::newRow("larger native control fonts") << true;
+    }
+
     void minimumWindowSizeKeepsEssentialControlsVisible() {
+        QFETCH(bool, largerControlFonts);
         MainWindow window;
+        if (largerControlFonts)
+            for (auto* control : window.findChildren<QWidget*>()) {
+                const auto name = control->accessibleName();
+                if (name != "Spectrogram frequency scale" && name != "Spectrogram palette" &&
+                    name != "Spectrogram floor" && name != "Spectrogram ceiling") continue;
+                auto font = control->font();
+                font.setPointSizeF(font.pointSizeF() * 1.3);
+                control->setFont(font);
+            }
         window.resize(1024, 680);
         window.show();
         window.openRecording(writeWav(dir_.path(), "minimum-window.wav", 3.0));

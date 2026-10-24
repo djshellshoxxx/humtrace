@@ -24,9 +24,10 @@ The desktop target links Qt 6 Core, Gui, and Widgets. CMake currently requests
 Qt 6.4 or later rather than pinning one exact Qt patch release. Linux packages
 are built against the runner's Qt; Windows uses `windeployqt6`; macOS uses
 `macdeployqt`. The resulting versions, transitive libraries, platform plugins,
-and their license options can therefore differ by artifact. The native packaging job records installed versions and runtime inventories;
-these must be reconciled with each actual archive before treating the inventory
-as complete.
+and their license options can therefore differ by artifact. The packaging
+workflow records installed-version/package metadata and runtime dependency
+inventories; these must be reconciled with each actual archive before treating
+any inventory as complete.
 
 Qt components are offered under different terms depending on the component
 and build, including LGPL, GPL, and commercial terms. Do not apply one blanket
@@ -36,15 +37,22 @@ license option, required license and copyright files, and any source or
 relinking materials required by the selected terms. Qt's official
 [LGPL text and guidance](https://doc.qt.io/qt-6/lgpl.html) is a starting point;
 the exact component and distribution path must be reviewed against its actual
-license files. Dynamic linking alone does not close the review. The Windows workflow maps bundled root DLLs to MSYS2 packages, records source
-and staged hashes, and copies installed package license files. Windows and
-macOS archives also include a SHA256-verified upstream QtBase source archive,
-its LICENSES tree and a scope manifest matched to the installed Qt version.
-macOS records Homebrew metadata; Linux declares system shared-library dependencies
-and installs this notice. Distribution patches, other Qt modules/dependencies,
-applicable license options and relinkability still need artifact-specific review.
-The upstream source baseline and inventories do not by themselves establish
-complete corresponding source or legal compliance.
+license files. Dynamic linking alone does not close the review. The Windows
+workflow is configured to map bundled root runtime DLLs to MSYS2 packages,
+record source/staged hashes, copy installed package license files, and save the
+installed package list. Its coverage is the root runtime DLL set; it is not a
+per-file license/SBOM inventory of every executable and nested plugin. Windows
+and macOS workflows stage a SHA256-verified upstream QtBase source archive, its
+`LICENSES` tree, and a scope manifest matched to the installed Qt version.
+macOS also records Homebrew metadata. This QtBase archive is an upstream
+baseline; it does not establish correspondence to distribution-patched binaries
+or provide source for other Qt modules and dependencies. Linux declares system
+shared-library dependencies and installs this notice. Distribution patches,
+other Qt modules/dependencies, applicable license options, corresponding-source
+and relinkability obligations still need artifact-specific review. These
+inventories do not establish complete corresponding source or legal compliance.
+The current v0.2.4 Windows package rerun and macOS dependency/signature checks
+are pending, so no current native archive is certified by this draft.
 
 A v0.2.3 Windows archive was inspected and contained the two executables and Qt
 plugin folders but no root Qt DLLs. Its smoke test ran with runner `PATH`

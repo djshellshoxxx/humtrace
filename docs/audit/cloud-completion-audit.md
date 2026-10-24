@@ -18,13 +18,15 @@ The CI workflow configures native Linux (Ubuntu 24.04), Windows UCRT64, Apple
 silicon macOS, and Intel macOS jobs. Linux CI builds `.deb`/`.tar.gz`, installs
 the `.deb`, runs the CLI on generated audio, and attempts a timed installed GUI
 launch. Windows builds and offscreen-tests the GUI, creates a ZIP, runs the
-packaged CLI on generated audio, and launches the extracted packaged GUI for five
-seconds using the native Windows plugin. Both macOS architectures build and
-offscreen-test the GUI, create an ad-hoc-signed app bundle archive, and run the
-packaged CLI plus GUI for five seconds with Qt offscreen mode. Linux attempts a
-timed GUI launch after installing the `.deb`. These are runner CI checks, not
-clean-machine install, upgrade, screen-reader, interactive native UI, or native
-user-workflow acceptance; macOS signing remains ad hoc and is not notarized.
+packaged CLI on generated audio, and launches the extracted packaged GUI using
+the native Windows plugin. Both macOS architectures build and offscreen-test the
+GUI, stage a QtBase source baseline and Homebrew metadata, verify an ad-hoc app
+signature, and run packaged CLI/GUI smoke checks. The latest v0.2.4 native
+packaging run is still pending: Windows needs rerun after its byte-stable fixture
+fix, and macOS dependency closure/signature acceptance is in progress. These
+runner checks are not clean-machine install, upgrade, screen-reader, interactive
+native UI, or native user-workflow acceptance; macOS signing remains ad hoc and
+is not notarized.
 
 This revision adds export collision rejection, exclusive temporary creation,
 no-replace publication without `--force`, Windows replacement support, UTF-8 path
@@ -40,9 +42,9 @@ an isolated package smoke test before the Windows package gate can close.
 
 ## Long-file implementation and uncompleted requirements
 
-- Long-file desktop analyses now use immutable disk-backed frame/track storage,
+- Long-file desktop and ordinary CLI analyses now use private disk-backed frame/track storage,
   exact random-access inspector records, a byte-budgeted LRU and multiresolution
-  spectrogram viewport tiles. Small-file in-memory results retain a caller-visible
+  spectrogram viewport tiles. Retained in-memory API results keep a caller-visible
   cap. Comparison loads bounded track summaries in a cancellable background task;
   oversized track/candidate workloads fail explicitly rather than discard data.
   JSON export is incremental and cancellable. The CLI and desktop hour-scale
@@ -59,8 +61,13 @@ an isolated package smoke test before the Windows package gate can close.
   Qt, and Windows/Linux event handling is not an interactive user acceptance
   test.
 - Report import and independent verification workflow, dependency SBOM, exact
-  per-artifact Qt version/module/plugin inventory, associated license/source/
-  relinking materials, and compliance review remain outstanding. The root
+  per-artifact Qt version/module/plugin inventory, complete corresponding-source/
+  relinking materials, and compliance review remain outstanding. The Windows
+  helper inventories licenses for bundled root runtime DLLs and the Qt helper
+  stages a checksum-verified upstream QtBase archive, checksum, `LICENSES` files
+  and scope manifest; macOS adds Homebrew metadata. These are provenance inputs,
+  not full module/dependency inventories or the patched corresponding sources.
+  Native package outputs still need inspection. The root
   source has no product `LICENSE` file, so this audit selects no HumTrace code
   license.
 - ENF matching, signature libraries, hardware diagnostic guidance and plugin

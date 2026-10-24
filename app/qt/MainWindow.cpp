@@ -10,6 +10,7 @@
 #include "Theme.hpp"
 #include "ViewState.hpp"
 #include "WaveformChart.hpp"
+#include "WaveformModel.hpp"
 #include "humtrace/compare.hpp"
 #include "humtrace/wav.hpp"
 #include "humtrace/version.hpp"
@@ -30,6 +31,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QListWidget>
@@ -107,6 +109,7 @@ MainWindow::~MainWindow() {
         worker_->requestCancel();
         worker_->wait();
     }
+    waveformModel_->setEnvelope(nullptr, 0, 0, 0);
 }
 
 void MainWindow::buildUi() {
@@ -128,7 +131,7 @@ void MainWindow::buildUi() {
     layout->addWidget(summary_);
 
     auto* row = new QWidget;
-    auto* rl = new QHBoxLayout(row);
+    auto* rl = new QGridLayout(row);
     rl->setContentsMargins(0, 0, 0, 0);
     scaleBox_ = new QComboBox;
     scaleBox_->addItems({tr("Log frequency"), tr("Linear frequency")});
@@ -148,8 +151,11 @@ void MainWindow::buildUi() {
     ceilingBox_->setAccessibleName(tr("Spectrogram ceiling"));
     auto* note = new QLabel(tr("Display only; does not change analysis"));
     note->setWordWrap(true);
-    for (QWidget* w : std::initializer_list<QWidget*>{scaleBox_, paletteBox_, floorBox_, ceilingBox_, note}) rl->addWidget(w);
-    rl->addStretch();
+    rl->addWidget(scaleBox_, 0, 0);
+    rl->addWidget(paletteBox_, 0, 1);
+    rl->addWidget(floorBox_, 1, 0);
+    rl->addWidget(ceilingBox_, 1, 1);
+    rl->addWidget(note, 2, 0, 1, 2);
     layout->addWidget(row);
     for (QWidget* w : std::initializer_list<QWidget*>{scaleBox_, paletteBox_})
         connect(qobject_cast<QComboBox*>(w), &QComboBox::currentIndexChanged, this, &MainWindow::applyDisplayOptions);
@@ -173,7 +179,19 @@ void MainWindow::buildUi() {
     auto* tabs = new QTabWidget;
     tabs->addTab(spectrum_, tr("Spectrum"));
     tabs->addTab(frameTable_, tr("Spectrum table"));
-    tabs->setAccessibleName(tr("Selected-frame spectrum views"));
+    waveformModel_ = new WaveformModel(this);
+    waveformTable_ = new QTableView;
+    waveformTable_->setModel(waveformModel_);
+    waveformTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    waveformTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    waveformTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    waveformTable_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    waveformTable_->horizontalHeader()->setDefaultSectionSize(155);
+    waveformTable_->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    waveformTable_->setAccessibleName(tr("Waveform envelope table"));
+    waveformTable_->setAccessibleDescription(tr("Selected channel's stored min/max envelope buckets in normalized full scale, with inclusive start and exclusive end sample/time bounds. Use Channels to inspect each channel. These summaries are not individual raw audio samples."));
+    tabs->addTab(waveformTable_, tr("Waveform table"));
+    tabs->setAccessibleName(tr("Spectrum and waveform measurement views"));
     layout->addWidget(waveform_, 2);
     layout->addWidget(spectrogram_, 4);
     spectrumInfo_ = new QLabel;
@@ -208,6 +226,7 @@ void MainWindow::buildUi() {
     connect(view_, &ViewState::channelChanged, this, [this] {
         if (channels_->currentRow() != view_->channel()) channels_->setCurrentRow(view_->channel());
         if (paged_) loadFindingPage(0);
+        updateWaveformView();
         updateFrameViews();
     });
     connect(recent_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { openRecording(item->data(Qt::UserRole).toString()); });
@@ -355,6 +374,7 @@ void MainWindow::showError(const QString& stage, const QString& message) {
 }
 
 void MainWindow::clearResults() {
+    waveformModel_->setEnvelope(nullptr, 0, 0, 0);
     spectrogram_->setData(nullptr, nullptr, nullptr);
     paged_.reset();
     result_.reset();
@@ -503,6 +523,7 @@ void MainWindow::onFinished(std::shared_ptr<humtrace::AnalysisResult> result) {
     view_->reset(r.duration_seconds, hop);
     view_->setChannel(std::min(restoreChannel_, int(r.channels) - 1));
     waveform_->setViews(&result_->views, r.duration_seconds, r.sample_rate_hz);
+    updateWaveformView();
     if (paged_) spectrogram_->setPagedData(paged_.get(), &result_->views, &r, &findings_);
     else spectrogram_->setData(&result_->views, &r, &findings_);
     applyDisplayOptions();
@@ -586,6 +607,29 @@ int MainWindow::currentFrame() const {
 }
 
 void MainWindow::onCursorChanged() { updateFrameViews(); }
+
+void MainWindow::updateWaveformView() {
+    if (!result_ || view_->channel() < 0 || view_->channel() >= static_cast<int>(result_->views.size())) {
+        waveformModel_->setEnvelope(nullptr, 0, 0, 0);
+        return;
+    }
+    try {
+        const auto channel = static_cast<std::size_t>(view_->channel());
+        const auto& report = result_->report;
+        const auto& frames = report.channel_results[channel].frames;
+        std::uint64_t samples = 0;
+        if (paged_) {
+            const auto count = paged_->storage().frame_count(channel);
+            if (count) samples = paged_->storage().frame_start_sample(channel, count - 1) + report.frame_size_samples;
+        } else if (!frames.empty()) samples = frames.back().start_sample + report.frame_size_samples;
+        waveformModel_->setEnvelope(&result_->views[channel], report.sample_rate_hz, samples,
+            static_cast<std::uint16_t>(channel + 1));
+    } catch (const std::exception& error) {
+        waveformModel_->setEnvelope(nullptr, 0, 0, 0);
+        const auto message = QString::fromUtf8(error.what());
+        QTimer::singleShot(0, this, [this, message] { dataReadFailed(message); });
+    }
+}
 
 void MainWindow::updateFrameViews() {
     const int f = currentFrame();

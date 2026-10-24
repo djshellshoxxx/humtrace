@@ -56,6 +56,8 @@ class PackageLicenseInventory(unittest.TestCase):
             self.assertEqual(item["package"], "qt-base")
             self.assertEqual(item["version"], "6.8.3-1")
             self.assertEqual(item["license_files"][0]["path"], "licenses/qt-base/LICENSE")
+            self.assertEqual(item["license_files"][0]["origin"],
+                             "/ucrt64/share/licenses/qt-base/LICENSE")
             self.assertEqual(item["license_files"][0]["sha256"],
                              hashlib.sha256(b"license text\n").hexdigest())
             written = json.loads((stage / "DEPENDENCY_LICENSES.json").read_text(encoding="utf-8"))
@@ -108,6 +110,53 @@ class PackageLicenseInventory(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "no installed license files"):
                 licenses.collect_package_licenses(manifest, runtime, stage, run=run)
             self.assertFalse((stage / "DEPENDENCY_LICENSES.json").exists())
+
+    def test_copies_package_owned_license_outside_share_licenses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "ucrt64" / "bin"
+            install_root = runtime.parent
+            stage = root / "stage"
+            runtime.mkdir(parents=True)
+            stage.mkdir()
+            (runtime / "icu.dll").write_bytes(b"icu runtime")
+            (stage / "icu.dll").write_bytes(b"icu runtime")
+            manifest = stage / "DEPENDENCIES.json"
+            manifest.write_text(json.dumps([
+                {"file": "icu.dll", "imports": [],
+                 "sha256": hashlib.sha256(b"icu runtime").hexdigest()},
+            ]), encoding="utf-8")
+            license_file = install_root / "share" / "icu" / "78.3" / "LICENSE"
+            license_file.parent.mkdir(parents=True)
+            license_file.write_bytes(b"ICU license\n")
+
+            def run(command):
+                if command[:2] == ["pacman", "-Qqo"]:
+                    self.assertEqual(command[2], "/ucrt64/bin/icu.dll")
+                    return "mingw-w64-ucrt-x86_64-icu\n"
+                if command[:2] == ["pacman", "-Q"]:
+                    return "mingw-w64-ucrt-x86_64-icu 78.3-4\n"
+                if command[:2] == ["pacman", "-Ql"]:
+                    return ("mingw-w64-ucrt-x86_64-icu /ucrt64/share/icu/78.3/\n"
+                            "mingw-w64-ucrt-x86_64-icu /ucrt64/share/icu/78.3/LICENSE\n"
+                            "mingw-w64-ucrt-x86_64-icu /ucrt64/bin/libicudt78.dll\n")
+                self.fail(f"unexpected command: {command}")
+
+            result = licenses.collect_package_licenses(manifest, runtime, stage, run=run)
+            item = result["dependencies"][0]
+            copied = stage / "licenses" / "mingw-w64-ucrt-x86_64-icu" / "share" / "icu" / "78.3" / "LICENSE"
+            self.assertEqual(copied.read_bytes(), b"ICU license\n")
+            self.assertEqual(item["version"], "78.3-4")
+            self.assertEqual(item["license_files"], [{
+                "path": "licenses/mingw-w64-ucrt-x86_64-icu/share/icu/78.3/LICENSE",
+                "origin": "/ucrt64/share/icu/78.3/LICENSE",
+                "sha256": hashlib.sha256(b"ICU license\n").hexdigest(),
+            }])
+
+    def test_rejects_license_candidate_outside_declared_prefix(self):
+        with self.assertRaisesRegex(RuntimeError, "outside package prefix"):
+            licenses._parse_license_paths(
+                "pkg /other/share/licenses/pkg/LICENSE\n", "pkg", "/ucrt64")
 
     def test_rejects_license_paths_outside_the_package_license_tree(self):
         with self.assertRaisesRegex(RuntimeError, "unsafe pacman license path"):

@@ -1,5 +1,11 @@
 # Code audit
 
+> Historical audit: the 0.2.4 continuation addresses the duration-sized result tree
+> through disk-backed desktop/CLI storage and incremental atomic JSON, and supports
+> Windows UTF-8 CLI paths. See [current acceptance](../release/acceptance-0.2.4.md)
+> and [QA evidence](../testing/qa-0.2.4.md); the observations below describe the
+> revision audited when this document was written.
+
 Scope: all of `src/`, `include/`, `app/`, `tests/`, build files. Method: own review, an independent unanchored review by a separate agent, sanitizer runs (ASan/UBSan, `-Werror -Wconversion`), and the randomized settings fuzzers.
 
 ## Fixed

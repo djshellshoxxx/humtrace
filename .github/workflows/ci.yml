@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: humtrace-ci-${{ github.ref }}
+  group: humtrace-ci-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -26,7 +26,7 @@ jobs:
         env:
           HUMTRACE_REQUIRE_JSONSCHEMA: "1"
       - name: Packaging regression tests
-        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py
+        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
@@ -147,23 +147,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt 6 and build tools
-        run: brew install qt cmake ninja
+        run: brew install qtbase cmake ninja
       - name: Core build and tests
         run: make test
       - name: Qt build and tests
         run: |
-          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)" -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
       - name: Package (ad-hoc signed app bundle + CLI)
         run: |
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           cd build-cmake/bin
-          "$(brew --prefix qt)/bin/macdeployqt" humtrace-gui.app -codesign=-
+          lipo -verify_arch ${{ matrix.arch }} humtrace
+          lipo -verify_arch ${{ matrix.arch }} humtrace-gui.app/Contents/MacOS/humtrace-gui
+          python3 ../../tools/package_macos.py --app humtrace-gui.app --qt-prefix "$(brew --prefix qtbase)" --brew-prefix "$(brew --prefix)"
           cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md ../SOURCE_COMMIT.txt .
           mkdir qtbase-source
-          python3 ../../tools/package_qt_sources.py --stage qtbase-source --version "$("$(brew --prefix qt)/bin/qmake" -query QT_VERSION)"
-          brew info --json=v2 qt > qtbase-source/BREW_INFO.json
+          python3 ../../tools/package_qt_sources.py --stage qtbase-source --version "$("$(brew --prefix qtbase)/bin/qmake" -query QT_VERSION)"
+          brew info --json=v2 qtbase > qtbase-source/BREW_INFO.json
           codesign --verify --deep --strict humtrace-gui.app
           zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt qtbase-source
           cd .. && shasum -a 256 humtrace-*.zip | tee SHA256SUMS
@@ -214,7 +216,22 @@ jobs:
       - name: Combine checksums
         run: |
           cd dist && ls -l
-          sha256sum humtrace-* > SHA256SUMS.txt && rm -f SHA256SUMS && cat SHA256SUMS.txt
+          sha256sum humtrace-* SOURCE_COMMIT.txt > SHA256SUMS.txt && rm -f SHA256SUMS && cat SHA256SUMS.txt
+      - name: Compose traceable release notes
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+          NATIVE_CI_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          notes = Path(f"docs/release/release-notes-{os.environ['VERSION']}.md").read_text(encoding="utf-8")
+          notes += f"\n\nSource commit: [{os.environ['SOURCE_SHA']}]({os.environ['SOURCE_URL']}).\n"
+          notes += f"Native build, tests and package smoke evidence: [CI run]({os.environ['NATIVE_CI_URL']}).\n"
+          Path("release-notes.md").write_text(notes, encoding="utf-8")
+          PY
       - name: Refuse to replace a published release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -228,5 +245,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: HumTrace ${{ steps.v.outputs.version }} (preview)
           prerelease: true
-          body_path: docs/release/release-notes-${{ steps.v.outputs.version }}.md
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          make_latest: false
+          body_path: release-notes.md
           files: dist/*

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 
@@ -74,8 +75,13 @@ def _parse_version(output, expected_package):
 
 
 def _parse_license_paths(output, package, pacman_root):
-    """Parse `pacman -Ql`; return license paths below share/licenses only."""
-    prefix = PurePosixPath(pacman_root) / "share" / "licenses"
+    """Find package-owned notices in share/licenses or conventional license files.
+
+    Some packages install their sole license elsewhere in the package prefix;
+    ICU, for example, lists share/icu/<version>/LICENSE.
+    """
+    root = PurePosixPath(pacman_root)
+    licenses_prefix = root / "share" / "licenses"
     paths = []
     for line in output.splitlines():
         fields = line.split(maxsplit=1)
@@ -87,11 +93,23 @@ def _parse_license_paths(output, package, pacman_root):
         path = PurePosixPath(raw_path)
         if ".." in path.parts:
             raise RuntimeError(f"unsafe pacman license path for {package}: {raw_path}")
+        if not path.is_absolute():
+            raise RuntimeError(f"unsafe relative pacman license path for {package}: {raw_path}")
         try:
-            path.relative_to(prefix)
+            path.relative_to(root)
         except ValueError:
+            if path.name.casefold().startswith(("license", "licence", "copying", "copyright")):
+                raise RuntimeError(f"license candidate is outside package prefix: {raw_path}")
             continue
-        paths.append(path)
+        try:
+            path.relative_to(licenses_prefix)
+            in_license_tree = True
+        except ValueError:
+            in_license_tree = False
+        if in_license_tree:
+            paths.append(path)
+        elif re.match(r"^(?:licenses?|licences?|copying|copyright)(?:$|[._ -])", path.name, re.IGNORECASE):
+            paths.append(path)
     return sorted(set(paths), key=str)
 
 
@@ -149,12 +167,23 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
                     continue
                 if not source.is_file():
                     raise RuntimeError(f"pacman-listed license file is missing for {package}: {source}")
-                relative = license_path.relative_to(pacman_root_path / "share" / "licenses")
-                if relative.parts and relative.parts[0] == package:
-                    relative = PurePosixPath(*relative.parts[1:])
+                resolved_source = source.resolve()
+                if not resolved_source.is_relative_to(runtime_root.resolve()):
+                    raise RuntimeError(f"pacman-listed license file escapes package prefix for {package}: {source}")
+                try:
+                    relative = license_path.relative_to(pacman_root_path / "share" / "licenses")
+                except ValueError:
+                    # Preserve the package-relative location for license files
+                    # installed outside the conventional shared license tree.
+                    relative = license_path.relative_to(pacman_root_path)
+                else:
+                    if relative.parts and relative.parts[0] == package:
+                        relative = PurePosixPath(*relative.parts[1:])
                 target_relative = PurePosixPath("licenses") / package / relative
+                if any(record["relative"] == target_relative for record in records):
+                    raise RuntimeError(f"duplicate package license destination for {package}: {target_relative}")
                 records.append({"source": source, "relative": target_relative,
-                                "sha256": _sha256(source)})
+                                "origin": license_path.as_posix(), "sha256": _sha256(source)})
             if not records:
                 raise RuntimeError(f"package {package} has no installed license files under share/licenses")
             planned_packages[package] = {"version": version, "license_records": records}
@@ -163,7 +192,8 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
         dependency["package"] = package
         dependency["version"] = planned_packages[package]["version"]
         dependency["license_files"] = [
-            {"path": record["relative"].as_posix(), "sha256": record["sha256"]}
+            {"path": record["relative"].as_posix(), "origin": record["origin"],
+             "sha256": record["sha256"]}
             for record in planned_packages[package]["license_records"]
         ]
 
