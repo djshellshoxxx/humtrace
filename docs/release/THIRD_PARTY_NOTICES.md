@@ -56,7 +56,11 @@ Cellar kegs. The package records unique, ambiguous, and unmapped results,
 formula license/source fields, hashes of matching keg files, and installed
 formula recipes when available. This is an inventory aid, not proof that a
 filename match is the same binary that was copied or a license determination.
-The native CI run must validate this new mapping before it is accepted.
+Native run 40108498575 confirmed 25 unique-formula matches on ARM64 and 23 on
+Intel, with no ambiguous matches; the only two unmapped images on each
+platform were HumTrace's own CLI and GUI executables. Both extracted macOS
+packages passed smoke tests. This inventory still needs artifact-specific
+review and is not legal approval.
 The per-image dependency manifest records minimum OS, load commands and final
 hashes after signing. The QtBase archive is an upstream baseline; it does not
 establish correspondence to distribution-patched binaries or provide source

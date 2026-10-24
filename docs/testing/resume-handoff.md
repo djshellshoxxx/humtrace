@@ -1,45 +1,44 @@
 # HumTrace continuation handoff — 2026-10-24
 
-## Current source and published release
+## Repository and checkpoints
 
-- Repository: `djshellshoxxx/humtrace` only.
-- Branch: `codex/humtrace-release-0.2.4`.
-- Latest implementation checkpoint: `9ee9d35` (macOS Homebrew provenance candidate inventory); the following handoff commit is documentation-only. Verify the exact remote ref after pushing both commits with a normal fast-forward.
-- Pull request: [draft PR #9](https://github.com/djshellshoxxx/humtrace/pull/9), open and mergeable; update its body after publishing the checkpoint and observing its CI.
-- Published preview: [v0.2.5](https://github.com/djshellshoxxx/humtrace/releases/tag/v0.2.5), tag object `6ca598bcdda17384b4bb924cec2d1ec9f005c3c6`, peeled source `d9a24852024e86bff7e25d64bd50a73d02944c6c`. Preserve that release and its assets.
+- Work only in `djshellshoxxx/humtrace`, branch `codex/humtrace-release-0.2.4`.
+- Latest implementation commit: `9ee9d3529a66a402a69c119133e9c2e3c8b95717` adds macOS Homebrew provenance candidates.
+- Full native CI run [40108498575](https://github.com/djshellshoxxx/humtrace/actions/runs/40108498575) passed on branch head `de6591bd8a55f0afc1822ccf2646672801a41f45`; this handoff commit is documentation-only and follows that tested code.
+- Draft PR #9 is open: https://github.com/djshellshoxxx/humtrace/pull/9. Update its body after pushing this handoff.
+- Preserve published preview v0.2.5: tag object `6ca598bcdda17384b4bb924cec2d1ec9f005c3c6`, peeled source `d9a24852024e86bff7e25d64bd50a73d02944c6c`. No successor release was published; the release workflow was skipped for the PR branch.
 
-## Completed source and documentation work
+## Completed provenance work
 
 The Windows package workflow stages exact-version MSYS2 source-only recipe
-archives for the package owners of bundled runtime DLLs. It validates package
-page versions, redirects, documented MSYS2 primary/Tier 1 mirror hosts, and the
-final `/mingw/sources/<versioned archive>` path. It caps per-archive and
-aggregate downloads at 256 MiB and 512 MiB, records locally computed SHA-256
-values, and identifies the archives as recipes and patches rather than upstream
-source archives. CI run 40107153073 passed the collection and extracted-package
-smoke test: 21 recipes were staged for 22 runtime owners.
+archives for bundled runtime DLL owners. It validates package versions,
+official primary/Tier 1 mirrors and source paths; caps downloads at 256 MiB per
+archive and 512 MiB aggregate; and records local SHA-256 values. CI run
+40108498575 staged 21 recipe archives for 22 owners. The recipes and patches
+do not contain the referenced upstream sources.
 
-The current macOS packaging change maps each packaged Mach-O image by exact
-filename against installed Homebrew Cellar kegs. It records unique-formula,
-ambiguous, and unmapped cases, formula license/source metadata, matching keg
-file hashes under 2 GiB aggregate and 512 MiB per-file caps, and installed
-formula recipes when available. It also includes the exact installed
-`brew info --json=v1 --installed` inventory. This is informational candidate
-provenance, not proof of binary correspondence, complete source, license
-applicability, or legal compliance. Seven fixture tests pass. Native CI must
-confirm the macOS runner metadata layout.
+The macOS workflow maps each packaged Mach-O image by exact filename against
+installed Homebrew Cellar kegs. It records unique, ambiguous, and unmapped
+cases, formula license/source metadata, hashes of matching keg files with
+512 MiB per-file / 2 GiB aggregate limits, and installed formula recipes when
+available. Seven fixture tests pass. Run 40108498575 confirmed 25 unique
+formula matches and no ambiguous matches on ARM64; Intel reported 23 unique
+matches and no ambiguous matches. The two unmapped images on each platform
+were HumTrace's own CLI and GUI. Both macOS archives passed extracted smoke
+tests. This is a candidate provenance aid, not binary identity, complete
+source, license applicability, or legal proof.
 
-HumTrace's first plugin workflow is specified as live DAW capture through a
-transparent effect followed by offline analysis. Both VST3 and CLAP are
-selected, with REAPER 7.83 as the first host target and mono/stereo F32,
-8–192 kHz, 60-second default, and 1–120-second capture bounds. The README and
-acceptance docs label the project as a software artwork and audio-analysis
-application. No capture job, adapter, plugin binary, or tested host support has
-been implemented.
+HumTrace is labeled a software artwork in the README. Its first plugin workflow
+is specified as a transparent live DAW capture effect followed by offline
+analysis. VST3 and CLAP are selected, with REAPER 7.83 as first host target and
+mono/stereo F32, 8–192 kHz, 60-second default and 1–120-second bounds. No
+capture worker, adapter, plugin binary or tested host support is implemented.
+The current executor has no REAPER binary; manual host validation remains
+pending.
 
-## Validation evidence and CI history
+## Test and artifact evidence
 
-The 62 portable packaging/provenance tests pass locally:
+All 62 local portable packaging/provenance tests passed:
 
 - `python3 tests/test_packaging.py` — 2
 - `python3 tests/test_package_licenses.py` — 12
@@ -50,53 +49,46 @@ The 62 portable packaging/provenance tests pass locally:
 - `python3 tests/test_package_source.py` — 6
 - `python3 tests/test_source_metadata.py --cmake /workspace/humtrace-tools/cmake/data/bin/cmake` — 4
 
-Python compilation, `git diff --check`, and staged-patch secret-pattern checks
-pass. The C++ CTest evidence remains the earlier checkpoint's 29/29 and was not
-rerun because this slice changes packaging metadata only.
+Python compilation, `git diff --check` and staged-patch secret-pattern checks
+passed. C++ CTest was not rerun for this packaging-only slice; earlier evidence
+remains 29/29.
 
-CI run
-[40107153073](https://github.com/djshellshoxxx/humtrace/actions/runs/40107153073)
-passed all six jobs on implementation checkpoint
-`9456747194c858bee900566ff525febeb2c05728`: Linux core/CLI QA, sanitizer,
-GUI/memory/fuzz, Windows package, macOS 15 Intel, and macOS 26 ARM64. Windows
-passed build/tests, package, and extracted ZIP smoke (isolated PATH, UTF-8,
-CLI analysis, GUI initialization, five-second event loop); it staged 21 MSYS2
-source-only recipe archives for 22 owners. Its nested Windows package SHA-256
-from the job log is
-`44260dcff2fc57dfbac1591ad893947bd2715fc0c4440e519444288beceadb5f`.
-The outer GitHub artifact SHA-256 is
-`20a160d4e5e86cfd42b616bda313512840e477812efe7e7639eb1c7f6f1aa2c1`.
-Other outer artifact digests: Linux
-`1fb2f4066fb9b6279509b68433b75c1165fd15538a62d76663549c915ffbf695`,
-macOS x86_64
-`5ceec3d3e6044f569c24406ea4131eef62093af813abf846c8a9e333d02917e6`,
-macOS ARM64
-`ec8f6d18a47c5ebffd2ee735e0beb06d91c34cd8bcec4eb10a09fb1dbfed547e`.
-These outer digests are not the nested macOS/Linux package checksums. A
-separate local byte-level audit of artifact contents remains pending because
-the artifact download connector supplies a file reference without a
-workspace-readable path.
+Run 40108498575 passed all six jobs: Linux core/CLI, sanitizers, Linux GUI,
+Windows, macOS 15 Intel and macOS 26 ARM64. The separate release job was
+skipped because this is a PR branch. All extracted package smoke tests passed.
+Runner artifact archives and nested package checksums:
 
-A live HEAD request from this executor to the MSYS2 GCC recipe URL is blocked by
-its HTTP 403 CONNECT proxy. The corrected native Windows runner performed the
-download and staged the recipe archives. Continue respecting the proxy; no
-bypass was attempted.
+| Platform | Nested package SHA-256 | Outer Actions artifact SHA-256 |
+| --- | --- | --- |
+| Linux .deb | `364a0ed450b0c53bae0eeb110798a3144be573e14fc6d13c41674dcb7053dc77` | `5899f6c9dc762e7bec0929e53bed4c3d837166d56792768c4061836dcc59c03d` |
+| Linux .tar.gz | `e70c3b3def80d77d919c5b546c916e9e86f2bac418888a460b14b68653bdf563` | same Linux artifact archive |
+| Windows ZIP | `c75592454b947cf16b9763e23a67e44d2270f9317475069778aff0b1204f6b35` | `e8c0bcd903c7d7921ef80bf1d1a79e53cdcd53b9be541d324008732a6b21b630` |
+| macOS ARM64 ZIP | `af3332101e8f4d710a06943d7f4644cf39a81f103187930aba5a5f6273f31c74` | `0d6a4dd31048d67d88e849e052d563eb7fca3f9672d7a180928ac443755973fb` |
+| macOS Intel ZIP | `2e9cd3fd346356e1e57648f45d5a170d0b0110168eeccf2d801c09244e246f08` | `472d14ac0d17f6fcd9f43d3e1b7698e32e7dec68678fc137ace6d2f03ed604b0` |
 
-## Next actions and remaining gates
+Outer artifact archive hashes are not nested package hashes. A local byte-level
+artifact audit remains pending because the GitHub artifact connector returns
+an opaque file reference with no workspace-readable path. Do not bypass the
+executor's HTTP 403 CONNECT proxy to download source archives; native runners
+successfully collected the permitted MSYS2 recipes.
 
-1. Push the implementation and this handoff to the existing branch with a
-   normal fast-forward, verify the exact remote head, and update draft PR #9.
-2. Check the resulting CI for both macOS jobs. Confirm the provenance JSON
-   includes expected formula candidates and that ambiguous/unmapped results
-   remain visible; adjust only from native-runner evidence.
-3. Perform byte-level audit of the Windows/macOS/Linux artifacts when a safe
-   workspace-readable transfer is available; distinguish outer GitHub
-   artifact digests from nested package checksums.
-4. Continue bounded report import/verification, capture provenance, and
-   licensing/provenance work. Actual VST3/CLAP adapters and host validation
-   remain incomplete; standalone packages are not plugins.
-5. Held-out recordings, calibrated uncertainty, platform accessibility and
-   clean-machine acceptance, complete artifact-specific licensing review, and
-   signing/notarization remain open. Windows is unsigned; macOS signatures are
-   ad-hoc. Do not publish a successor until native artifacts, tests, notes,
-   checksums and remaining gates are reviewed.
+## Remaining work and gates
+
+1. Push this handoff and documentation update with a normal fast-forward,
+   verify the exact remote ref, and refresh PR #9.
+2. Continue report import/verification and captured-audio provenance where
+   feasible. The report importer, report-file digest/verifier, capture worker,
+   and VST3/CLAP adapters remain unimplemented.
+3. Complete artifact-specific licensing and corresponding-source review;
+   recipe archives and Homebrew formula metadata are supplemental only.
+4. Obtain held-out labeled recordings and calibrated uncertainty; verify
+   accessibility, installation/upgrade and clean-machine workflows with
+   humans on target platforms.
+5. Validate VST3 and CLAP in the selected REAPER host on each supported
+   platform before claiming plugin support. No new signing identity is
+   available; Windows remains unsigned and macOS ad-hoc signed/not notarized.
+
+Do not overwrite v0.2.5 or publish standalone packages as plugins. Any later
+release must use a new version, accurate standalone/plugin scope, tested native
+assets, source SHA, checksum manifest and installation guidance. A preview may
+remain prerelease while external acceptance gates are open.

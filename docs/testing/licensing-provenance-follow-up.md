@@ -35,9 +35,12 @@ mapping from each packaged Mach-O image to files and formula metadata in
 installed Homebrew Cellar kegs. It keeps ambiguous and unmapped results visible,
 records license and source fields from Homebrew JSON, hashes matching keg
 files, and includes the installed formula recipe where available. Seven local
-fixture tests pass. This is not binary-identity or licensing proof; the
-upcoming native macOS CI must confirm how the current runners' Homebrew layout
-and formula metadata behave.
+fixture tests pass. Native run 40108498575 passed on both macOS platforms. Its
+logs reported 25 unique-formula matches on ARM64 and 23 on Intel, zero
+ambiguous matches, and the only two unmapped images on each platform were the
+HumTrace CLI and GUI. Both packages passed extracted smoke tests. This is not
+binary-identity or licensing proof; local byte-level package inspection and
+artifact-specific license review remain open.
 
 Local verification passes `python3 -m py_compile
 tools/package_msys2_sources.py tests/test_msys2_sources.py` and all 12 focused
