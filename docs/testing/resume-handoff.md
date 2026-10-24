@@ -3,8 +3,10 @@
 ## Repository and checkpoints
 
 - Work only in `djshellshoxxx/humtrace`, branch `codex/humtrace-release-0.2.4`.
-- Latest implementation commit: `9ee9d3529a66a402a69c119133e9c2e3c8b95717` adds macOS Homebrew provenance candidates.
-- Full native CI run [40108498575](https://github.com/djshellshoxxx/humtrace/actions/runs/40108498575) passed on branch head `de6591bd8a55f0afc1822ccf2646672801a41f45`; this handoff commit is documentation-only and follows that tested code.
+- Latest implementation checkpoint: `bec24d7086a212b4b4b82640a5f53d480d34f90f` adds a bounded source-tree report verifier; the branch was pushed and its remote SHA verified.
+- Earlier full native CI run [40108498575](https://github.com/djshellshoxxx/humtrace/actions/runs/40108498575) passed on branch head `de6591bd8a55f0afc1822ccf2646672801a41f45`. It predates the report-verifier change and does not validate that code.
+- Handoff-only CI [40109032325](https://github.com/djshellshoxxx/humtrace/actions/runs/40109032325) completed successfully on all six build/test jobs; the release job was skipped on the PR branch. It tested documentation at `7afcf39c1816b8138ac0c545a70af2d60a8635b3`, not the report-verifier code.
+- Source CI [40109648042](https://github.com/djshellshoxxx/humtrace/actions/runs/40109648042) passed all six native build/test jobs on `bec24d7086a212b4b4b82640a5f53d480d34f90f`; the release job was skipped on the PR branch.
 - Draft PR #9 is open: https://github.com/djshellshoxxx/humtrace/pull/9. Update its body after pushing this handoff.
 - Preserve published preview v0.2.5: tag object `6ca598bcdda17384b4bb924cec2d1ec9f005c3c6`, peeled source `d9a24852024e86bff7e25d64bd50a73d02944c6c`. No successor release was published; the release workflow was skipped for the PR branch.
 
@@ -49,9 +51,24 @@ All 62 local portable packaging/provenance tests passed:
 - `python3 tests/test_package_source.py` — 6
 - `python3 tests/test_source_metadata.py --cmake /workspace/humtrace-tools/cmake/data/bin/cmake` — 4
 
-Python compilation, `git diff --check` and staged-patch secret-pattern checks
-passed. C++ CTest was not rerun for this packaging-only slice; earlier evidence
-remains 29/29.
+`HUMTRACE_REQUIRE_JSONSCHEMA=1 make test` passed locally after the report
+verifier change, including all C++ unit tests, CLI/streaming/paging/detector
+integration tests and portable packaging tests. The new verifier suite also
+passed independently. Native source CI 40109648042 then passed Linux core/CLI,
+sanitizers, Linux GUI, Windows, macOS 15 Intel and macOS 26 ARM64; its release
+job was skipped on this PR branch. It generates a small synthetic WAV and
+report, validates the published schema, checks exact source byte length/hash
+and detached report hash sidecars, and rejects duplicate keys, `NaN`/overflow
+numbers, invalid UTF-8, deeply nested JSON, unsupported schema versions,
+invalid schema values, reports over 64 MiB, changed source bytes, sidecar
+mismatches and digest-file overwrite attempts. Python compilation,
+`git diff --check` and staged-patch secret-pattern checks passed.
+
+The source-checkout utility `tools/verify_report.py` requires Python
+`jsonschema`; it accepts report JSON up to 64 MiB and streams source-file
+hashing in 1 MiB chunks. It validates and compares bytes only. Desktop report
+import, complete target metadata fields, provenance authenticity, and custody
+remain unimplemented.
 
 Run 40108498575 passed all six jobs: Linux core/CLI, sanitizers, Linux GUI,
 Windows, macOS 15 Intel and macOS 26 ARM64. The separate release job was
@@ -74,11 +91,14 @@ successfully collected the permitted MSYS2 recipes.
 
 ## Remaining work and gates
 
-1. Push this handoff and documentation update with a normal fast-forward,
-   verify the exact remote ref, and refresh PR #9.
-2. Continue report import/verification and captured-audio provenance where
-   feasible. The report importer, report-file digest/verifier, capture worker,
-   and VST3/CLAP adapters remain unimplemented.
+1. Push this handoff and acceptance-ledger update with a normal fast-forward,
+   verify the exact remote ref, and refresh PR #9. The documentation push will
+   start a separate CI run; track it without attributing its result to source
+   run 40109648042.
+2. Continue desktop report import and captured-audio provenance where feasible.
+   Only source-tree report validation and digest checking are implemented;
+   report import into the desktop, capture worker, and VST3/CLAP adapters remain
+   unimplemented.
 3. Complete artifact-specific licensing and corresponding-source review;
    recipe archives and Homebrew formula metadata are supplemental only.
 4. Obtain held-out labeled recordings and calibrated uncertainty; verify
