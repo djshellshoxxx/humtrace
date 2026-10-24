@@ -34,16 +34,17 @@ before treating an archive as available.
 - Windows: extract the complete ZIP and keep all DLLs and plugin subdirectories
   beside `humtrace.exe` and `humtrace-gui.exe`. The build is unsigned.
 - macOS: choose the ARM64 or x86_64 archive, extract it and open `humtrace-gui.app`.
-  The deployment target is macOS 15.0. The app is ad-hoc signed and not notarized;
+  The supported native baselines are macOS 26 for ARM64 and macOS 15 for Intel;
+  every bundled image is checked against its declared minimum OS. The app is ad-hoc signed and not notarized;
   follow the OS's explicit first-launch approval flow. The archive also includes CLI.
 
-The [acceptance ledger](acceptance-0.2.4.md) keeps the remaining gates explicit:
+The [acceptance ledger](https://github.com/djshellshoxxx/humtrace/blob/v0.2.4/docs/release/acceptance-0.2.4.md) keeps the remaining gates explicit:
 held-out labeled real-data calibration, native accessibility/clean-machine acceptance,
 full provenance/import, artifact-specific licensing review and signing/notarization.
 Only WAV PCM/float/extensible input is advertised. Similar hum frequencies do not
 prove a device, origin, location, authenticity or recording time.
 
 VST3 and CLAP are not included. HumTrace is an offline measurement application;
-the [bounded capture proposal](../specs/plugin-capture-interface.md) requires a
+the [bounded capture proposal](https://github.com/djshellshoxxx/humtrace/blob/v0.2.4/docs/specs/plugin-capture-interface.md) requires a
 host/capture workflow decision and separate SDK/host verification before adapters
 can be implemented and published. Standalone archives are not plugin files.

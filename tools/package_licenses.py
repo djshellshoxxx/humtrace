@@ -1,4 +1,4 @@
-"""Copy MSYS2 package license files for the bundled root runtime DLLs.
+"""Copy MSYS2 package license files for the bundled runtime DLLs.
 
 This creates provenance evidence for a package inventory. It does not determine
 which license option applies or establish legal compliance.
@@ -11,6 +11,9 @@ import re
 import shutil
 import subprocess
 
+MAX_SPDX_BYTES = 16 * 1024 * 1024
+MAX_SPDX_CANDIDATES = 4
+
 
 def _sha256(path):
     digest = hashlib.sha256()
@@ -21,7 +24,7 @@ def _sha256(path):
 
 
 def read_runtime_dependencies(manifest_path, stage):
-    """Return validated root-level DLL entries from DEPENDENCIES.json.
+    """Return validated staged DLL entries from DEPENDENCIES.json.
 
     Entries in `imports` are names only; Windows system imports are not staged
     files and therefore are intentionally not queried for package ownership.
@@ -41,15 +44,17 @@ def read_runtime_dependencies(manifest_path, stage):
         relative = PurePosixPath(entry["file"])
         if relative.is_absolute() or ".." in relative.parts:
             raise RuntimeError(f"invalid staged binary path: {entry['file']}")
-        if len(relative.parts) != 1 or relative.suffix.lower() != ".dll":
+        if relative.suffix.lower() != ".dll":
             continue
-        name = relative.name
-        key = name.lower()
+        name = relative.as_posix()
+        key = name.casefold()
         if key in dependencies:
-            raise RuntimeError(f"duplicate root runtime DLL in dependency manifest: {name}")
-        staged_file = stage / name
+            raise RuntimeError(f"duplicate staged runtime DLL in dependency manifest: {name}")
+        staged_file = stage.joinpath(*relative.parts)
         if not staged_file.is_file():
             raise RuntimeError(f"manifest runtime DLL is absent from stage: {name}")
+        if not staged_file.resolve().is_relative_to(stage.resolve()):
+            raise RuntimeError(f"staged runtime DLL escapes package stage: {name}")
         actual_hash = _sha256(staged_file)
         expected_hash = entry.get("sha256")
         if expected_hash and expected_hash != actual_hash:
@@ -119,8 +124,99 @@ def _installed_path(path, pacman_root, runtime_root):
     return Path(runtime_root).joinpath(*relative.parts)
 
 
+def _query_plugin_root(runtime, runtime_root, run, pacman, pacman_root):
+    """Query Qt for its exact installed plugin root; never scan the prefix."""
+    candidates = [Path(runtime) / "qmake6.exe", Path(runtime) / "qmake6"]
+    qmake = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if qmake is None:
+        raise RuntimeError("nested runtime DLLs require installed qmake6 to locate the Qt plugin root")
+    output = run([str(qmake), "-query", "QT_INSTALL_PLUGINS"])
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if len(lines) != 1:
+        raise RuntimeError(f"qmake6 returned an invalid QT_INSTALL_PLUGINS path: {output!r}")
+    raw = lines[0].replace("\\", "/")
+    queried = PurePosixPath(raw)
+    if ".." in queried.parts:
+        raise RuntimeError(f"qmake6 returned an unsafe plugin root: {lines[0]}")
+    if queried.is_absolute():
+        try:
+            relative = queried.relative_to(PurePosixPath(pacman_root))
+            plugin_root = Path(runtime_root).joinpath(*relative.parts)
+        except ValueError:
+            plugin_root = Path(lines[0])
+    elif re.match(r"^[A-Za-z]:/", raw):
+        # Native Windows Qt builds can report a drive-qualified install path.
+        plugin_root = Path(lines[0])
+    else:
+        raise RuntimeError(f"qmake6 returned a non-absolute plugin root: {lines[0]}")
+    if not plugin_root.is_dir() or not plugin_root.resolve().is_relative_to(Path(runtime_root).resolve()):
+        raise RuntimeError(f"Qt plugin root is absent or escapes package prefix: {plugin_root}")
+    return plugin_root
+
+
+def _plugin_pacman_path(relative_file, plugin_root, runtime_root, pacman_root):
+    """Map staged Qt plugin layout to the same relative path below queried root."""
+    plugin_root = Path(plugin_root)
+    runtime_root = Path(runtime_root)
+    if not plugin_root.resolve().is_relative_to(runtime_root.resolve()):
+        raise RuntimeError(f"Qt plugin root escapes package prefix: {plugin_root}")
+    relative = PurePosixPath(relative_file)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise RuntimeError(f"unsafe staged plugin path: {relative_file}")
+    origin = plugin_root.joinpath(*relative.parts)
+    if not origin.resolve().is_relative_to(runtime_root.resolve()):
+        raise RuntimeError(f"Qt plugin origin escapes package prefix: {origin}")
+    if not origin.is_file():
+        raise RuntimeError(f"runtime origin is missing for staged dependency: {origin}")
+    plugin_posix_root = PurePosixPath(pacman_root)
+    try:
+        plugin_relative = plugin_root.resolve().relative_to(runtime_root.resolve())
+    except ValueError as error:
+        raise RuntimeError(f"Qt plugin root escapes package prefix: {plugin_root}") from error
+    return plugin_posix_root.joinpath(*plugin_relative.parts, *relative.parts), origin
+
+
+def _parse_qtbase_spdx_paths(output, package, pacman_root):
+    """Return a bounded, package-owned QtBase SPDX file list."""
+    root = PurePosixPath(pacman_root)
+    sbom_prefix = root / "share" / "qt6" / "sbom"
+    paths = []
+    for line in output.splitlines():
+        fields = line.split(maxsplit=1)
+        if len(fields) != 2:
+            continue
+        owner, raw_path = fields
+        if owner != package:
+            raise RuntimeError(f"pacman -Ql returned unexpected owner {owner!r} for {package!r}")
+        path = PurePosixPath(raw_path)
+        if ".." in path.parts:
+            raise RuntimeError(f"unsafe QtBase SPDX path for {package}: {raw_path}")
+        if not path.is_absolute():
+            if path.name.startswith("qtbase-") and path.suffix == ".spdx":
+                raise RuntimeError(f"unsafe relative QtBase SPDX path for {package}: {raw_path}")
+            continue
+        try:
+            path.relative_to(root)
+        except ValueError:
+            if path.name.startswith("qtbase-") and path.suffix == ".spdx":
+                raise RuntimeError(f"QtBase SPDX candidate is outside package prefix: {raw_path}")
+            continue
+        try:
+            relative = path.relative_to(sbom_prefix)
+        except ValueError:
+            continue
+        if len(relative.parts) == 1 and relative.name.startswith("qtbase-") and relative.suffix == ".spdx":
+            paths.append(path)
+    paths = sorted(set(paths), key=str)
+    if len(paths) > MAX_SPDX_CANDIDATES:
+        raise RuntimeError(f"too many QtBase SPDX candidates for {package}")
+    if len(paths) != 1:
+        raise RuntimeError(f"expected one installed QtBase SPDX file for {package}, found {len(paths)}")
+    return paths
+
+
 def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
-                             pacman_root="/ucrt64", pacman="pacman"):
+                             pacman_root="/ucrt64", pacman="pacman", plugin_root=None):
     """Inventory owners and copy their installed license files into a package stage.
 
     `runtime` is the installed runtime `bin` directory on disk. `pacman_root`
@@ -145,12 +241,21 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
     dependencies = read_runtime_dependencies(dependency_manifest, stage)
     runtime_root = runtime.parent
     planned_packages = {}
+    nested = any("/" in dependency["file"] for dependency in dependencies)
+    if nested and plugin_root is None:
+        plugin_root = _query_plugin_root(runtime, runtime_root, run, pacman, pacman_root_path)
     for dependency in dependencies:
         name = dependency["file"]
-        pacman_path = pacman_root_path / runtime.name / name
-        origin = runtime / name
+        if "/" in name:
+            pacman_path, origin = _plugin_pacman_path(
+                name, plugin_root, runtime_root, pacman_root_path)
+        else:
+            pacman_path = pacman_root_path / runtime.name / name
+            origin = runtime / name
         if not origin.is_file():
             raise RuntimeError(f"runtime origin is missing for staged dependency: {origin}")
+        if not origin.resolve().is_relative_to(runtime_root.resolve()):
+            raise RuntimeError(f"runtime DLL origin escapes package prefix: {origin}")
         if _sha256(origin) != dependency["sha256"]:
             raise RuntimeError(f"staged runtime DLL does not match installed origin: {name}")
         owner_output = run([pacman, "-Qqo", str(pacman_path)])
@@ -160,6 +265,9 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
             version = _parse_version(version_output, package)
             file_list = run([pacman, "-Ql", package])
             license_paths = _parse_license_paths(file_list, package, pacman_root_path)
+            spdx_paths = []
+            if "qt6-base" in package.casefold():
+                spdx_paths = _parse_qtbase_spdx_paths(file_list, package, pacman_root_path)
             records = []
             for license_path in license_paths:
                 source = _installed_path(license_path, pacman_root_path, runtime_root)
@@ -185,8 +293,22 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
                 records.append({"source": source, "relative": target_relative,
                                 "origin": license_path.as_posix(), "sha256": _sha256(source)})
             if not records:
-                raise RuntimeError(f"package {package} has no installed license files under share/licenses")
-            planned_packages[package] = {"version": version, "license_records": records}
+                raise RuntimeError(f"package {package} has no installed license files")
+            spdx_records = []
+            for spdx_path in spdx_paths:
+                source = _installed_path(spdx_path, pacman_root_path, runtime_root)
+                if not source.is_file():
+                    raise RuntimeError(f"pacman-listed QtBase SPDX file is missing for {package}: {source}")
+                if not source.resolve().is_relative_to(runtime_root.resolve()):
+                    raise RuntimeError(f"pacman-listed QtBase SPDX file escapes package prefix for {package}: {source}")
+                if source.stat().st_size <= 0 or source.stat().st_size > MAX_SPDX_BYTES:
+                    raise RuntimeError(f"QtBase SPDX file has invalid size for {package}: {source}")
+                relative = spdx_path.relative_to(pacman_root_path)
+                target_relative = PurePosixPath("licenses") / package / relative
+                spdx_records.append({"source": source, "relative": target_relative,
+                                    "origin": spdx_path.as_posix(), "sha256": _sha256(source)})
+            planned_packages[package] = {"version": version, "license_records": records,
+                                         "spdx_records": spdx_records}
 
         dependency["origin"] = str(pacman_path)
         dependency["package"] = package
@@ -196,6 +318,10 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
              "sha256": record["sha256"]}
             for record in planned_packages[package]["license_records"]
         ]
+        dependency["spdx_file"] = next((
+            {"path": record["relative"].as_posix(), "origin": record["origin"],
+             "sha256": record["sha256"]}
+            for record in planned_packages[package]["spdx_records"]), None)
 
     licenses_dir = stage / "licenses"
     output_path = stage / "DEPENDENCY_LICENSES.json"
@@ -206,12 +332,19 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
         "schema_version": 1,
         "pacman_root": str(pacman_root_path),
         "dependencies": dependencies,
+        "notices": [],
     }
     for package in sorted(planned_packages):
-        for record in planned_packages[package]["license_records"]:
-            destination = stage.joinpath(*record["relative"].parts)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(record["source"], destination)
+        for kind in ("license", "spdx"):
+            key = "license_records" if kind == "license" else "spdx_records"
+            for record in planned_packages[package][key]:
+                destination = stage.joinpath(*record["relative"].parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(record["source"], destination)
+                result["notices"].append({"kind": kind, "package": package,
+                    "version": planned_packages[package]["version"],
+                    "path": record["relative"].as_posix(), "origin": record["origin"],
+                    "sha256": record["sha256"]})
     output_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
 

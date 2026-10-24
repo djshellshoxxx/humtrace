@@ -38,21 +38,24 @@ relinking materials required by the selected terms. Qt's official
 [LGPL text and guidance](https://doc.qt.io/qt-6/lgpl.html) is a starting point;
 the exact component and distribution path must be reviewed against its actual
 license files. Dynamic linking alone does not close the review. The Windows
-workflow is configured to map bundled root runtime DLLs to MSYS2 packages,
+workflow is configured to map bundled runtime and nested Qt plugin DLLs to MSYS2 packages,
 record source/staged hashes, copy installed package license files, and save the
-installed package list. Its coverage is the root runtime DLL set; it is not a
-per-file license/SBOM inventory of every executable and nested plugin. Windows
+installed package list and installed QtBase SPDX metadata. Its coverage is the
+staged DLL set; it is not a complete per-file license inventory of every executable. Windows
 and macOS workflows stage a SHA256-verified upstream QtBase source archive, its
 `LICENSES` tree, and a scope manifest matched to the installed Qt version.
-macOS also records Homebrew metadata. This QtBase archive is an upstream
+macOS also records Homebrew metadata and the installed QtBase formula, including
+its patch references. Its per-image dependency manifest records minimum OS,
+load commands and hashes after signing; it does not map every non-Qt dylib to
+its formula or provide their source. This QtBase archive is an upstream
 baseline; it does not establish correspondence to distribution-patched binaries
 or provide source for other Qt modules and dependencies. Linux declares system
 shared-library dependencies and installs this notice. Distribution patches,
 other Qt modules/dependencies, applicable license options, corresponding-source
 and relinkability obligations still need artifact-specific review. These
 inventories do not establish complete corresponding source or legal compliance.
-The current v0.2.4 Windows package rerun and macOS dependency/signature checks
-are pending, so no current native archive is certified by this draft.
+The exact-tag CI result and archive manifests establish build and package-test
+evidence. This draft does not certify an archive's licensing status.
 
 A v0.2.3 Windows archive was inspected and contained the two executables and Qt
 plugin folders but no root Qt DLLs. Its smoke test ran with runner `PATH`

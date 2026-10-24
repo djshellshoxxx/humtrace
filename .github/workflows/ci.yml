@@ -113,6 +113,7 @@ jobs:
           cp docs/release/THIRD_PARTY_NOTICES.md docs/user-guide/limitations.md build-cmake/SOURCE_COMMIT.txt build-cmake/package/
           python3 tools/package_windows.py --stage build-cmake/package --runtime /ucrt64/bin
           python3 tools/package_licenses.py --stage build-cmake/package --runtime /ucrt64/bin
+          python3 -c 'import json; d=json.load(open("build-cmake/package/DEPENDENCY_LICENSES.json", encoding="utf-8")); print("Inventoried DLLs:", len(d["dependencies"])); print("Package versions:", sorted({(x["package"], x["version"]) for x in d["dependencies"]})); print("Notices:", len(d["notices"]))'
           mkdir build-cmake/package/qtbase-source
           python3 tools/package_qt_sources.py --stage build-cmake/package/qtbase-source --version "$(qmake6 -query QT_VERSION)"
           pacman -Q > build-cmake/package/MSYS2_PACKAGES.txt
@@ -141,8 +142,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-26, arch: arm64 }
-          - { os: macos-15-intel, arch: x86_64 }
+          - { os: macos-26, arch: arm64, minimum_os: '26.0' }
+          - { os: macos-15-intel, arch: x86_64, minimum_os: '15.0' }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -152,7 +153,7 @@ jobs:
         run: make test
       - name: Qt build and tests
         run: |
-          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
+          cmake -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)" -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.minimum_os }} -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
           cmake --build build-cmake
           cd build-cmake && QT_QPA_PLATFORM=offscreen ctest --output-on-failure
       - name: Package (ad-hoc signed app bundle + CLI)
@@ -161,13 +162,15 @@ jobs:
           cd build-cmake/bin
           lipo humtrace -verify_arch ${{ matrix.arch }}
           lipo humtrace-gui.app/Contents/MacOS/humtrace-gui -verify_arch ${{ matrix.arch }}
-          python3 ../../tools/package_macos.py --app humtrace-gui.app --qt-prefix "$(brew --prefix qtbase)" --brew-prefix "$(brew --prefix)"
+          python3 ../../tools/package_macos.py --app humtrace-gui.app --cli humtrace --minimum-os ${{ matrix.minimum_os }} --qt-prefix "$(brew --prefix qtbase)" --brew-prefix "$(brew --prefix)"
+          cat MACOS_DEPENDENCIES.json
           cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md ../SOURCE_COMMIT.txt .
           mkdir qtbase-source
           python3 ../../tools/package_qt_sources.py --stage qtbase-source --version "$("$(brew --prefix qtbase)/bin/qmake" -query QT_VERSION)"
           brew info --json=v2 qtbase > qtbase-source/BREW_INFO.json
+          cp "$(brew --prefix qtbase)/.brew/qtbase.rb" qtbase-source/QTBASE_INSTALLED_FORMULA.rb
           codesign --verify --deep --strict humtrace-gui.app
-          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt qtbase-source
+          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt MACOS_DEPENDENCIES.json qtbase-source
           cd .. && shasum -a 256 humtrace-*.zip | tee SHA256SUMS
       - name: Smoke test extracted CLI and GUI
         run: |

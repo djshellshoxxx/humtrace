@@ -11,13 +11,14 @@ locale/encoding/extreme-number fixes, desktop accessibility alternatives and rel
 runtime dependency checks. See the [acceptance ledger](release/acceptance-0.2.4.md),
 [current QA evidence](testing/qa-0.2.4.md) and [release notes](release/release-notes-0.2.4.md).
 
-The package workflow now includes a checksum-verified upstream QtBase source
-baseline and scoped Windows root-DLL license inventory. These are provenance
-inputs, not a complete module/dependency inventory or compliance finding. The
-current v0.2.4 Windows native package rerun is pending after a byte-stable test
-fixture correction; macOS dependency closure and ad-hoc signature acceptance are
-in progress. No current native package result is treated as verified until those
-jobs finish and their outputs are inspected.
+The package workflow includes a checksum-verified upstream QtBase source baseline,
+Windows runtime/plugin package and notice metadata, and a macOS per-image dependency,
+minimum-OS and hash manifest. These are provenance inputs, not a compliance finding.
+Windows packages must pass an extracted-package smoke test with toolchain paths
+removed. macOS packages must pass dependency closure, declared minimum-OS and ad-hoc
+signature checks, followed by an extracted-package smoke test. Native baselines are
+macOS 26 ARM64 and macOS 15 Intel. A published preview links the exact-tag CI result,
+source SHA and asset checksums; only those results establish artifact availability.
 
 The desktop and CLI are standalone applications. VST3/CLAP remain a scoped capture
 interface proposal pending a product/host decision. Held-out labeled real-data

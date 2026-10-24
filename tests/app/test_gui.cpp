@@ -225,18 +225,40 @@ private slots:
         settings.hop_size_samples = 16;
         settings.welch.segment_size = 256;
         settings.welch.hop_size = 128;
-        settings.max_peaks_per_frame = 1;
+        // A valid peak cap makes 128 small windows cross the retention estimate,
+        // while the automatic single-window analysis remains retained. Only actual
+        // peaks are materialized, so this keeps spool I/O bounded on native runners.
+        settings.max_peaks_per_frame = 256;
         settings.spectrogram_rows = 8;
-        window.setPipelineSettings(settings);
-        window.openRecording(writeWav(dir_.path(), "custom-paging.wav", 45.0, 60.0, 50.0, 1));
+        const auto path = writeWav(dir_.path(), "custom-paging.wav", 0.5, 60.0, 50.0, 1);
+        const auto expected = humtrace::analyze_file(path.toStdString(), settings, {}, true);
+        QCOMPARE(expected.report.channel_results[0].frames.size(), std::size_t{128});
+        auto automatic = settings;
+        automatic.frame_size_samples = 0;
+        automatic.hop_size_samples = 0;
+        window.setPipelineSettings(automatic);
+        window.openRecording(path);
         QString error;
         window.setErrorHandler([&](const QString&, const QString& message) { error = message; });
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return !humtrace::ui::is_active(window.state()); }, 20000));
+        QVERIFY2(window.state() == humtrace::ui::JobState::Complete, qPrintable(error));
+        QVERIFY(!window.hasPagedResults());
+        QCOMPARE(window.report()->channel_results[0].frames.size(), std::size_t{1});
+
+        window.setPipelineSettings(settings);
         window.startAnalysis();
         QVERIFY(wait_until([&] { return !humtrace::ui::is_active(window.state()); }, 20000));
         QVERIFY2(window.state() == humtrace::ui::JobState::Complete, qPrintable(error));
         QVERIFY(window.hasPagedResults());
         QCOMPARE(window.report()->frame_size_samples, std::size_t{16});
         QCOMPARE(window.report()->hop_size_samples, std::size_t{16});
+        const auto output = dir_.filePath("custom-paging-export.json");
+        QVERIFY(window.exportReport(output, false).isEmpty());
+        QFile exported(output);
+        QVERIFY(exported.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(exported.readAll()),
+            QJsonDocument::fromJson(QByteArray::fromStdString(humtrace::serialize_report_json(expected.report))));
     }
 
     void spectrumTableIncludesEveryDisplayedRowWithAccessibleUnits() {

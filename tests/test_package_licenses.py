@@ -163,6 +163,142 @@ class PackageLicenseInventory(unittest.TestCase):
             licenses._parse_license_paths(
                 "pkg /ucrt64/share/licenses/pkg/../../bin/other.dll\n", "pkg", "/ucrt64")
 
+    def test_inventories_nested_plugin_from_exact_plugin_root_and_copies_qtbase_spdx(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "ucrt64" / "bin"
+            install_root = runtime.parent
+            plugin_root = install_root / "share" / "qt6" / "plugins"
+            stage = root / "stage"
+            (runtime).mkdir(parents=True)
+            stage.mkdir()
+            plugin = b"platform plugin"
+            (plugin_root / "platforms").mkdir(parents=True)
+            (plugin_root / "platforms" / "qwindows.dll").write_bytes(plugin)
+            (stage / "platforms").mkdir()
+            (stage / "platforms" / "qwindows.dll").write_bytes(plugin)
+            license_path = install_root / "share" / "licenses" / "qt6-base" / "LICENSE"
+            license_path.parent.mkdir(parents=True)
+            license_path.write_bytes(b"Qt license\n")
+            sbom_path = install_root / "share" / "qt6" / "sbom" / "qtbase-6.8.3.spdx"
+            sbom_path.parent.mkdir(parents=True)
+            sbom_path.write_bytes(b"SPDXVersion: SPDX-2.3\n")
+            manifest = stage / "DEPENDENCIES.json"
+            manifest.write_text(json.dumps([{
+                "file": "platforms/qwindows.dll", "imports": [],
+                "sha256": hashlib.sha256(plugin).hexdigest(),
+            }]), encoding="utf-8")
+
+            def run(command):
+                if command[:2] == ["pacman", "-Qqo"]:
+                    self.assertEqual(command[2], "/ucrt64/share/qt6/plugins/platforms/qwindows.dll")
+                    return "mingw-w64-ucrt-x86_64-qt6-base\n"
+                if command[:2] == ["pacman", "-Q"]:
+                    return "mingw-w64-ucrt-x86_64-qt6-base 6.8.3-2\n"
+                if command[:2] == ["pacman", "-Ql"]:
+                    owner = "mingw-w64-ucrt-x86_64-qt6-base"
+                    return (f"{owner} /ucrt64/share/licenses/qt6-base/LICENSE\n"
+                            f"{owner} /ucrt64/share/qt6/sbom/qtbase-6.8.3.spdx\n")
+                self.fail(f"unexpected command: {command}")
+
+            result = licenses.collect_package_licenses(
+                manifest, runtime, stage, run=run, plugin_root=plugin_root)
+            item = result["dependencies"][0]
+            self.assertEqual(item["origin"], "/ucrt64/share/qt6/plugins/platforms/qwindows.dll")
+            self.assertEqual(item["package"], "mingw-w64-ucrt-x86_64-qt6-base")
+            self.assertEqual(item["version"], "6.8.3-2")
+            self.assertEqual(item["license_files"][0]["origin"],
+                             "/ucrt64/share/licenses/qt6-base/LICENSE")
+            spdx_relative = "licenses/mingw-w64-ucrt-x86_64-qt6-base/share/qt6/sbom/qtbase-6.8.3.spdx"
+            self.assertEqual((stage / spdx_relative).read_bytes(), b"SPDXVersion: SPDX-2.3\n")
+            self.assertEqual(item["spdx_file"]["path"], spdx_relative)
+            self.assertEqual(item["spdx_file"]["origin"],
+                             "/ucrt64/share/qt6/sbom/qtbase-6.8.3.spdx")
+            self.assertEqual(item["spdx_file"]["sha256"], hashlib.sha256(sbom_path.read_bytes()).hexdigest())
+            self.assertIn("spdx", [notice["kind"] for notice in result["notices"]])
+
+    def test_nested_plugin_fails_if_exact_installed_origin_is_absent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime, stage = root / "ucrt64" / "bin", root / "stage"
+            plugin_root = root / "ucrt64" / "share" / "qt6" / "plugins"
+            runtime.mkdir(parents=True)
+            stage.mkdir()
+            (stage / "platforms").mkdir()
+            (stage / "platforms" / "qwindows.dll").write_bytes(b"plugin")
+            manifest = stage / "DEPENDENCIES.json"
+            manifest.write_text(json.dumps([{"file": "platforms/qwindows.dll", "imports": []}]), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "runtime origin is missing"):
+                licenses.collect_package_licenses(manifest, runtime, stage, run=lambda command: "",
+                                                  plugin_root=plugin_root)
+
+    def test_nested_plugin_fails_when_installed_origin_hash_differs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime, stage = root / "ucrt64" / "bin", root / "stage"
+            plugin_root = root / "ucrt64" / "share" / "qt6" / "plugins"
+            runtime.mkdir(parents=True)
+            stage.mkdir()
+            (stage / "platforms").mkdir()
+            (stage / "platforms" / "qwindows.dll").write_bytes(b"staged")
+            (plugin_root / "platforms").mkdir(parents=True)
+            (plugin_root / "platforms" / "qwindows.dll").write_bytes(b"different")
+            manifest = stage / "DEPENDENCIES.json"
+            manifest.write_text(json.dumps([{"file": "platforms/qwindows.dll", "imports": []}]), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "does not match installed origin"):
+                licenses.collect_package_licenses(manifest, runtime, stage, run=lambda command: "",
+                                                  plugin_root=plugin_root)
+
+    def test_nested_plugin_root_must_not_escape_runtime_prefix(self):
+        with self.assertRaisesRegex(RuntimeError, "escapes package prefix"):
+            licenses._plugin_pacman_path("platforms/qwindows.dll", Path("/ucrt64/share/plugins"),
+                                         Path("/outside"), "/ucrt64")
+
+    def test_queries_plugin_root_instead_of_scanning_install_prefix(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "ucrt64" / "bin"
+            install_root = runtime.parent
+            stage = root / "stage"
+            runtime.mkdir(parents=True)
+            stage.mkdir()
+            (runtime / "qmake6.exe").write_bytes(b"fixture")
+            plugin_root = install_root / "share" / "qt6" / "plugins"
+            (plugin_root / "platforms").mkdir(parents=True)
+            (plugin_root / "platforms" / "qwindows.dll").write_bytes(b"plugin")
+            (stage / "platforms").mkdir()
+            (stage / "platforms" / "qwindows.dll").write_bytes(b"plugin")
+            (install_root / "share" / "licenses" / "pkg").mkdir(parents=True)
+            manifest = stage / "DEPENDENCIES.json"
+            manifest.write_text(json.dumps([{"file": "platforms/qwindows.dll", "imports": []}]), encoding="utf-8")
+            calls = []
+
+            def run(command):
+                calls.append(command)
+                if "qmake6" in command[0]:
+                    self.assertEqual(command[-2:], ["-query", "QT_INSTALL_PLUGINS"])
+                    return "/ucrt64/share/qt6/plugins\n"
+                if command[:2] == ["pacman", "-Qqo"]:
+                    return "pkg\n"
+                if command[:2] == ["pacman", "-Q"]:
+                    return "pkg 1.0-1\n"
+                if command[:2] == ["pacman", "-Ql"]:
+                    return "pkg /ucrt64/share/licenses/pkg/\n"
+                self.fail(f"unexpected command: {command}")
+
+            # Owner lookup is the only later call before package inventory setup.
+            self.assertRaisesRegex(RuntimeError, "no installed license files",
+                licenses.collect_package_licenses, manifest, runtime, stage, run,
+                plugin_root=None)
+            self.assertEqual(calls[0][1:], ["-query", "QT_INSTALL_PLUGINS"])
+            self.assertTrue(str(plugin_root).startswith(str(install_root)))
+
+    def test_qtbase_requires_one_installed_spdx_file(self):
+        with self.assertRaisesRegex(RuntimeError, "expected one installed QtBase SPDX"):
+            licenses._parse_qtbase_spdx_paths(
+                "mingw-w64-ucrt-x86_64-qt6-base /ucrt64/share/licenses/qt6-base/LICENSE\n",
+                "mingw-w64-ucrt-x86_64-qt6-base", "/ucrt64")
+
 
 if __name__ == "__main__":
     unittest.main()
