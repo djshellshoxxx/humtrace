@@ -20,9 +20,12 @@ The package workflow includes a checksum-verified upstream QtBase source baselin
 Windows runtime/plugin package and notice metadata, and a macOS per-image dependency,
 minimum-OS and hash manifest. These are provenance inputs, not a compliance finding.
 The Windows workflow now also stages the exact-version MSYS2 source-only recipes
-for bundled runtime DLL owners. Its fixture tests pass; live collection was denied
-by the saved executor's HTTP 403 network proxy, so the runner-side fetch and next
-Windows archive remain unverified. Recipe archives are not upstream source archives.
+for bundled runtime DLL owners. The first native attempt failed closed on a
+redirect to the official `ftp2.osuosl.org` mirror because its host was not yet
+allowlisted. That Tier 1 mirror is now covered by a strict source-path check and
+fixture regression; a corrected native rerun is pending. The saved executor's
+direct fetch remains blocked by its HTTP 403 network proxy. Recipe archives are
+not upstream source archives.
 Windows packages must pass an extracted-package smoke test with toolchain paths
 removed. macOS packages must pass dependency closure, declared minimum-OS and ad-hoc
 signature checks, followed by an extracted-package smoke test. Native baselines are

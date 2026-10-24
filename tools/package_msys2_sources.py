@@ -26,6 +26,16 @@ MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_DEPENDENCY_MANIFEST_BYTES = 2 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = "MSYS2_SOURCE_RECIPES"
+# Primary and Tier 1 hosts listed by https://www.msys2.org/dev/mirrors/.
+MSYS2_MIRROR_HOSTS = frozenset({
+    "mirror.msys2.org", "repo.msys2.org",
+    "mirror.umd.edu", "mirror.accum.se", "ftp.nluug.nl", "ftp2.osuosl.org",
+    "mirror.internet.asn.au", "mirror.selfnet.de", "mirror.yandex.ru",
+    "mirrors.dotsrc.org", "mirrors.tuna.tsinghua.edu.cn", "mirrors.ustc.edu.cn",
+    "mirror.nju.edu.cn", "mirrors.bfsu.edu.cn", "mirror.clarkson.edu",
+    "distrohub.kyiv.ua", "mirror.archlinux.tw", "us.mirrors.cicku.me",
+    "ca.mirrors.cicku.me", "mirrors.qlu.edu.cn",
+})
 
 
 def _safe_url(url, kind):
@@ -39,8 +49,10 @@ def _safe_url(url, kind):
         accepted = host == "packages.msys2.org" and parsed.path.startswith("/packages/")
     else:
         path = unquote(parsed.path)
-        accepted = (host in {"mirror.msys2.org", "repo.msys2.org"}
-                    and path.startswith("/mingw/sources/")
+        path_parts = PurePosixPath(path).parts
+        accepted = (host in MSYS2_MIRROR_HOSTS
+                    and len(path_parts) >= 3
+                    and path_parts[-3:-1] == ("mingw", "sources")
                     and PurePosixPath(path).name.endswith(".src.tar.zst"))
     if not accepted or ".." in PurePosixPath(unquote(parsed.path)).parts:
         raise RuntimeError(f"unapproved {kind} URL: {url}")

@@ -94,6 +94,22 @@ class Msys2SourceRecipes(unittest.TestCase):
             self.assertEqual(result["packages"][0]["source_url"], archive_url)
             self.assertEqual((stage / "MSYS2_SOURCE_RECIPES" / result["archives"][0]["path"]).read_bytes(), payload)
 
+    def test_accepts_official_tier_one_mirror_redirect(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            owner = "mingw-w64-ucrt-x86_64-brotli"
+            page_url = f"https://packages.msys2.org/packages/{owner}"
+            archive_url = "https://mirror.msys2.org/mingw/sources/mingw-w64-brotli-1.2.1-1.src.tar.zst"
+            mirror_url = "https://ftp2.osuosl.org/pub/msys2/mingw/sources/mingw-w64-brotli-1.2.1-1.src.tar.zst"
+            payload = b"mirror archive fixture"
+            result, stage, _ = self._run_fixture(root, [{"package": owner, "version": "1.2.1-1"}],
+                {page_url: package_page(owner, "1.2.1-1", "mingw-w64-brotli")},
+                {archive_url: (payload, mirror_url)})
+            record = result["archives"][0]
+            self.assertEqual(record["source_url"], archive_url)
+            self.assertEqual(record["final_url"], mirror_url)
+            self.assertEqual((stage / "MSYS2_SOURCE_RECIPES" / record["path"]).read_bytes(), payload)
+
     def test_rejects_page_version_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -106,6 +122,7 @@ class Msys2SourceRecipes(unittest.TestCase):
     def test_rejects_unapproved_archive_host_and_path_escape(self):
         for href in ("https://evil.example/mingw/sources/pkg-1.0-1.src.tar.zst",
                      "https://mirror.msys2.org/other/pkg-1.0-1.src.tar.zst",
+                     "https://ftp2.osuosl.org/pub/other/sources/pkg-1.0-1.src.tar.zst",
                      "https://mirror.msys2.org/mingw/sources/../pkg-1.0-1.src.tar.zst"):
             with self.subTest(href=href), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
