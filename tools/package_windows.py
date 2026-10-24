@@ -54,7 +54,8 @@ def main():
     args = parser.parse_args()
 
     def inspect(binary):
-        output = subprocess.check_output([args.objdump, "-p", str(binary)], text=True)
+        output = subprocess.check_output([args.objdump, "-p", str(binary)], text=True,
+                                         encoding="utf-8")
         return re.findall(r"DLL Name:\s*(\S+)", output)
 
     windows = Path(os.environ["WINDIR"])

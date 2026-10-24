@@ -108,7 +108,8 @@ jobs:
           cd ..
           mkdir build-cmake/package
           cp build-cmake/bin/humtrace.exe build-cmake/bin/humtrace-gui.exe build-cmake/package/
-          windeployqt6 --compiler-runtime --dir build-cmake/package build-cmake/package/humtrace-gui.exe
+          windeployqt6 --compiler-runtime --no-patchqt --dir build-cmake/package build-cmake/package/humtrace-gui.exe
+          printf '[Paths]\nPrefix=.\nPlugins=.\n' > build-cmake/package/qt.conf
           cp docs/release/THIRD_PARTY_NOTICES.md docs/user-guide/limitations.md build-cmake/SOURCE_COMMIT.txt build-cmake/package/
           python3 tools/package_windows.py --stage build-cmake/package --runtime /ucrt64/bin
           python3 tools/package_licenses.py --stage build-cmake/package --runtime /ucrt64/bin

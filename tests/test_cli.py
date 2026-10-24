@@ -31,7 +31,7 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     result = subprocess.run(
         [str(executable), str(source), "--json", str(report_path)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, result.stderr
@@ -77,7 +77,7 @@ def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) 
     source = directory / "not audio.wav"
     source.write_text("not a wave file", encoding="ascii")
     result = subprocess.run(
-        [str(executable), str(source)], capture_output=True, text=True, check=False
+        [str(executable), str(source)], capture_output=True, text=True, encoding="utf-8", check=False
     )
     assert result.returncode != 0
     assert "not a RIFF/WAVE file" in result.stderr
@@ -88,7 +88,7 @@ def check_compare(executable: pathlib.Path, directory: pathlib.Path) -> None:
     output = directory / "comparison.json"
     result = subprocess.run(
         [str(executable), "compare", str(source), str(source), "--json", str(output)],
-        capture_output=True, text=True, check=False)
+        capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     comparison = json.loads(output.read_text(encoding="utf-8"))
     assert comparison["alignment"]["applied"] is False and comparison["resampling"]["applied"] is False
@@ -101,10 +101,10 @@ def check_never_overwrites_input(executable: pathlib.Path, directory: pathlib.Pa
     source = directory / "protect me.wav"
     source.write_bytes((directory / "two-channel tones.wav").read_bytes())
     before = source.read_bytes()
-    result = subprocess.run([str(executable), str(source), "--json", str(source)], capture_output=True, text=True, check=False)
+    result = subprocess.run([str(executable), str(source), "--json", str(source)], capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 1 and "overwrite" in result.stderr, result.stderr
     assert source.read_bytes() == before
-    result = subprocess.run([str(executable), "compare", str(source), str(source), "--json", str(source)], capture_output=True, text=True, check=False)
+    result = subprocess.run([str(executable), "compare", str(source), str(source), "--json", str(source)], capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 1 and source.read_bytes() == before
 
 
@@ -113,7 +113,7 @@ def check_output_paths_are_distinct(executable: pathlib.Path, directory: pathlib
     output = directory / "colliding.json"
     result = subprocess.run(
         [str(executable), str(source), "--json", str(output), "--csv", str(output)],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", check=False,
     )
     assert result.returncode == 1 and not output.exists(), result.stderr
     output.write_text("preserve this report", encoding="utf-8")
@@ -121,7 +121,7 @@ def check_output_paths_are_distinct(executable: pathlib.Path, directory: pathlib
     alias.hardlink_to(output)
     result = subprocess.run(
         [str(executable), str(source), "--json", str(output), "--csv", str(alias), "--force"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", check=False,
     )
     assert result.returncode == 1, result.stderr
     assert output.read_text(encoding="utf-8") == alias.read_text(encoding="utf-8") == "preserve this report"
@@ -130,7 +130,7 @@ def check_output_paths_are_distinct(executable: pathlib.Path, directory: pathlib
 def check_paths_overwrite_and_clipping(executable: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "two-channel tones.wav"
     out = directory / "redacted.json"
-    result = subprocess.run([str(executable), str(source), "--json", str(out), "--quiet"], capture_output=True, text=True, check=False)
+    result = subprocess.run([str(executable), str(source), "--json", str(out), "--quiet"], capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["input"]["path"] == "two-channel tones.wav", report["input"]["path"]  # basename by default
@@ -138,9 +138,9 @@ def check_paths_overwrite_and_clipping(executable: pathlib.Path, directory: path
     assert report["generator"]["application_version"] and "pipeline" in report["settings"]
     assert "Channel 1 measured frames" in result.stdout and "s: strongest" not in result.stdout  # --quiet
     # Existing output is refused unless --force.
-    again = subprocess.run([str(executable), str(source), "--json", str(out)], capture_output=True, text=True, check=False)
+    again = subprocess.run([str(executable), str(source), "--json", str(out)], capture_output=True, text=True, encoding="utf-8", check=False)
     assert again.returncode == 1 and "--force" in again.stderr and json.loads(out.read_text(encoding="utf-8")) == report
-    forced = subprocess.run([str(executable), str(source), "--json", str(out), "--force", "--full-path"], capture_output=True, text=True, check=False)
+    forced = subprocess.run([str(executable), str(source), "--json", str(out), "--force", "--full-path"], capture_output=True, text=True, encoding="utf-8", check=False)
     assert forced.returncode == 0 and json.loads(out.read_text(encoding="utf-8"))["input"]["path"].endswith("two-channel tones.wav")
     assert json.loads(out.read_text(encoding="utf-8"))["input"]["path"] != "two-channel tones.wav"
     # A heavily clipped recording yields a warning and a clipped-sample count.
@@ -149,16 +149,16 @@ def check_paths_overwrite_and_clipping(executable: pathlib.Path, directory: path
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(4096)
         w.writeframes(b"".join(struct.pack("<h", 32767 if math.sin(2 * math.pi * 60 * i / 4096) >= 0 else -32768) for i in range(16384)))
     cout = directory / "clipped.json"
-    r = subprocess.run([str(executable), str(clipped), "--json", str(cout)], capture_output=True, text=True, check=False)
+    r = subprocess.run([str(executable), str(clipped), "--json", str(cout)], capture_output=True, text=True, encoding="utf-8", check=False)
     rep = json.loads(cout.read_text(encoding="utf-8"))
     assert r.returncode == 0 and rep["channels"][0]["clipped_samples"] > 10000 and any("full scale" in w for w in rep["warnings"]), rep["warnings"]
     assert "Warning:" in r.stdout
     # Explicit channel map is recorded in the comparison.
     cmp_out = directory / "mapped.json"
-    r = subprocess.run([str(executable), "compare", str(source), str(source), "--map", "1:2,2:1", "--json", str(cmp_out)], capture_output=True, text=True, check=False)
+    r = subprocess.run([str(executable), "compare", str(source), str(source), "--map", "1:2,2:1", "--json", str(cmp_out)], capture_output=True, text=True, encoding="utf-8", check=False)
     assert r.returncode == 0, r.stderr
     assert json.loads(cmp_out.read_text(encoding="utf-8"))["settings"]["channel_map"] == [[1, 2], [2, 1]]
-    bad = subprocess.run([str(executable), "compare", str(source), str(source), "--map", "1:1,1:2"], capture_output=True, text=True, check=False)
+    bad = subprocess.run([str(executable), "compare", str(source), str(source), "--map", "1:1,1:2"], capture_output=True, text=True, encoding="utf-8", check=False)
     assert bad.returncode == 1 and "at most once" in bad.stderr
 
 
@@ -167,7 +167,7 @@ def check_early_option_validation(executable: pathlib.Path, directory: pathlib.P
     source = directory / "two-channel tones.wav"
     for extra in (["--tolerance", "-1"], ["--map", "1:5"], ["--map", "1:1,1:2"], ["--tolerance", "1abc"]):
         started = time.monotonic()
-        r = subprocess.run([str(executable), "compare", str(source), str(source), *extra], capture_output=True, text=True, check=False)
+        r = subprocess.run([str(executable), "compare", str(source), str(source), *extra], capture_output=True, text=True, encoding="utf-8", check=False)
         assert r.returncode == 1 and "HumTrace:" in r.stderr, (extra, r.stderr)
         assert time.monotonic() - started < 1.0, extra
 
@@ -176,7 +176,7 @@ def check_unwritable_output_leaves_nothing(executable: pathlib.Path, directory: 
     source = directory / "two-channel tones.wav"
     target = directory / "no-such-dir" / "report.json"
     result = subprocess.run([str(executable), str(source), "--json", str(target)],
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 1 and "output directory does not exist" in result.stderr, result.stderr
     assert not target.exists() and not list(directory.rglob("*.humtrace-tmp*"))
 
@@ -186,7 +186,7 @@ def check_utf8_paths_and_atomic_export(executable: pathlib.Path, directory: path
     write_stereo_tones(source)
     first = directory / "résultat-解析.json"
     result = subprocess.run([str(executable), str(source), "--json", str(first), "--full-path"],
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     first_bytes = first.read_bytes()
     report = json.loads(first_bytes.decode("utf-8"))
@@ -195,14 +195,14 @@ def check_utf8_paths_and_atomic_export(executable: pathlib.Path, directory: path
 
     repeated = directory / "répété.json"
     result = subprocess.run([str(executable), str(source), "--json", str(repeated), "--full-path"],
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     assert repeated.read_bytes() == first_bytes, "identical input must produce byte-identical UTF-8 report"
     assert not list(directory.glob("répété.json.humtrace-tmp*"))
 
     first.write_text("preserve until a successful atomic replacement", encoding="utf-8")
     result = subprocess.run([str(executable), str(source), "--json", str(first), "--force"],
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     assert json.loads(first.read_text(encoding="utf-8"))["input"]["path"] == source.name
     assert not list(directory.glob("résultat-解析.json.humtrace-tmp*"))
@@ -224,7 +224,7 @@ def check_interrupt_cancels_without_output(executable: pathlib.Path, directory: 
             out.writeframes(chunk)
     report = directory / "cancelled.json"
     process = subprocess.Popen([str(executable), str(long_wav), "--json", str(report)],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8")
     time.sleep(0.5)
     started = time.monotonic()
     process.send_signal(signal.SIGINT)
@@ -239,7 +239,7 @@ def check_csv_and_notes(executable: pathlib.Path, directory: pathlib.Path) -> No
     write_stereo_tones(source)
     csv_path = directory / "tracks.csv"
     result = subprocess.run([str(executable), str(source), "--csv", str(csv_path), "--a4", "440"],
-                            capture_output=True, text=True, check=False)
+                            capture_output=True, text=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
     assert "(B1 " in result.stdout, result.stdout  # 60 Hz track labelled with its nearest note
     rows = csv_path.read_text(encoding="utf-8").splitlines()
@@ -247,9 +247,9 @@ def check_csv_and_notes(executable: pathlib.Path, directory: pathlib.Path) -> No
     assert any(r.startswith("1,") and ",B1," in r for r in rows[1:]), rows
     assert any(r.startswith("2,") and ",G1," in r for r in rows[1:]), rows
     again = subprocess.run([str(executable), str(source), "--csv", str(csv_path)],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, encoding="utf-8", check=False)
     assert again.returncode != 0, "CSV must not silently overwrite an existing file"
-    bad = subprocess.run([str(executable), str(source), "--a4", "10"], capture_output=True, text=True, check=False)
+    bad = subprocess.run([str(executable), str(source), "--a4", "10"], capture_output=True, text=True, encoding="utf-8", check=False)
     assert bad.returncode != 0 and "--a4" in bad.stderr, bad.stderr
 
 
@@ -259,15 +259,15 @@ def check_welch_options(executable, directory):
     target = directory / "welch-options.json"
     result = subprocess.run([str(executable), str(source), "--psd-segment-size", "1024",
                              "--psd-hop-size", "512", "--json", str(target), "--quiet"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr
-    report = json.loads(target.read_text())
+    report = json.loads(target.read_text(encoding="utf-8"))
     assert report["settings"]["welch_psd"]["segment_size_samples"] == 1024
     assert report["channels"][0]["psd"]["segments_averaged"] == 15
     for args in [("--psd-segment-size", "3"), ("--psd-hop-size", "0"),
                  ("--psd-hop-size", "8192"), ("--psd-segment-size", "1024x"),
                  ("--psd-segment-size", "-1024")]:
-        result = subprocess.run([str(executable), str(source), *args], capture_output=True, text=True)
+        result = subprocess.run([str(executable), str(source), *args], capture_output=True, text=True, encoding="utf-8")
         assert result.returncode != 0, args
 
 

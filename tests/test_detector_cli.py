@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-detector-cli-") as temporary:
     for mode in ([], ["--stream"]):
         output = root / ("stream.json" if mode else "retained.json")
         result = subprocess.run([str(exe), str(source), "--json", str(output), "--quiet", *options, *mode],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding="utf-8")
         assert result.returncode == 0, result.stderr
         outputs.append(json.loads(output.read_text(encoding="utf-8")))
     assert outputs[0] == outputs[1], "custom configuration differs between storage paths"
@@ -39,6 +39,6 @@ with tempfile.TemporaryDirectory(prefix="humtrace-detector-cli-") as temporary:
     for invalid in (["--frame-size", "2000"], ["--hop-size", "999999999999999999999999"],
                     ["--band-min-hz", "nan"], ["--floor-radius-bins", "0"],
                     ["--window", "blackman"], ["--map", ""]):
-        result = subprocess.run([str(exe), str(root / "missing.wav"), *invalid], capture_output=True, text=True)
+        result = subprocess.run([str(exe), str(root / "missing.wav"), *invalid], capture_output=True, text=True, encoding="utf-8")
         assert result.returncode != 0 and "could not open" not in result.stderr, (invalid, result.stderr)
 print("Detector CLI: effective settings, irregular tail, exact streaming parity and upfront rejection passed.")

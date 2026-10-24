@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-bounded-") as temporary:
                                        stdout=stdout, stderr=stderr, preexec_fn=constrain)
             _, status, usage = os.wait4(process.pid, 0)
             process.returncode = os.waitstatus_to_exitcode(status)
-        assert process.returncode == 0, (root / "stderr").read_text()
+        assert process.returncode == 0, (root / "stderr").read_text(encoding="utf-8")
         rss = usage.ru_maxrss / 1024
         assert 0 < rss < 64, f"resident memory {rss:.2f} MiB exceeds 64 MiB"
         counts = 0
@@ -76,7 +76,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-bounded-") as temporary:
                     latency = time.monotonic() - started
                 else:
                     latency = float("inf")
-            error_text = (root / "cancel-stderr").read_text(errors="replace")
+            error_text = (root / "cancel-stderr").read_text(encoding="utf-8", errors="replace")
             assert process.returncode == 130 and latency < 1.0, (process.returncode, latency, error_text)
             assert "cancelled" in error_text.lower() and not cancelled_report.exists(), error_text
             assert not list(root.glob(".humtrace-stream-*"))

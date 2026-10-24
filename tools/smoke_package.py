@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-package-") as temporary:
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["channels"][0]["tracks"], report
     version = subprocess.run([str(gui), "--version"], cwd=root, env=environment,
-                             capture_output=True, text=True, check=True, timeout=30)
+                             capture_output=True, text=True, encoding="utf-8", check=True, timeout=30)
     assert "HumTrace" in version.stdout, version
     process = subprocess.Popen([str(gui), str(source)], cwd=root, env=environment,
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

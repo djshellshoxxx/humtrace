@@ -147,6 +147,7 @@ void MainWindow::buildUi() {
     ceilingBox_->setSuffix(" dBFS");
     ceilingBox_->setAccessibleName(tr("Spectrogram ceiling"));
     auto* note = new QLabel(tr("Display only; does not change analysis"));
+    note->setWordWrap(true);
     for (QWidget* w : std::initializer_list<QWidget*>{scaleBox_, paletteBox_, floorBox_, ceilingBox_, note}) rl->addWidget(w);
     rl->addStretch();
     layout->addWidget(row);
@@ -193,14 +194,16 @@ void MainWindow::buildUi() {
     recent_ = new QListWidget;
     recent_->setAccessibleName(tr("Recent recordings"));
     auto* clear = new QPushButton(tr("Clear recent list"));
-    ll->addWidget(new QLabel(tr("Channels (analyzed independently)")));
+    auto* channelHint = new QLabel(tr("Channels (analyzed independently)"));
+    channelHint->setWordWrap(true);
+    ll->addWidget(channelHint);
     ll->addWidget(channels_, 1);
     ll->addWidget(new QLabel(tr("Recent recordings")));
     ll->addWidget(recent_, 2);
     ll->addWidget(clear);
     left->setWidget(lw);
     addDockWidget(Qt::LeftDockWidgetArea, left);
-    left->setMinimumWidth(200);
+    left->setMinimumWidth(180);
     connect(channels_, &QListWidget::currentRowChanged, this, [this](int row) { if (row >= 0) view_->setChannel(row); });
     connect(view_, &ViewState::channelChanged, this, [this] {
         if (channels_->currentRow() != view_->channel()) channels_->setCurrentRow(view_->channel());
@@ -251,7 +254,7 @@ void MainWindow::buildUi() {
     rl2->addWidget(inspector_, 3);
     right->setWidget(rw);
     addDockWidget(Qt::RightDockWidgetArea, right);
-    right->setMinimumWidth(340);
+    right->setMinimumWidth(300);
     connect(table_->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::onFindingSelected);
     connect(view_, &ViewState::cursorChanged, this, &MainWindow::onCursorChanged);
 

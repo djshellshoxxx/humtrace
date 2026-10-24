@@ -41,7 +41,7 @@ def run(exe, directory, name, rate, samples):
     out = directory / f"{name}.json"
     write_wav(wav, rate, samples)
     subprocess.run([str(exe), str(wav), "--json", str(out)], check=True, capture_output=True)
-    return json.loads(out.read_text())
+    return json.loads(out.read_text(encoding="utf-8"))
 
 
 def nearest_track(report, hz):

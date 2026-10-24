@@ -15,7 +15,7 @@ import wave
 exe = pathlib.Path(sys.argv[1]).resolve()
 
 def run(*args):
-    return subprocess.run([str(exe), *map(str, args)], capture_output=True, text=True, check=False)
+    return subprocess.run([str(exe), *map(str, args)], capture_output=True, text=True, encoding="utf-8", check=False)
 
 with tempfile.TemporaryDirectory(prefix="humtrace-stream-") as temporary:
     root = pathlib.Path(temporary)
@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-stream-") as temporary:
         a = run(source, "--json", normal, "--quiet")
         b = run(source, "--json", streamed, "--stream", "--memory-limit-mib", 64)
         assert a.returncode == b.returncode == 0, (a.stderr, b.stderr)
-        left, right = json.loads(normal.read_text()), json.loads(streamed.read_text())
+        left, right = json.loads(normal.read_text(encoding="utf-8")), json.loads(streamed.read_text(encoding="utf-8"))
         assert left == right, kind
         # Release 0.2.4 adds channel-local ambiguity tables and scalar boundary
         # links so the disk-backed report stays schema-compatible without loading
@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-stream-") as temporary:
         b = run(source, "--json", streamed, "--stream", "--memory-limit-mib", 64,
                 "--quiet", *options)
         assert a.returncode == b.returncode == 0, (kind, a.stderr, b.stderr)
-        left, right = json.loads(normal.read_text()), json.loads(streamed.read_text())
+        left, right = json.loads(normal.read_text(encoding="utf-8")), json.loads(streamed.read_text(encoding="utf-8"))
         assert left == right, kind
         channel = left["channels"][0]
         events = channel["ambiguities"]
@@ -121,7 +121,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-stream-") as temporary:
     assert result.returncode == 1 and "memory budget" in result.stderr and not output.exists(), result.stderr
     output.write_text("keep me")
     result = run(source, "--json", output, "--stream", "--memory-limit-mib", 1, "--force")
-    assert result.returncode == 1 and output.read_text() == "keep me"
+    assert result.returncode == 1 and output.read_text(encoding="utf-8") == "keep me"
     # Enough rows to hit the 1 MiB spool budget well before completion.
     large = root / "large.wav"
     with wave.open(str(large), "wb") as wav:
@@ -135,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix="humtrace-stream-") as temporary:
     assert not list(root.glob(".humtrace-stream-*"))
     if sys.platform != "win32":
         process = subprocess.Popen([str(exe), str(large), "--stream", "--json", str(root / "cancel.json")],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8")
         time.sleep(0.05)
         process.send_signal(signal.SIGINT)
         _, error = process.communicate(timeout=10)

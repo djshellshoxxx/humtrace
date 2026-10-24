@@ -111,7 +111,8 @@ def collect_package_licenses(dependency_manifest, runtime, stage, run=None,
     if run is None:
         def run(command):
             try:
-                return subprocess.check_output(command, text=True, stderr=subprocess.STDOUT)
+                return subprocess.check_output(command, text=True, encoding="utf-8",
+                                               stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as error:
                 detail = error.output.strip() if error.output else str(error)
                 raise RuntimeError(f"command failed ({' '.join(command)}): {detail}") from error

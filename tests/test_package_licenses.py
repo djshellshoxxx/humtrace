@@ -30,7 +30,8 @@ class PackageLicenseInventory(unittest.TestCase):
             ]), encoding="utf-8")
             license_file = install_root / "share" / "licenses" / "qt-base" / "LICENSE"
             license_file.parent.mkdir(parents=True)
-            license_file.write_text("license text\n", encoding="utf-8")
+            # Hash assertions must see the same fixture bytes on POSIX and Windows.
+            license_file.write_bytes(b"license text\n")
 
             def run(command):
                 if command[:2] == ["pacman", "-Qqo"]:

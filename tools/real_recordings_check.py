@@ -52,7 +52,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for path in audio_paths:
             report_path = pathlib.Path(tmp) / (path.stem + ".json")
-            proc = subprocess.run([str(exe), str(path), "--json", str(report_path)], capture_output=True, text=True)
+            proc = subprocess.run([str(exe), str(path), "--json", str(report_path)], capture_output=True, text=True, encoding="utf-8")
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             manifest.append({"file": path.name, "bytes": path.stat().st_size, "sha256": digest})
             if proc.returncode != 0:
@@ -60,7 +60,7 @@ def main():
                 if "unsupported" not in proc.stderr and "too short" not in proc.stderr:
                     problems.append(f"{path.name}: unexpected failure: {proc.stderr.strip()}")
                 continue
-            report = json.loads(report_path.read_text())
+            report = json.loads(report_path.read_text(encoding="utf-8"))
             if report["input"]["sha256"] != digest:
                 problems.append(f"{path.name}: sha256 mismatch")
             data, rate = sf.read(path, dtype="float64", always_2d=True)

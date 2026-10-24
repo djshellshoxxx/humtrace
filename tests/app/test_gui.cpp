@@ -34,6 +34,7 @@
 #include <QTextBrowser>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolButton>
 #include <cmath>
 #include <fstream>
 #include <numbers>
@@ -402,6 +403,35 @@ private slots:
         MainWindow w;
         QCOMPARE(w.state(), humtrace::ui::JobState::Empty);
         QVERIFY(w.report() == nullptr);
+    }
+
+    void minimumWindowSizeKeepsEssentialControlsVisible() {
+        MainWindow window;
+        window.resize(1024, 680);
+        window.show();
+        window.openRecording(writeWav(dir_.path(), "minimum-window.wav", 3.0));
+        const auto check = [&] {
+            QCOMPARE(window.size(), QSize(1024, 680));
+            for (auto* button : window.findChildren<QToolButton*>()) {
+                if (button->text().isEmpty()) continue;
+                QVERIFY2(button->isVisibleTo(&window), qPrintable(button->text()));
+                QVERIFY2(button->width() >= button->sizeHint().width(), qPrintable(button->text()));
+            }
+            for (auto* control : window.findChildren<QWidget*>()) {
+                const auto name = control->accessibleName();
+                if (name != "Spectrogram frequency scale" && name != "Spectrogram palette" &&
+                    name != "Spectrogram floor" && name != "Spectrogram ceiling") continue;
+                const QRect visible(control->mapTo(&window, QPoint{}), control->size());
+                QVERIFY2(window.rect().contains(visible) && control->isVisibleTo(&window), qPrintable(name));
+                QVERIFY(control->width() >= control->minimumSizeHint().width());
+            }
+        };
+        QTest::qWait(20);
+        check();
+        window.startAnalysis();
+        QVERIFY(wait_until([&] { return window.state() == humtrace::ui::JobState::Complete; }, 20000));
+        QTest::qWait(20);
+        check();
     }
 
     void analyzesStereoFileAndShowsPerChannelFindings() {

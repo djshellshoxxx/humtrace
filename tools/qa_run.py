@@ -18,7 +18,7 @@ import tempfile
 import time
 
 EXE = pathlib.Path(sys.argv[1]).resolve()
-SCHEMA = json.loads((pathlib.Path(__file__).resolve().parent.parent / "schema" / "analysis-report-v1.schema.json").read_text())
+SCHEMA = json.loads((pathlib.Path(__file__).resolve().parent.parent / "schema" / "analysis-report-v1.schema.json").read_text(encoding="utf-8"))
 try:
     import jsonschema
 except ImportError:
@@ -65,7 +65,7 @@ def wav_bytes(rate, channels, fmt, seconds, tones, extensible=False):
 
 
 def run(args, **kw):
-    return subprocess.run([str(EXE), *map(str, args)], capture_output=True, text=True, **kw)
+    return subprocess.run([str(EXE), *map(str, args)], capture_output=True, text=True, encoding="utf-8", **kw)
 
 
 def sha(path):
@@ -97,7 +97,7 @@ def main():
                         ok = r.returncode == 0 and sha(path) == before
                         detail = r.stderr.strip()
                         if ok:
-                            report = json.loads(out.read_text())
+                            report = json.loads(out.read_text(encoding="utf-8"))
                             # Pick the track nearest the injected tone (quantization noise can add extra tracks).
                             freq = [min((t["median_frequency_hz"] for t in ch["tracks"]), key=lambda f: abs(f - 60.0 * (c + 1))) / (c + 1)
                                     for c, ch in enumerate(report["channels"]) if ch["tracks"]]
@@ -161,10 +161,10 @@ def main():
         existing = d / "existing.json"
         existing.write_text("OLD")
         refused = run([path, "--json", existing])
-        record("existing output refused without --force", refused.returncode == 1 and existing.read_text() == "OLD")
+        record("existing output refused without --force", refused.returncode == 1 and existing.read_text(encoding="utf-8") == "OLD")
         run([path, "--json", existing, "--force"])
         record("--force replaces existing, no temp left",
-               existing.read_text().startswith("{") and not list(d.glob("existing.json.humtrace-tmp*")))
+               existing.read_text(encoding="utf-8").startswith("{") and not list(d.glob("existing.json.humtrace-tmp*")))
         unicode_source = d / "音声-über.wav"
         unicode_source.write_bytes(path.read_bytes())
         unicode_out = d / "résultat-解析.json"
@@ -184,7 +184,7 @@ def main():
         b.write_bytes(wav_bytes(8000, 1, "pcm16", 4.0, [50.4, 300.0]))
         c = d / "cmp.json"
         r = run(["compare", a, b, "--json", c])
-        cmp = json.loads(c.read_text()) if c.exists() else {}
+        cmp = json.loads(c.read_text(encoding="utf-8")) if c.exists() else {}
         record("compare: near tones matched, others unmatched, no alignment",
                r.returncode == 0 and len(cmp.get("matches", [])) == 1 and len(cmp["unmatched_a"]) == 1
                and len(cmp["unmatched_b"]) == 1 and cmp["alignment"]["applied"] is False)
@@ -210,7 +210,7 @@ def main():
         record("peak memory growth, 3 h vs 1 h recording", memory_ok,
                f"1 h {m1:.0f} MB (exit {exit1}), 3 h {m3:.0f} MB (exit {exit3})")
         proc = subprocess.Popen([str(EXE), str(p3), "--json", str(d / "c.json")], stdout=subprocess.DEVNULL,
-                                stderr=subprocess.PIPE, text=True)
+                                stderr=subprocess.PIPE, text=True, encoding="utf-8")
         time.sleep(0.3)
         t1 = time.time()
         proc.send_signal(signal.SIGINT)
