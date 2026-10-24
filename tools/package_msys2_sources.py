@@ -21,8 +21,8 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 MAX_PACKAGES = 64
 MAX_HTML_BYTES = 2 * 1024 * 1024
-MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
-MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_DEPENDENCY_MANIFEST_BYTES = 2 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = "MSYS2_SOURCE_RECIPES"
@@ -79,7 +79,7 @@ def _download(url, limit, kind):
             _safe_url(final_url, kind)
             declared = response.headers.get("Content-Length")
             if declared and int(declared) > limit:
-                raise RuntimeError("response exceeds size limit")
+                raise RuntimeError(f"response exceeds size limit ({declared} > {limit} bytes)")
             data = response.read(limit + 1)
     except (HTTPError, URLError, TimeoutError, OSError) as error:
         raise RuntimeError(f"download failed for {url}: {error}") from error
