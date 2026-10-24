@@ -1,8 +1,8 @@
 # Development status — 2026-10-24
 
-Active integration branch: `codex/humtrace-release-0.2.4`, descended from
-`codex/humtrace-tracking-completion` and published preview v0.2.3. Existing branch,
-tag and release histories are preserved; main is still an older baseline.
+Active integration branch: `codex/humtrace-release-0.2.4`, at the verified
+v0.2.5 preview source `d9a24852024e86bff7e25d64bd50a73d02944c6c`. Main remains
+an older baseline. Existing branches, immutable tags and releases are preserved.
 
 This continuation adds explicit detector settings and honest resolution/uncertainty
 metadata, conservative candidate split/merge events across retained and disk-backed
@@ -19,6 +19,10 @@ and exact-tag CI trace were correct. That published tag and its assets are prese
 The package workflow includes a checksum-verified upstream QtBase source baseline,
 Windows runtime/plugin package and notice metadata, and a macOS per-image dependency,
 minimum-OS and hash manifest. These are provenance inputs, not a compliance finding.
+The Windows workflow now also stages the exact-version MSYS2 source-only recipes
+for bundled runtime DLL owners. Its fixture tests pass; live collection was denied
+by the saved executor's HTTP 403 network proxy, so the runner-side fetch and next
+Windows archive remain unverified. Recipe archives are not upstream source archives.
 Windows packages must pass an extracted-package smoke test with toolchain paths
 removed. macOS packages must pass dependency closure, declared minimum-OS and ad-hoc
 signature checks, followed by an extracted-package smoke test. Native baselines are
@@ -30,3 +34,6 @@ interface proposal pending a product/host decision. Held-out labeled real-data
 calibration, native screen-reader/high-DPI/clean-machine acceptance, signing identities,
 full report import/verification and artifact-specific licensing review remain open.
 These gates are not closed by synthetic test counts or the presence of a package.
+
+The README labels HumTrace as a software artwork and audio analysis project. The
+label describes the project form and does not change the open acceptance gates.

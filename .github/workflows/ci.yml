@@ -26,7 +26,7 @@ jobs:
         env:
           HUMTRACE_REQUIRE_JSONSCHEMA: "1"
       - name: Packaging regression tests
-        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py && python3 tests/test_package_source.py && python3 tests/test_source_metadata.py --cmake "$(command -v cmake)"
+        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_msys2_sources.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py && python3 tests/test_package_source.py && python3 tests/test_source_metadata.py --cmake "$(command -v cmake)"
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
@@ -105,6 +105,7 @@ jobs:
           cp docs/release/THIRD_PARTY_NOTICES.md docs/user-guide/limitations.md build-cmake/SOURCE_COMMIT.txt build-cmake/package/
           python3 tools/package_windows.py --stage build-cmake/package --runtime /ucrt64/bin
           python3 tools/package_licenses.py --stage build-cmake/package --runtime /ucrt64/bin
+          python3 tools/package_msys2_sources.py --manifest build-cmake/package/DEPENDENCY_LICENSES.json --stage build-cmake/package
           python3 -c 'import json; d=json.load(open("build-cmake/package/DEPENDENCY_LICENSES.json", encoding="utf-8")); print("Inventoried DLLs:", len(d["dependencies"])); print("Package versions:", sorted({(x["package"], x["version"]) for x in d["dependencies"]})); print("Notices:", len(d["notices"]))'
           mkdir build-cmake/package/qtbase-source
           python3 tools/package_qt_sources.py --stage build-cmake/package/qtbase-source --version "$(qmake6 -query QT_VERSION)"

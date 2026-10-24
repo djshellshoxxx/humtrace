@@ -42,7 +42,12 @@ workflow is configured to map bundled runtime and nested Qt plugin DLLs to MSYS2
 record source/staged hashes, copy installed package license files, and save the
 installed package list and installed QtBase SPDX metadata. Its coverage is the
 staged DLL set; it is not a complete per-file license inventory of every executable. Windows
-and macOS workflows stage a SHA256-verified upstream QtBase source archive, its
+also stages exact-version MSYS2 source-only package archives for bundled runtime
+DLL owners. These contain build recipes and patch payloads, not the upstream
+source archives referenced by those recipes; their SHA-256 values are computed
+locally over downloads and are not upstream-authenticated digests. The recipe
+set is limited to runtime owners recorded in `DEPENDENCY_LICENSES.json`.
+Windows and macOS workflows stage a SHA256-verified upstream QtBase source archive, its
 `LICENSES` tree, and a scope manifest matched to the installed Qt version.
 macOS also records Homebrew metadata and the installed QtBase formula, including
 its patch references. Its per-image dependency manifest records minimum OS,

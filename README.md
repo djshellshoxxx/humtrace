@@ -1,6 +1,6 @@
 # HumTrace
 
-HumTrace is a Circuit Drift Labs audio interference analysis project. The repository contains an offline C++ prototype and research/specification set.
+HumTrace is a Circuit Drift Labs software artwork and audio interference analysis project. The repository contains an offline C++ application and research/specification set.
 
 ## What it does
 
