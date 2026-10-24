@@ -1,45 +1,44 @@
-# Deferred plugin adapters
+# Plugin adapter scope and release gates
 
-**Status:** specified for evaluation only. No VST3 or CLAP adapter, plug-in
-bundle, SDK dependency, host validation, or supported-host claim is present in
-this repository. The CLI and Qt desktop application are standalone products.
+**Status:** format and first host choices are selected for implementation.
+There is no VST3 or CLAP adapter, plug-in bundle, SDK dependency, host
+validation, or supported-host claim in this repository yet. The CLI and Qt
+desktop application remain standalone products.
 
 ## Release-platform relationship
 
-Any future plugin release is intended to target the same Windows, macOS, and
-Linux platform families as the standalone release. That is a release goal, not
-evidence that a particular host, operating-system version, architecture, or
-plugin format is supported. The standalone and plugin gates remain separate:
-each format/host/platform combination needs a native build, format validator,
-load test, capture test, and packaged artifact check before it can be named as
-supported. See [the proposed capture interface](plugin-capture-interface.md)
-for the format-neutral contract and the unresolved host/workflow decision.
-Where the standalone release verifies Linux x86-64, Windows x86-64 (UCRT64
-build), and both Apple silicon and Intel macOS, a plugin format inherits
-those targets only after its own architecture-specific artifacts and host
-checks pass.
+Both formats are in scope because the requested product workflow is live DAW
+capture followed by offline analysis. The first manual host target is REAPER
+7.83 on each native package baseline: Linux x86-64, Windows x86-64, macOS
+ARM64, and macOS Intel. Cockos lists VST3 and CLAP hosting and these platform
+families; that establishes format applicability, not HumTrace compatibility.
+Update the host version when making each release and verify every format,
+architecture, and platform in the actual host. [REAPER's current download
+page](https://www.reaper.fm/download.php) lists version 7.83 on 2026-10-24;
+[its format list](https://www.reaper.fm/about.php) includes VST3 and CLAP.
 
 ## Format applicability
 
-VST3 and CLAP are candidate delivery formats, not selected dependencies. The
-VST3 3.8 SDK is published under MIT terms by Steinberg; earlier SDK releases
-had different licensing, so any adoption must pin and audit an exact release.
-The CLAP API is published by free-audio under MIT terms. SDK/API license terms
-do not establish host availability, user demand, or compatibility. Review the
-exact pinned source, notices, build integration, and any helper libraries
-before adoption. Sources: [Steinberg VST 3.8 announcement](https://www.steinberg.net/press/2025/vst-3-8/),
+Build both formats against the pinned VST3 SDK 3.8.1 commit
+`3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96` and CLAP 1.2.10 commit
+`195b42a004144fab0b3cf95e9c067187d15365b7`. VST3 3.8 uses MIT terms;
+earlier SDK releases had different terms. The CLAP API is MIT licensed. Keep
+only required API headers and license notices in the build/package; do not
+enable VSTGUI, examples, or auto-install. Audit exact SDK source and component
+licenses during implementation. Sources: [Steinberg VST 3.8 announcement](https://www.steinberg.net/press/2025/vst-3-8/),
 [VST3 SDK](https://github.com/steinbergmedia/vst3sdk),
 [CLAP API](https://github.com/free-audio/clap).
 
-| Candidate | Platform intent | Applicability and gate |
+| Format | Platform intent | Applicability and gate |
 | --- | --- | --- |
-| VST3 | Windows, macOS, Linux, subject to per-host/platform verification | A plausible route for DAW-hosted capture, but no target host list or installed host validation is recorded. Pin an SDK release and use its matching validator and lifecycle guidance. |
-| CLAP | Windows, macOS, Linux, subject to per-host/platform verification | A plausible alternative where target hosts implement CLAP. No target host list or host validation is recorded. Pin an API revision and test the selected host/extension subset. |
+| VST3 | Linux x86-64, Windows x86-64, macOS ARM64 and Intel | Selected. Native build, official validator, adapter host harness, REAPER capture/pass-through testing, and packaged artifact checks remain open. |
+| CLAP | Linux x86-64, Windows x86-64, macOS ARM64 and Intel | Selected. Native build, official validator, adapter host harness, REAPER capture/pass-through testing, and packaged artifact checks remain open. |
 
-Do not implement both formats merely because both are technically applicable.
-The product owner must choose a capture workflow and target host(s), then select
-the smallest format set that satisfies that choice. No material product choice
-is inferred by this specification.
+No other host is in the first support scope. A host becomes supported only
+after the same evidence passes on that host. The evaluation should use an
+existing REAPER license; do not purchase a license or enter a new agreement for
+this work. If a suitable installed host is unavailable, report the manual host
+gate as pending.
 
 ## Adapter boundary
 
@@ -50,12 +49,12 @@ headers and keep a no-SDK standalone build. Do not place Qt widgets, file
 dialogs, logging, allocation, locking, file I/O, or analysis calls on the host's
 real-time audio callback.
 
-The proposed interface and state transitions are in
+The selected interface and state transitions are in
 [plugin-capture-interface.md](plugin-capture-interface.md). It specifies a
 non-modifying pass-through effect, bounded capture, worker-thread processing,
-explicit dropped-audio provenance, and hard boundaries for channel count,
-sample rate, and host blocks. Do not claim equivalence with file analysis until
-the same decoded audio and settings produce validated equivalent output.
+explicit dropped-audio provenance, and conservative channel, rate, duration,
+and host-block boundaries. Do not claim equivalence with file analysis until
+the same captured audio and settings produce validated equivalent output.
 
 ## Validation before a support claim
 
@@ -75,10 +74,9 @@ package inspection, and signing checks. No such evidence exists today.
 
 Use the [analysis engine](analysis-engine.md),
 [long-file workflow](long-file-workflow.md),
-[report integrity](report-integrity.md), and proposed
-[capture interface](plugin-capture-interface.md). Before implementation,
-stabilize an in-memory or disk-backed cancellable job API, define host and
-workflow scope, choose capture limits and incomplete-capture policy, pin the
-format SDK/API, and complete dependency and license review. This specification
-does not authorize a format choice or assert that the currently shipped
-standalone release includes a plugin.
+[report integrity](report-integrity.md), and
+[capture interface](plugin-capture-interface.md). The next implementation
+gates are a bounded reusable capture job, accurate capture provenance,
+format-specific realtime-safe adapters, validators and host harnesses, then
+native package and manual REAPER checks. This scope does not assert that the
+currently published standalone release includes a plugin.

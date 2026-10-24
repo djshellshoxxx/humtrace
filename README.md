@@ -72,6 +72,7 @@ metadata, quartiles, drift fit quality, gaps and candidate ambiguity events. Res
 is distinct from calibrated uncertainty, which remains uncharacterized. See the
 [user guide](docs/user-guide/user-guide.md) and [acceptance ledger](docs/release/acceptance-0.2.4.md).
 
-VST3/CLAP adapters require a host/capture workflow decision and separate SDK/host
-validation. The [capture interface proposal](docs/specs/plugin-capture-interface.md)
-defines that boundary; standalone archives are not plugin binaries.
+VST3 and CLAP are selected for bounded DAW capture, with REAPER 7.83 as the
+first host validation target. The [capture interface and limits](docs/specs/plugin-capture-interface.md)
+are specified, but no adapters or plugin binaries are implemented yet.
+Standalone archives are not plugin binaries.

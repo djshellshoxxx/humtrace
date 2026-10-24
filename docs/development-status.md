@@ -29,8 +29,9 @@ signature checks, followed by an extracted-package smoke test. Native baselines 
 macOS 26 ARM64 and macOS 15 Intel. A published preview links the exact-tag CI result,
 source SHA and asset checksums; only those results establish artifact availability.
 
-The desktop and CLI are standalone applications. VST3/CLAP remain a scoped capture
-interface proposal pending a product/host decision. Held-out labeled real-data
+The desktop and CLI are standalone applications. VST3/CLAP capture scope is
+selected for REAPER 7.83, with conservative limits recorded in the interface
+specification; adapters and host validation remain incomplete. Held-out labeled real-data
 calibration, native screen-reader/high-DPI/clean-machine acceptance, signing identities,
 full report import/verification and artifact-specific licensing review remain open.
 These gates are not closed by synthetic test counts or the presence of a package.
