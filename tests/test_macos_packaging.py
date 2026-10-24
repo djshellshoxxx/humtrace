@@ -94,7 +94,7 @@ Load command 3
             binary = framework / "Versions/A/QtCore"
             binary.parent.mkdir(parents=True)
             binary.write_bytes(b"topology fixture only")
-            (framework / "Versions/Current").symlink_to("A")
+            (framework / "Versions/Current").symlink_to("A", target_is_directory=True)
             (framework / "QtCore").symlink_to("Versions/Current/QtCore")
             executable = app / "Contents/MacOS/Example"
             executable.parent.mkdir(parents=True)
@@ -108,7 +108,7 @@ Load command 3
             self.assertLess(order.index(framework), order.index(app))
             self.assertLess(order.index(plugin), order.index(app))
             self.assertEqual(order[-1], app)
-            (framework / "escape").symlink_to(Path(temporary))
+            (framework / "escape").symlink_to(Path(temporary), target_is_directory=True)
             with self.assertRaisesRegex(RuntimeError, "symlink escapes"):
                 packaging.validate_symlinks(app)
 

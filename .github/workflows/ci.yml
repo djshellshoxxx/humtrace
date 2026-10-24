@@ -159,8 +159,8 @@ jobs:
         run: |
           VER=$(sed -n 's/^project(HumTrace VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           cd build-cmake/bin
-          lipo -verify_arch ${{ matrix.arch }} humtrace
-          lipo -verify_arch ${{ matrix.arch }} humtrace-gui.app/Contents/MacOS/humtrace-gui
+          lipo humtrace -verify_arch ${{ matrix.arch }}
+          lipo humtrace-gui.app/Contents/MacOS/humtrace-gui -verify_arch ${{ matrix.arch }}
           python3 ../../tools/package_macos.py --app humtrace-gui.app --qt-prefix "$(brew --prefix qtbase)" --brew-prefix "$(brew --prefix)"
           cp ../../docs/release/THIRD_PARTY_NOTICES.md ../../docs/user-guide/limitations.md ../SOURCE_COMMIT.txt .
           mkdir qtbase-source
