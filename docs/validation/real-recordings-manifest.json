@@ -1,0 +1,324 @@
+[
+ {
+  "file": "Google_Gnome.wav",
+  "bytes": 1777980,
+  "sha256": "bf7c0ba4ad5316c3b456145d427726efce5dea01e40f47284522871167a3ccdc",
+  "source": "gs://cloud-samples-data/speech/Google_Gnome.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "alice51_6ch.wav",
+  "bytes": 46254392,
+  "sha256": "b86c20b92ad433b2b12d48d156a8fa3574ccb594b68aa8c6c8e13c706047ad8b",
+  "source": "converted locally from gs://cloud-samples-data/speech/listen/Alice_51_sample_mix.aif",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "brooklyn_bridge.wav",
+  "bytes": 319574,
+  "sha256": "493d0ce1d08b5354cee2357a5642fc1cf311ce6fecc5b320d8882df22f302e0c",
+  "source": "gs://cloud-samples-data/speech/brooklyn_bridge.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "commercial_mono.wav",
+  "bytes": 724844,
+  "sha256": "3b99c93224e0162c51127648b25f1f8801d8b0727d00565577880f2464ea4277",
+  "source": "gs://cloud-samples-data/speech/commercial_mono.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "commercial_stereo.wav",
+  "bytes": 6305632,
+  "sha256": "98fac004fb662ad8f720e680c81e3b4c9dea20190f5d1d908cece2cd6b30f01e",
+  "source": "gs://cloud-samples-data/speech/commercial_stereo.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "en-US.wav",
+  "bytes": 724844,
+  "sha256": "3b99c93224e0162c51127648b25f1f8801d8b0727d00565577880f2464ea4277",
+  "source": "gs://cloud-samples-data/speech/en-US.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "hello.wav",
+  "bytes": 44494,
+  "sha256": "64272ddce85d885e35dbde8cec1f55e421c8590851ac2871d4956ee42e343b65",
+  "source": "gs://cloud-samples-data/speech/hello.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_apert.wav",
+  "bytes": 47760,
+  "sha256": "066cbdc9bda100212487ff2b3acebf104989d053f5c3c88cfaa422045444be3e",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/apert.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_apert2.wav",
+  "bytes": 60904,
+  "sha256": "3562d56f0d2c467c16cbcadcddbd8c353fa565b917f40855433eb84da6780230",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/apert2.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_applause.wav",
+  "bytes": 90472,
+  "sha256": "176c2b45b67e65fc6167637ae73cf6c09037e51b51efd4e87da1618c4e5bdf03",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/applause.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_beam.wav",
+  "bytes": 43728,
+  "sha256": "4794c79e922f12ebf2572e213e80fff2a05093d6bbc2a081674ee17d9a8a3e31",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/beam.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_beam2.wav",
+  "bytes": 73456,
+  "sha256": "00a3c801cc1f13d4dc507f29421e633972365a168f61d773c048bb04456e0b0a",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/beam2.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_cow.wav",
+  "bytes": 37546,
+  "sha256": "9b8846bcbfd22bfd06762446eb1e63f91ecb72b524a006cd9a73e0c94ebc7548",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/cow.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_curve.wav",
+  "bytes": 134660,
+  "sha256": "2df584665eb60799c8ee9061888c753d6347313c0b44a67ca91e5b565cb709be",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/curve.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_drama.wav",
+  "bytes": 162366,
+  "sha256": "db416d217116b3dca9c676bff098328fd27a5b1791df8b823a19442212c88db3",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/drama.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_explos.wav",
+  "bytes": 47532,
+  "sha256": "650eec5d09bc044649dfd4914fd182535298bcade3002bc3502dba523562f5bb",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/explos.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_falling.wav",
+  "bytes": 87008,
+  "sha256": "a7de0104e3b90e655eb196aedfd49bd6d012eafa278b497262e1977167abe39b",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/falling.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_glasses.wav",
+  "bytes": 36270,
+  "sha256": "15b1bc58f8369ccc186af18276103efd0a70352b7d26c44d2df3a9da08fa211a",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/glasses.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_gong.wav",
+  "bytes": 191292,
+  "sha256": "7c1a354ffbc233e744fddcfdc26902db820c2327f095f4e0636b6fff2845f2f6",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/gong.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_horse.wav",
+  "bytes": 41958,
+  "sha256": "ed8da83d7c97ad0b3cc972f678022ea521fbff9ca5291f1c489ecee020799c91",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/horse.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_kling.wav",
+  "bytes": 46376,
+  "sha256": "5f171174c61c013337d41ecf834fb9fdd8f2bb6a1b956662e26d50329998d74d",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/kling.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_kongas.wav",
+  "bytes": 54866,
+  "sha256": "7180d991d80ebcb20ba1f9860b72a8e879b6cc74513fa2694f807c8f2bd406a1",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/kongas.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_laser.wav",
+  "bytes": 8408,
+  "sha256": "e17540db930711626956064dec082e105d693d96a62b744ac8620fc0a80dba1a",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/laser.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_left.wav",
+  "bytes": 29788,
+  "sha256": "6914c064795724f42f6689e5d8548f263d0b6992c20fbab232e5904ef3ccdd76",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/left.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_nature1.wav",
+  "bytes": 83102,
+  "sha256": "d17b776f687c56bb41f163a8f2e780f8bd3766d0aba7158afb928ab0a8cb473a",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/nature1.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_nature2.wav",
+  "bytes": 37164,
+  "sha256": "0f840a71fff727442ec11dfdb50301e8302b0d57c931617b13eaaa5751599325",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/nature2.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_ok.wav",
+  "bytes": 8862,
+  "sha256": "3e7ccb9574011f4ad95e584e77517c578c3b05857ea66a68d8fb3f44459f3044",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/ok.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_pluck.wav",
+  "bytes": 28510,
+  "sha256": "df4ae167f397ef9873596df6fe20a3d40e71a3ea2f7f70a777ddf24b0b7d80be",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/pluck.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_roll.wav",
+  "bytes": 242648,
+  "sha256": "68da7b975000e2d76c92f751d7d223fc70483e7ccf69e9ad51460a92d5b21e7b",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/roll.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_romans.wav",
+  "bytes": 90466,
+  "sha256": "bc7e84a9777fc0ccce7ff444cde326321932f478dab7449adca4a48fc517d73a",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/romans.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_soft.wav",
+  "bytes": 185752,
+  "sha256": "7b678b7f5721adf6c89b2db7270ba57fe1abed8d903f433a9b5e74e491db596d",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/soft.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_space.wav",
+  "bytes": 133758,
+  "sha256": "5e2f8772fcc28becde89dee1108dfb475eb9a42a86532f776501d2fe93f9a538",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/space.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_space2.wav",
+  "bytes": 192686,
+  "sha256": "4bae5a00dda3dce958d03057871b07eb6a5d60b4c661bf88a4e2f536e2137ed1",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/space2.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_space3.wav",
+  "bytes": 144748,
+  "sha256": "8aef0e5a834e5ae1b918dd83e28b9ef7bb29a6455252cc80d7202a894f02c9be",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/space3.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_sparcle.wav",
+  "bytes": 65580,
+  "sha256": "1202ab38c2330ea007f8ebdeb7a651f419a6f5c52e70c42c1195a561cdfca9a6",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/sparcle.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_strom.wav",
+  "bytes": 85106,
+  "sha256": "06417f20595c2193b4e02ba61d74b65da34a464f97414c6c95fb40165377d910",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/strom.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_theetone.wav",
+  "bytes": 49506,
+  "sha256": "0a5ac2e1344a437a523faeddc09c577d2ded17a07c95f2d2d013d04b513d4b11",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/theetone.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_top.wav",
+  "bytes": 69242,
+  "sha256": "b4a46b4579036e3e657339b61db85cf7f3ea5065071d8109da4c3c6ab0cb1242",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/top.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_train.wav",
+  "bytes": 56716,
+  "sha256": "37ce885fb7ec7bd8a3a16c88651c51d71dc4ac646698e91d3e535645850a261f",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/train.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_untie.wav",
+  "bytes": 190884,
+  "sha256": "7240368a8749e4fe5216792168f1061f7228a8ba1788d30d1f6eeac3aacf6b77",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/untie.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_ups.wav",
+  "bytes": 28682,
+  "sha256": "07e91abd255b4dc3b1db7be72c6f2c4d7ac052e58f60e2cd9c53f983a729cf40",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/ups.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "lo_wallewal.wav",
+  "bytes": 104018,
+  "sha256": "519f38742025189f8ad545e6f72a095dfcc86400f7166ddad5b1384f7dfa08ed",
+  "source": "LibreOffice gallery sounds (installed package /usr/lib/libreoffice/share/gallery/sounds/wallewal.wav); not redistributed",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "medical_conversation_2.wav",
+  "bytes": 1844202,
+  "sha256": "01827351ad4a4985ea15b4f48941f36fe1f21f4967dac25d8253b53b61649f9a",
+  "source": "gs://cloud-samples-data/speech/medical_conversation_2.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "multi.wav",
+  "bytes": 909356,
+  "sha256": "7c861fc6762b35c0dcde16e9b908e05c66285a119201c7df57135b58c59ea34e",
+  "source": "gs://cloud-samples-data/speech/multi.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "multi_es.wav",
+  "bytes": 274254,
+  "sha256": "25402b61c2b5f1b070c934d82216da61637b82dd842c331efde8d0f6dc7dc8ed",
+  "source": "gs://cloud-samples-data/speech/multi_es.wav",
+  "redistributed_in_repo": false
+ },
+ {
+  "file": "podcast.wav",
+  "bytes": 42336088,
+  "sha256": "5063ff95d441b52ee7556d83dc007246e4f6ecb54dd2d320dcdef894c2f9c5b9",
+  "source": "converted locally from gs://cloud-samples-data/speech/sample-podcasts/GCPEpisode328-DatabaseMigrationService-2min sample.flac (first 120 s)",
+  "redistributed_in_repo": false
+ }
+]

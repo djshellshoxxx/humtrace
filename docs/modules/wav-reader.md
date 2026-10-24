@@ -17,7 +17,8 @@ Decode common uncompressed RIFF/WAVE PCM and IEEE float samples for offline anal
 - Supports PCM 8/16/24/32-bit and IEEE float 32/64-bit in little-endian RIFF/WAVE.
 - Rejects unsupported format codes, truncated chunks, invalid alignment, incomplete frames, and non-finite float samples.
 - `WavStreamReader` retains data-chunk offsets and decodes bounded batches; `decode_wav` is a convenience wrapper that retains all decoded samples.
-- No RF64, extensible format, compressed codecs, channel mask, or explicit overall input-file limit.
+- WAVE_FORMAT_EXTENSIBLE is accepted when the sub-format is PCM or IEEE float and valid bits equal container bits; the channel mask is ignored.
+- No RF64, compressed codecs, or explicit overall input-file limit.
 - Integer PCM maps the representable minimum to -1.0; float samples preserve their numeric value if finite.
 
 ## Test and migration
@@ -26,4 +27,4 @@ Run `make test`; `tests/test_wav.cpp` builds in-memory WAV fixtures to verify 16
 
 ## Reuse candidates
 
-Potentially useful in test tools and small offline audio utilities. Do not treat this reader as a hardened general-purpose decoder until extensible formats, resource limits, fuzzing, and broader malformed-file coverage are implemented.
+Potentially useful in test tools and small offline audio utilities. Do not treat this reader as a hardened general-purpose decoder until resource limits, fuzzing, and broader malformed-file coverage are implemented.

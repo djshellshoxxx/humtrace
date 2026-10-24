@@ -1,61 +1,740 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.0",
-  "title": "HumTrace Analysis Report 1.0",
+  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.3",
+  "title": "HumTrace Analysis Report 1.3",
   "type": "object",
-  "required": ["schema_version", "application", "input", "settings", "channels", "interpretation"],
+  "required": [
+    "schema_version",
+    "application",
+    "input",
+    "settings",
+    "channels",
+    "interpretation",
+    "generator",
+    "warnings"
+  ],
   "properties": {
-    "schema_version": { "const": "1.0" },
-    "application": { "const": "HumTrace" },
+    "schema_version": {
+      "const": "1.3"
+    },
+    "application": {
+      "const": "HumTrace"
+    },
     "input": {
       "type": "object",
-      "required": ["path", "sample_rate_hz", "channels", "bit_depth", "format_code", "duration_seconds"],
+      "required": [
+        "path",
+        "sha256",
+        "sample_rate_hz",
+        "channels",
+        "bit_depth",
+        "format_code",
+        "duration_seconds",
+        "bytes"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "sample_rate_hz": { "type": "integer", "minimum": 1 },
-        "channels": { "type": "integer", "minimum": 1 },
-        "bit_depth": { "type": "integer", "minimum": 1 },
-        "format_code": { "enum": [1, 3] },
-        "duration_seconds": { "type": ["number", "null"], "minimum": 0 }
+        "path": {
+          "type": "string"
+        },
+        "sample_rate_hz": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bit_depth": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format_code": {
+          "enum": [
+            1,
+            3
+          ]
+        },
+        "duration_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256_scope": {
+          "enum": [
+            "input_file_bytes",
+            null
+          ],
+          "description": "A file-content identifier, not recording-origin authentication or an immutable snapshot proof."
+        }
       }
     },
     "settings": {
       "type": "object",
-      "required": ["window", "frame_size_samples", "hop_size_samples", "support_threshold_dbfs", "minimum_prominence_db"],
+      "required": [
+        "window",
+        "frame_size_samples",
+        "hop_size_samples",
+        "support_threshold_dbfs",
+        "minimum_prominence_db",
+        "tracker",
+        "pipeline"
+      ],
       "properties": {
-        "window": { "const": "hann" },
-        "frame_size_samples": { "type": "integer", "minimum": 4 },
-        "hop_size_samples": { "type": "integer", "minimum": 1 },
-        "support_threshold_dbfs": { "type": ["number", "null"] },
-        "minimum_prominence_db": { "type": ["number", "null"], "minimum": 0 }
+        "window": {
+          "const": "hann"
+        },
+        "frame_size_samples": {
+          "type": "integer",
+          "minimum": 4
+        },
+        "hop_size_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "support_threshold_dbfs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tracker": {
+          "type": "object",
+          "required": [
+            "fixed_hz_tolerance",
+            "relative_tolerance",
+            "bin_spacing_hz",
+            "bin_fraction",
+            "max_gap_frames",
+            "min_observed_frames"
+          ],
+          "properties": {
+            "fixed_hz_tolerance": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "relative_tolerance": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bin_spacing_hz": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bin_fraction": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "max_gap_frames": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_observed_frames": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "pipeline": {
+          "type": "object",
+          "required": [
+            "peak_min_level_dbfs",
+            "peak_min_prominence_db",
+            "max_peaks_per_frame",
+            "max_harmonics",
+            "dc_removed",
+            "hop_fraction",
+            "tail_window"
+          ],
+          "properties": {
+            "peak_min_level_dbfs": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "peak_min_prominence_db": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_peaks_per_frame": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_harmonics": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "dc_removed": {
+              "type": "boolean"
+            },
+            "hop_fraction": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "tail_window": {
+              "type": "string"
+            },
+            "harmonic_tolerance_hz": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "peak_search": {
+              "type": "object",
+              "required": [
+                "minimum_frequency_hz",
+                "maximum_frequency_hz",
+                "minimum_separation_hz",
+                "floor_guard_bins",
+                "floor_radius_bins"
+              ],
+              "properties": {
+                "minimum_frequency_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "maximum_frequency_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "minimum_separation_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "floor_guard_bins": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "floor_radius_bins": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "uncertainty_status": {
+              "const": "not_characterized"
+            },
+            "width_method": {
+              "const": "raw-bin half-power crossings; linear interpolation in dB"
+            },
+            "competing_peak_rule": {
+              "const": "other local maximum within 4 bins and 10 dB; deterministic, uncalibrated"
+            }
+          }
+        },
+        "welch_psd": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "window",
+                "density_unit",
+                "segment_size_samples",
+                "hop_size_samples",
+                "guard_bins",
+                "radius_bins",
+                "max_harmonics",
+                "minimum_prominence_db"
+              ],
+              "properties": {
+                "window": {
+                  "const": "hann"
+                },
+                "density_unit": {
+                  "const": "dBFS^2/Hz"
+                },
+                "segment_size_samples": {
+                  "type": "integer",
+                  "minimum": 4
+                },
+                "hop_size_samples": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "guard_bins": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "radius_bins": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "max_harmonics": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minimum_prominence_db": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "properties": {
+            "dc_removed": {
+              "type": "boolean"
+            }
+          }
+        }
       }
     },
     "channels": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["channel_number", "frames"],
+        "required": [
+          "channel_number",
+          "frames",
+          "tracks",
+          "suppressed_tracks",
+          "clipped_samples",
+          "ambiguities"
+        ],
         "properties": {
-          "channel_number": { "type": "integer", "minimum": 1 },
+          "channel_number": {
+            "type": "integer",
+            "minimum": 1
+          },
           "frames": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["start_sample", "start_seconds", "strongest_peak", "mains_50_hz_measurements", "mains_60_hz_measurements"],
+              "required": [
+                "start_sample",
+                "start_seconds",
+                "strongest_peak",
+                "mains_50_hz_measurements",
+                "mains_60_hz_measurements"
+              ],
               "properties": {
-                "start_sample": { "type": "integer", "minimum": 0 },
-                "start_seconds": { "type": ["number", "null"], "minimum": 0 },
+                "start_sample": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "start_seconds": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
                 "strongest_peak": {
                   "type": "object",
-                  "required": ["frequency_hz", "level_dbfs"],
+                  "required": [
+                    "frequency_hz",
+                    "level_dbfs"
+                  ],
                   "properties": {
-                    "frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-                    "level_dbfs": { "type": ["number", "null"] }
+                    "frequency_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "level_dbfs": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "raw_bin_frequency_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "bin_spacing_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "hann_main_lobe_width_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "width_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "frequency_uncertainty_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "description": "Null while estimator uncertainty is uncharacterized; bin spacing and Hann main-lobe width are resolution context, not an error bound."
+                    },
+                    "local_floor_dbfs": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "prominence_db": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "local_floor_available": {
+                      "type": "boolean"
+                    },
+                    "interpolation_applied": {
+                      "type": "boolean"
+                    },
+                    "boundary_peak": {
+                      "type": "boolean"
+                    },
+                    "competing_peak": {
+                      "type": "boolean"
+                    }
                   }
                 },
-                "mains_50_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" },
-                "mains_60_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" }
+                "mains_50_hz_measurements": {
+                  "$ref": "#/$defs/harmonicCandidate"
+                },
+                "mains_60_hz_measurements": {
+                  "$ref": "#/$defs/harmonicCandidate"
+                },
+                "sample_levels": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "sample_count",
+                        "mean",
+                        "rms_dbfs",
+                        "sample_peak_dbfs",
+                        "rms_below_numeric_floor",
+                        "peak_below_numeric_floor",
+                        "floor_dbfs",
+                        "reference"
+                      ],
+                      "properties": {
+                        "sample_count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "mean": {
+                          "type": "number"
+                        },
+                        "rms_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "sample_peak_dbfs": {
+                          "type": "number",
+                          "minimum": -300
+                        },
+                        "rms_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "peak_below_numeric_floor": {
+                          "type": "boolean"
+                        },
+                        "floor_dbfs": {
+                          "const": -300
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
+            }
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "local_id",
+                "first_frame",
+                "last_frame",
+                "observed_frames",
+                "missing_frames",
+                "median_frequency_hz",
+                "median_level_dbfs",
+                "drift_hz_per_second",
+                "observations"
+              ],
+              "properties": {
+                "local_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "first_frame": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "last_frame": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "observed_frames": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "missing_frames": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "median_frequency_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "median_level_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "drift_hz_per_second": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "observations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "frame_index",
+                      "start_sample",
+                      "frequency_hz",
+                      "level_dbfs"
+                    ],
+                    "properties": {
+                      "frame_index": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "start_sample": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "frequency_hz": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "level_dbfs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "frequency_q25_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "frequency_q75_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "level_q25_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "level_q75_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "drift_r_squared": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "drift_residual_rms_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "end_reason": {
+                  "enum": [
+                    "end_of_input",
+                    "gap_exceeded",
+                    "ambiguous"
+                  ]
+                },
+                "quantile_method": {
+                  "const": "linear interpolation at (N-1)*p"
+                },
+                "event": {
+                  "type": "object",
+                  "required": [
+                    "analysis_local_id",
+                    "first_frame_inclusive",
+                    "last_frame_inclusive",
+                    "observed_frames",
+                    "gaps"
+                  ],
+                  "properties": {
+                    "analysis_local_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "first_frame_inclusive": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "last_frame_inclusive": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "observed_frames": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "gaps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "first_frame_inclusive",
+                          "last_frame_inclusive"
+                        ],
+                        "properties": {
+                          "first_frame_inclusive": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "last_frame_inclusive": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "start_ambiguity_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "description": "Channel-local ambiguity reference; parent/child segments may be suppressed by persistence filtering."
+                },
+                "end_ambiguity_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "description": "Channel-local ambiguity reference; parent/child segments may be suppressed by persistence filtering."
+                }
+              }
+            }
+          },
+          "suppressed_tracks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "clipped_samples": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "psd": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/psdSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ambiguities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/trackAmbiguity"
             }
           }
         }
@@ -63,35 +742,337 @@
     },
     "interpretation": {
       "type": "object",
-      "required": ["source_classification", "note"],
+      "required": [
+        "source_classification",
+        "note"
+      ],
       "properties": {
-        "source_classification": { "type": "null" },
-        "note": { "type": "string" }
+        "source_classification": {
+          "type": "null"
+        },
+        "note": {
+          "type": "string"
+        },
+        "integrity_note": {
+          "type": "string"
+        },
+        "tracking_note": {
+          "type": "string"
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "required": [
+        "application_version",
+        "method_version"
+      ],
+      "properties": {
+        "application_version": {
+          "type": "string"
+        },
+        "method_version": {
+          "type": "string"
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     }
   },
   "$defs": {
     "harmonicCandidate": {
       "type": "object",
-      "required": ["nominal_frequency_hz", "supporting_harmonics", "harmonics"],
+      "required": [
+        "nominal_frequency_hz",
+        "supporting_harmonics",
+        "harmonics"
+      ],
       "properties": {
-        "nominal_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-        "supporting_harmonics": { "type": "integer", "minimum": 0 },
+        "nominal_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "supporting_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
         "harmonics": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["number", "expected_frequency_hz", "measured_bin_hz", "level_dbfs", "local_floor_dbfs", "prominence_db", "supported"],
+            "required": [
+              "number",
+              "expected_frequency_hz",
+              "measured_bin_hz",
+              "level_dbfs",
+              "local_floor_dbfs",
+              "prominence_db",
+              "supported"
+            ],
             "properties": {
-              "number": { "type": "integer", "minimum": 1 },
-              "expected_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-              "measured_bin_hz": { "type": ["number", "null"], "minimum": 0 },
-              "level_dbfs": { "type": ["number", "null"] },
-              "local_floor_dbfs": { "type": ["number", "null"] },
-              "prominence_db": { "type": ["number", "null"] },
-              "supported": { "type": "boolean" }
+              "number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "expected_frequency_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "measured_bin_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "level_dbfs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "local_floor_dbfs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "prominence_db": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "supported": {
+                "type": "boolean"
+              },
+              "frequency_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "search_tolerance_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "local_floor_available": {
+                "type": "boolean"
+              },
+              "boundary_peak": {
+                "type": "boolean"
+              }
             }
           }
+        }
+      }
+    },
+    "psdHarmonic": {
+      "type": "object",
+      "required": [
+        "number",
+        "expected_frequency_hz",
+        "measured_bin_hz",
+        "level_dbfs2_per_hz",
+        "local_floor_dbfs2_per_hz",
+        "prominence_db",
+        "prominent"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "measured_bin_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "level_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "local_floor_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prominent": {
+          "type": "boolean"
+        },
+        "frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "search_tolerance_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "local_floor_available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "psdHarmonicCandidate": {
+      "type": "object",
+      "required": [
+        "nominal_frequency_hz",
+        "prominent_harmonics",
+        "harmonics"
+      ],
+      "properties": {
+        "nominal_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "prominent_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "harmonics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/psdHarmonic"
+          }
+        }
+      }
+    },
+    "psdSummary": {
+      "type": "object",
+      "required": [
+        "segments_averaged",
+        "samples_processed",
+        "bin_width_hz",
+        "density_unit",
+        "broadband_median_dbfs2_per_hz",
+        "source_classification",
+        "mains_50_hz_psd",
+        "mains_60_hz_psd"
+      ],
+      "properties": {
+        "segments_averaged": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "samples_processed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bin_width_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "density_unit": {
+          "const": "dBFS^2/Hz"
+        },
+        "broadband_median_dbfs2_per_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_classification": {
+          "type": "null"
+        },
+        "mains_50_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
+        },
+        "mains_60_hz_psd": {
+          "$ref": "#/$defs/psdHarmonicCandidate"
+        }
+      }
+    },
+    "trackAmbiguity": {
+      "type": "object",
+      "required": [
+        "local_id",
+        "frame_index",
+        "start_sample",
+        "kind",
+        "parent_track_ids",
+        "child_track_ids"
+      ],
+      "properties": {
+        "local_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frame_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_sample": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "split",
+            "merge",
+            "competing"
+          ]
+        },
+        "parent_track_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "child_track_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
         }
       }
     }

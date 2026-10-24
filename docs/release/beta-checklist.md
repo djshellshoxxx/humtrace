@@ -1,20 +1,21 @@
-# Beta v0.1 release checklist
+# HumTrace preview acceptance checklist
 
-Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on streaming commit `4727aa2` (run `37762099089`). There is no desktop GUI, installer, or release artifact.
+Current status: **development preview; further acceptance is required**. A checked item describes repository or exact-tag CI evidence. It does not establish field detector accuracy, host compatibility, or a support claim beyond the named platform baselines.
 
-- [ ] GUI is navigable, responsive, and shows progress/cancellation.
-- [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
-- [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
-- [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
-- [ ] Multi-file comparison is implemented and reproducible.
-- [ ] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
-- [ ] Invalid/unsupported input handling and source preservation are tested.
-- [ ] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
-- [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
-- [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
-- [ ] Required license and third-party notices are reviewed and included.
-- [ ] Linux and Windows native builds and packaged artifacts are tested.
-- [ ] CI, sanitizer, static checks, dependency review, and release notes are complete.
-- [ ] User guide and known limitations match the actual shipped build.
+- [x] The exact-tag v0.2.5 native CI run built, tested, and smoke-tested packages on Ubuntu 24.04 x64, Windows x64, macOS 26 ARM64, and macOS 15 Intel; all seven jobs passed ([run 40047749280](https://github.com/djshellshoxxx/humtrace/actions/runs/40047749280)). Downloaded release assets and embedded source revisions were independently checked. Windows is unsigned; macOS signatures are ad-hoc and the app is not notarized. These checks do not cover assistive technology, interactive host workflows, or clean-machine upgrades.
+- [x] Audio loading supports the advertised WAV PCM/float and extensible encodings. Long-file analysis uses bounded streaming and disk-backed frame/track storage with a result-memory cap (recorded measurements: 33 MB at 1 h, 82 MB at 3 h). JSON export is incremental and cancellable; report import/verification is not implemented.
+- [x] Mono/stereo/multichannel findings include frequency, level, time, harmonic evidence with thresholds, and qualified wording. Noise-floor/SNR evidence is limited to the local-floor prominence per measurement.
+- [x] Spectrum (plot + table), waveform, spectrogram, and findings/track timeline are implemented and visually checked.
+- [x] Two-recording comparison (independent summary) is implemented and reproducible.
+- [x] Versioned JSON export (schema 1.3): input hash and byte length, effective detector and Welch settings, peak resolution/quality metadata, tracking statistics and candidate ambiguity references; schema validation is required in CI. The writer omits report-generation time to preserve byte-stable reruns. Report import, verification, and a separate report-file digest are not implemented.
+- [x] Invalid/unsupported input handling and source preservation are tested (corruption matrix, output-never-overwrites-input).
+- [x] No silent resampling/alignment/downmix; recorded as not applied in comparisons.
+- [ ] Keyboard-only operation, visible focus, and screen-reader summaries/tables are verified in native user workflows. Narrator/AT-SPI checks, packaged-app focus and high-DPI checks, and accessibility acceptance remain pending.
+- [ ] Labeled validation corpus: synthetic layer done ([results](../validation/synthetic-results.md)); no real labeled/held-out corpus, so no field false-positive/negative claims.
+- [ ] Third-party notices and exact redistribution obligations are complete. The Windows helper inventories package license files and the v0.2.5 release includes QtBase source material. Run 40107153073 passed the MSYS2 source-only recipe collector (21 archives for 22 runtime owners) and Windows package smoke; the package hash is locally computed, and recipe archives do not contain their referenced upstream sources. The current macOS Homebrew candidate map passed native package validation in run 40108498575: 25 ARM64 and 23 Intel unique-formula matches, zero ambiguous matches, and the only two unmapped files per platform were HumTrace's own executables. The mapping matches filenames and does not prove binary identity. Direct downloads from this executor remain blocked by HTTP 403. These inventories do not establish complete corresponding source, relinkability, applicable license options, or legal compliance. The project has no product `LICENSE` file specifying an authored-code license.
+- [x] v0.2.5 release artifacts exist for Ubuntu 24.04, Windows x64, macOS 26 ARM64, and macOS 15 Intel. The Linux `.deb` and `.tar.gz`, Windows ZIP, and both macOS ZIPs are published with source and checksum files. This evidence applies to v0.2.5 at `d9a24852024e86bff7e25d64bd50a73d02944c6c` only.
+- [ ] Clean-machine install, upgrade, accessibility, and user-workflow verification are complete. Native CI package smoke passed, but Narrator/AT-SPI/VoiceOver, high-DPI, focus visibility, install/upgrade/uninstall, and interactive host tests remain open.
+- [x] Native CI validated the MSYS2 source collector and macOS Homebrew candidate mapping. Run 40108498575 passed all six build/test/package jobs and produced native artifacts; its release job was skipped for this PR branch. No successor release has been published.
+- [x] User guide, limitations, release notes, QA report match the build.
 
-The 50/60 Hz evidence must not be presented as proof of a ground loop, location, device, recording date, or authenticity.
+The 50/60 Hz evidence must not be presented as proof of a ground loop, location, device, recording date, or authenticity. VST3/CLAP adapters remain unimplemented; the standalone packages are not plugins.

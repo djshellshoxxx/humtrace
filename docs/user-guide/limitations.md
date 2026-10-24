@@ -1,10 +1,20 @@
-# Prototype limitations
+# Beta limitations
 
-- Only RIFF/WAVE with integer PCM at 8/16/24/32 bits or IEEE float at 32/64 bits is accepted.
-- The CLI reads audio in bounded rolling windows, while its result timeline and JSON serialization remain in memory and grow with duration. The convenience `decode_wav` API also retains all samples.
-- The command line analyzes complete overlapping windows across the recording, with a frame size up to 65,536 samples and a 50% hop.
-- Each frame independently reports the strongest non-DC FFT bin. The bins are not associated into persistent tracks and the result is not a validated interference detector; a musical tone or other signal may be strongest.
-- The Hann-windowed FFT provides nominal resolution of sample rate divided by window length. Frequency and level accuracy need broader fractional-bin and noisy-signal validation.
-- The CLI exports a preliminary versioned JSON measurement report; it is not a provenance or chain-of-custody report and currently omits input hashes and build/decoder versions.
-- No desktop GUI, persistent peak tracking, multi-file comparison, ENF matching, broad codec coverage, or plugin target exists yet.
-- Measurements in dBFS do not establish acoustic SPL, line voltage, ground-loop presence, hardware identity, location, or recording time.
+- Input: RIFF/WAVE only (PCM 8/16/24/32-bit, IEEE float 32/64-bit, WAVE_FORMAT_EXTENSIBLE with full valid bits). No RF64, AIFF, FLAC, MP3.
+- Analysis uses a Hann-windowed FFT, window up to 65,536 samples, a default 50% hop plus one end-aligned final window. Frame/hop and spectrum/Welch mean removal are configurable. Bin spacing is sample rate / frame length; the Hann main-lobe width and bin spacing describe resolution, not calibrated frequency uncertainty. Peak refinement is parabolic. Accuracy is verified on synthetic signals only ([results](../validation/synthetic-results.md)), not on real recordings.
+- The 50/60 Hz harmonic-bin counts are non-specific: on real recordings, harmonically rich non-mains sounds (gongs, bells, voiced speech) can show several nominal harmonic bins above threshold, and speech/music yield many descriptive tracks ([real-recording cross-check](../validation/real-recordings.md)). Treat them as measurements, not hum detection.
+- Tracks associate up to eight prominent peaks per frame by frequency; ambiguous candidate graphs end prior segments and record split/merge/competing relationships with fresh IDs. These are possible associations, not physical source lineage. Tracks seen in fewer than three frames are not listed by default (counted in the report). "Persistence" wording is descriptive and is not a validated detector.
+- The desktop automatically pages long analyses into private bounded disk storage; its caches, spectrogram pyramid and tables preserve underlying measurements. CLI `--stream --json` also spools to disk, with explicit memory/disk budgets and cancellation. The retained API and combined CLI CSV workflow have a conservative 512 MiB result cap and reject oversized runs. Ordinary long/dense CLI runs page automatically, including independent comparison summaries. Disk quotas and free space can still limit a job.
+- The JSON report records measurements, all result-affecting settings, application/method versions, warnings, and an input SHA-256. It is not a chain-of-custody or provenance record.
+- Comparison is an independent summary only: no time alignment, no resampling, no cross-spectral analysis. Channels pair by identical number by default, or an explicit one-to-one map. Both inputs retain their analysis settings; differing settings produce a warning.
+- The GUI has a custom-drawn spectrogram/waveform/spectrum; each has a text/table alternative (findings table, spectrum table, inspector) and an accessible summary, but screen-reader behavior has not been verified with Narrator or AT-SPI tools.
+- The CLI and GUI use UTF-8 paths on Windows. Windows builds are produced in CI but have not been tested on a clean machine.
+- Measurements in dBFS do not establish acoustic SPL, line voltage, ground-loop presence, hardware identity, location, authenticity, or recording time.
+- Not implemented from the analysis-engine spec: per-track calibrated noise/SNR evidence and validated frequency uncertainty. Peak resolution/width/prominence are descriptive, with null uncertainty and explicit raw sample numeric-floor flags. Clipping is counted and warned about; a non-finite float sample aborts the analysis.
+- The report has no generation timestamp (so identical inputs give byte-identical reports); it records application and method versions, input byte length, and all result-affecting settings.
+- Not implemented: ENF analysis, diagnostic guidance, signature library, plugins, playback.
+- Note names and cents are equal-tempered labels computed from the measured frequency; they say nothing about the source. Windows binaries are unsigned; macOS archives are built separately for Apple silicon and Intel, ad-hoc signed and not notarized. Native CI smoke runs do not establish clean-machine installation or interactive accessibility.
+
+- Welch PSD uses complete Hann segments only (default 4096 samples, hop 2048); trailing partial segments are excluded and audio shorter than one segment has no PSD summary. Raw DC is retained in Welch by default; segment mean removal can be selected independently of the mean removal in peak-amplitude FFT frames. The broadband floor is a median of non-DC/non-Nyquist density bins, not calibrated sensor noise. Unresolved nominal harmonics and empty floor neighborhoods cannot establish prominence.
+
+- Raw per-frame mean/DC, RMS, and sample peak are measured before detrending/windowing. RMS includes DC and uses normalized amplitude 1.0 as reference. Values below -300 dBFS are clamped with explicit flags. These overlapping frame measurements are not a whole-recording RMS and sample peaks are not intersample true peaks.

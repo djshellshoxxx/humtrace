@@ -45,7 +45,7 @@ private:
 };
 
 // Decode RIFF/WAVE PCM integer (8/16/24/32-bit) and IEEE float (32/64-bit).
-// RF64 and WAVEFORMATEXTENSIBLE are not supported yet.
+// WAVEFORMATEXTENSIBLE PCM/float is accepted (full valid bits only); RF64 is not supported.
 [[nodiscard]] WavAudio decode_wav(std::istream& input);
 
 } // namespace humtrace

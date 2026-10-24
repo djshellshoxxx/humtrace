@@ -3,6 +3,10 @@
 ## Current dependency graph
 
 ```text
+WAV reader ──> pipeline ──> CLI
+Spectrum core ──> pipeline
+Tracker ──> pipeline ──> report
+SHA-256 ──> CLI
 WAV reader ──> CLI ──> stdout / JSON report
 Spectrum core ──> CLI
 Report serializer ──> CLI

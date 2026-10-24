@@ -1,27 +1,82 @@
-# Deferred feature specification: plugin adapters
+# Plugin adapter scope and release gates
 
-**Release status:** outside beta v0.1. A plugin is an optional client of the analysis library; the desktop app and CLI remain independently useful.
+**Status:** format and first host choices are selected for implementation.
+There is no VST3 or CLAP adapter, plug-in bundle, SDK dependency, host
+validation, or supported-host claim in this repository yet. The CLI and Qt
+desktop application remain standalone products.
 
-## Host model and scope
+## Release-platform relationship
 
-First define the plugin use case before selecting a format. Candidate workflow is offline analysis of a host-provided audio stream, not real-time monitoring or audio modification. The plug-in must not block the audio callback, allocate unbounded memory, open file dialogs from a callback, or claim evidence equivalence to the standalone file reader unless both paths are validated against the same fixtures.
+Both formats are in scope because the requested product workflow is live DAW
+capture followed by offline analysis. The first manual host target is REAPER
+7.83 on each native package baseline: Linux x86-64, Windows x86-64, macOS
+ARM64, and macOS Intel. Cockos lists VST3 and CLAP hosting and these platform
+families; that establishes format applicability, not HumTrace compatibility.
+Update the host version when making each release and verify every format,
+architecture, and platform in the actual host. [REAPER's current download
+page](https://www.reaper.fm/download.php) lists version 7.83 on 2026-10-24;
+[its format list](https://www.reaper.fm/about.php) includes VST3 and CLAP.
+
+## Format applicability
+
+Build both formats against the pinned VST3 SDK 3.8.1 commit
+`3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96` and CLAP 1.2.10 commit
+`195b42a004144fab0b3cf95e9c067187d15365b7`. VST3 3.8 uses MIT terms;
+earlier SDK releases had different terms. The CLAP API is MIT licensed. Keep
+only required API headers and license notices in the build/package; do not
+enable VSTGUI, examples, or auto-install. Audit exact SDK source and component
+licenses during implementation. Sources: [Steinberg VST 3.8 announcement](https://www.steinberg.net/press/2025/vst-3-8/),
+[VST3 SDK](https://github.com/steinbergmedia/vst3sdk),
+[CLAP API](https://github.com/free-audio/clap).
+
+| Format | Platform intent | Applicability and gate |
+| --- | --- | --- |
+| VST3 | Linux x86-64, Windows x86-64, macOS ARM64 and Intel | Selected. Native build, official validator, adapter host harness, REAPER capture/pass-through testing, and packaged artifact checks remain open. |
+| CLAP | Linux x86-64, Windows x86-64, macOS ARM64 and Intel | Selected. Native build, official validator, adapter host harness, REAPER capture/pass-through testing, and packaged artifact checks remain open. |
+
+No other host is in the first support scope. A host becomes supported only
+after the same evidence passes on that host. The evaluation should use an
+existing REAPER license; do not purchase a license or enter a new agreement for
+this work. If a suitable installed host is unavailable, report the manual host
+gate as pending.
 
 ## Adapter boundary
 
-- Core measurement types and settings are standard C++ and GUI/host independent.
-- A plug-in adapter maps host channels/sample rate/transport blocks to the shared analysis job API and reports supported constraints.
-- If analysis requires a multi-second window, buffer only to a declared bounded capacity and expose latency/memory; allow offline render or explicit analysis rather than pretending to be zero-latency.
-- Host automation controls only documented analysis parameters; changes invalidate previous results and are captured in the report.
-- Never modify input audio in the first adapter. Any monitoring output is a separate opt-in path with explicit latency and no feedback-loop assumptions.
+The plugin would be a thin host bridge to a reusable asynchronous analysis job;
+DSP, measurement units, limits, report serialization, and qualified result
+wording remain in the shared analysis layer. Keep host SDK types out of core
+headers and keep a no-SDK standalone build. Do not place Qt widgets, file
+dialogs, logging, allocation, locking, file I/O, or analysis calls on the host's
+real-time audio callback.
 
-## Format-selection gate
+The selected interface and state transitions are in
+[plugin-capture-interface.md](plugin-capture-interface.md). It specifies a
+non-modifying pass-through effect, bounded capture, worker-thread processing,
+explicit dropped-audio provenance, and conservative channel, rate, duration,
+and host-block boundaries. Do not claim equivalence with file analysis until
+the same captured audio and settings produce validated equivalent output.
 
-Before implementation compare CLAP, VST3, and any requested formats by host support, SDK terms, distribution obligations, build/test coverage, and user workflow. Pin SDK versions, record licenses/notices, and preserve a no-plugin core build. Do not bundle a plugin SDK into the core. The product owner must define target hosts and whether plugin use is required before this work starts.
+## Validation before a support claim
 
-## Verification
-
-Use host-validation tools where available plus real-host tests for lifecycle, sample-rate changes, varying block sizes, mono/stereo/multichannel layouts, reset, suspend/resume, transport stop, offline render, automation, state save/restore, and cancellation. Compare plugin and standalone outputs numerically on identical decoded input/settings. Run plug-in validation and signing/package smoke tests independently for every claimed format/host.
+For every claimed format/host/platform combination, validate create/activate,
+audio-thread processing, deactivate/destroy, repeated instantiation, sample-
+rate and bus changes, variable and zero-sized blocks where permitted, mono,
+stereo and any advertised multichannel layout, transport stop/seek, suspend and
+resume, offline render, cancellation, state save/restore, and UI open/close.
+Force worker overload and capture-limit conditions and verify the job stops
+with accurate dropped-frame intervals and a visible incomplete status. Confirm
+pass-through audio is unchanged within the format's defined floating-point
+semantics. Compare analysis to standalone file input on identical sample
+sequences. Run the applicable official format validator, host-specific tests,
+package inspection, and signing checks. No such evidence exists today.
 
 ## Reuse and prerequisites
 
-Implement one thin adapter per plugin format after the analysis/report API stabilizes. Reuse [analysis engine](analysis-engine.md), [long-file workflow](long-file-workflow.md), and [report integrity](report-integrity.md). No plugin framework belongs in DSP headers or the dependency-free CLI target.
+Use the [analysis engine](analysis-engine.md),
+[long-file workflow](long-file-workflow.md),
+[report integrity](report-integrity.md), and
+[capture interface](plugin-capture-interface.md). The next implementation
+gates are a bounded reusable capture job, accurate capture provenance,
+format-specific realtime-safe adapters, validators and host harnesses, then
+native package and manual REAPER checks. This scope does not assert that the
+currently published standalone release includes a plugin.

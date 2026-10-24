@@ -3,3 +3,6 @@
 *.aiff
 *.flac
 *.mp3
+/build-*/
+
+__pycache__/

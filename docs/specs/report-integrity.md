@@ -6,6 +6,10 @@ The report makes an analysis reproducible and its limits visible. It is not a ce
 
 ## Required top-level sections
 
+This section describes the target report contract. Current implementation status
+is recorded below; unimplemented fields must not be inferred from the target
+list.
+
 - `schema_version`, application/version, build revision, OS/architecture, report status, UTC report-generation time, and method versions.
 - `input`: optional privacy-redacted path, exact byte length, SHA-256 algorithm and digest, hash completion status, container/codec, sample rate, channels/layout, bit depth/valid bits, duration, and decoder version.
 - `settings`: full serialized settings, units, window, frame/hop, PSD configuration, detrend/DC rules, detector thresholds, tracker parameters, and all requested transformations.
@@ -28,3 +32,29 @@ Before writing, preview output path, schema version, warnings, input digest, and
 ## Tests
 
 Validate against published JSON Schema; parse round trips; test redaction, unicode/control chars, large streaming report, hash changes, changed input during read, incomplete/cancelled output cleanup, atomic replacement, unknown schema major, and exact digest known-answer vectors. Keep sample reports synthetic or consented and redact sensitive file paths.
+
+## Current implementation status
+
+Schema 1.3 records the application and version, input byte length and SHA-256,
+decoded WAV properties, effective settings, measurements, warnings, and
+qualified interpretation. The writer omits generation time so unchanged
+analysis can produce byte-identical reports. It does not yet serialize build
+revision, operating system/architecture, report completion status, decoder or
+method version detail, analyst notes, a report-file digest, or an imported
+report verification record. The source-tree utility `tools/verify_report.py`
+validates a bounded-size report against the published 1.3 JSON Schema, rejects
+duplicate keys and non-finite JSON values, can compare the source file's exact
+byte length and SHA-256, and can write or check a separate report-file digest
+sidecar. It requires Python's `jsonschema` package and is a validation utility;
+it does not import reports into the desktop application or establish origin,
+authorship, acquisition time, or custody. The remaining omitted fields and GUI
+report import are open work against the target contract above, not accepted
+exceptions to it.
+
+Example from a source checkout:
+
+```sh
+python3 tools/verify_report.py analysis.json --input recording.wav \
+  --write-digest analysis.json.sha256
+python3 tools/verify_report.py analysis.json --digest-file analysis.json.sha256
+```

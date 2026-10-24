@@ -1,6 +1,8 @@
 #include "humtrace/wav.hpp"
 
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
@@ -115,9 +117,136 @@ void streaming_reader_continues_across_data_chunks() {
     require(samples[0] > 0.49 && samples[0] < 0.51 && samples[1] == -1.0,
             "sample order is retained across data chunk boundaries");
 }
+std::string extensible_wav(std::uint16_t sub_format, std::uint16_t valid_bits) {
+    std::string body;
+    tag(body, "fmt "); u32(body, 40); u16(body, 0xFFFE); u16(body, 1);
+    u32(body, 8000); u32(body, 16000); u16(body, 2); u16(body, 16);
+    u16(body, 22); u16(body, valid_bits); u32(body, 4);
+    u16(body, sub_format);
+    const unsigned char guid_tail[14] = {0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xAA, 0, 0x38, 0x9B, 0x71};
+    body.append(reinterpret_cast<const char*>(guid_tail), sizeof(guid_tail));
+    tag(body, "data"); u32(body, 2); u16(body, 16384);
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
+void decodes_extensible_pcm_and_rejects_bad_subformat() {
+    std::istringstream good(extensible_wav(1, 16), std::ios::binary);
+    const auto audio = humtrace::decode_wav(good);
+    require(audio.format_code == 1 && audio.interleaved_samples.size() == 1,
+            "extensible PCM resolves to its sub-format");
+    std::istringstream bad(extensible_wav(0x55, 16), std::ios::binary);
+    bool threw = false;
+    try { (void)humtrace::decode_wav(bad); } catch (const std::runtime_error&) { threw = true; }
+    require(threw, "unsupported extensible sub-format is rejected");
+    std::istringstream padded(extensible_wav(1, 12), std::ios::binary);
+    threw = false;
+    try { (void)humtrace::decode_wav(padded); } catch (const std::runtime_error&) { threw = true; }
+    require(threw, "partial valid-bits extensible input is rejected");
+}
+std::string unpadded_odd_final_chunk_wav() {
+    std::string body;
+    tag(body, "fmt "); u32(body, 16); u16(body, 1); u16(body, 1);
+    u32(body, 8000); u32(body, 8000); u16(body, 1); u16(body, 8);
+    tag(body, "data"); u32(body, 3); body.append("\x80\x90\x70", 3); // odd size, no pad byte
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
+void accepts_missing_pad_on_final_odd_chunk() {
+    std::istringstream stream(unpadded_odd_final_chunk_wav(), std::ios::binary);
+    const auto audio = humtrace::decode_wav(stream);
+    require(audio.interleaved_samples.size() == 3, "all samples of an unpadded final chunk are decoded");
+    auto bytes = unpadded_odd_final_chunk_wav() + std::string("\0\0\0", 3);
+    bytes[4] = static_cast<char>(bytes[4] + 3);
+    std::istringstream trailing(bytes, std::ios::binary);
+    require(humtrace::decode_wav(trailing).interleaved_samples.size() == 3, "a few trailing bytes are ignored");
+}
+std::string raw_wav(std::uint16_t format, std::uint16_t bits, const std::string& samples) {
+    std::string body;
+    tag(body, "fmt "); u32(body, 16); u16(body, format); u16(body, 1);
+    u32(body, 8000); u32(body, static_cast<std::uint32_t>(8000 * bits / 8)); u16(body, static_cast<std::uint16_t>(bits / 8)); u16(body, bits);
+    tag(body, "data"); u32(body, static_cast<std::uint32_t>(samples.size())); body += samples;
+    if (samples.size() & 1U) body.push_back('\0');
+    std::string result;
+    tag(result, "RIFF"); u32(result, static_cast<std::uint32_t>(body.size() + 4));
+    tag(result, "WAVE"); result += body;
+    return result;
+}
+bool decode_fails(const std::string& bytes) {
+    std::istringstream in(bytes, std::ios::binary);
+    try { (void)humtrace::decode_wav(in); } catch (const std::runtime_error&) { return true; }
+    return false;
+}
+void decodes_exact_values_for_every_encoding() {
+    { // 8-bit PCM is unsigned with 128 = silence
+        std::istringstream in(raw_wav(1, 8, std::string("\x80\xff\x00\xc0", 4)), std::ios::binary);
+        const auto a = humtrace::decode_wav(in).interleaved_samples;
+        require(a[0] == 0.0 && std::abs(a[1] - 127.0 / 128.0) < 1e-12 && a[2] == -1.0 && a[3] == 0.5, "8-bit PCM offset and scale");
+    }
+    { // 32-bit PCM and float64 values
+        std::string s32;
+        u32(s32, 0x40000000U); u32(s32, 0x80000000U);
+        std::istringstream in32(raw_wav(1, 32, s32), std::ios::binary);
+        const auto a = humtrace::decode_wav(in32).interleaved_samples;
+        require(a[0] == 0.5 && a[1] == -1.0, "32-bit PCM scale");
+        const double v = 0.3125;
+        std::uint64_t bits;
+        std::memcpy(&bits, &v, 8);
+        std::string s64;
+        u32(s64, static_cast<std::uint32_t>(bits & 0xffffffffU)); u32(s64, static_cast<std::uint32_t>(bits >> 32));
+        std::istringstream in64(raw_wav(3, 64, s64), std::ios::binary);
+        require(humtrace::decode_wav(in64).interleaved_samples[0] == v, "float64 value preserved exactly");
+    }
+    { // non-finite float samples are rejected
+        std::string nan32;
+        u32(nan32, 0x7fc00000U);
+        require(decode_fails(raw_wav(3, 32, nan32)), "NaN float sample rejected");
+        std::string inf32;
+        u32(inf32, 0x7f800000U);
+        require(decode_fails(raw_wav(3, 32, inf32)), "infinite float sample rejected");
+    }
+}
+void rejects_invalid_format_metadata_edges() {
+    const auto valid = raw_wav(1, 16, std::string("\x00\x40", 2));
+    auto changed = valid;
+    changed[24] = changed[25] = changed[26] = changed[27] = 0; // zero sample rate
+    require(decode_fails(changed), "zero sample rate is rejected");
+    changed = valid;
+    changed[22] = changed[23] = 0; // zero channels
+    require(decode_fails(changed), "zero channel count is rejected");
+    changed = valid;
+    changed[32] = changed[33] = 0; // zero block alignment
+    require(decode_fails(changed), "zero block alignment is rejected");
+    changed = valid;
+    changed[34] = 12; changed[35] = 0; // unsupported PCM depth
+    require(decode_fails(changed), "unsupported PCM depth is rejected");
+    require(decode_fails(raw_wav(1, 16, std::string("\x01", 1))),
+            "data ending inside a sample frame is rejected");
+}
+void rejects_duplicate_or_late_format_chunks_and_chunk_floods() {
+    std::string fmt1; tag(fmt1, "fmt "); u32(fmt1, 16); u16(fmt1, 1); u16(fmt1, 1); u32(fmt1, 8000); u32(fmt1, 16000); u16(fmt1, 2); u16(fmt1, 16);
+    std::string fmt2 = fmt1;
+    fmt2[10] = 2; // stereo
+    std::string data; tag(data, "data"); u32(data, 8); data += std::string(8, '\x10');
+    auto wrap = [](const std::string& body) { std::string r; tag(r, "RIFF"); u32(r, static_cast<std::uint32_t>(body.size() + 4)); tag(r, "WAVE"); return r + body; };
+    require(decode_fails(wrap(fmt1 + data + fmt2)), "format chunk after the data is rejected");
+    require(decode_fails(wrap(fmt1 + fmt2 + data)), "second format chunk is rejected");
+    std::string flood = fmt1 + data;
+    for (int i = 0; i < 20; ++i) { std::string empty; tag(empty, "data"); u32(empty, 0); flood += empty; }
+    std::istringstream in(wrap(flood), std::ios::binary);
+    require(humtrace::decode_wav(in).interleaved_samples.size() == 4, "empty data chunks are skipped, real data still decoded");
+}
 } // namespace
 
 int main() {
+    decodes_exact_values_for_every_encoding();
+    rejects_invalid_format_metadata_edges();
+    rejects_duplicate_or_late_format_chunks_and_chunk_floods();
+    accepts_missing_pad_on_final_odd_chunk();
+    decodes_extensible_pcm_and_rejects_bad_subformat();
     decodes_pcm16_metadata_and_samples();
     rejects_non_wave_input();
     decodes_signed_24_bit_minimum();
