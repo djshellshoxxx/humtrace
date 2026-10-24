@@ -26,7 +26,7 @@ jobs:
         env:
           HUMTRACE_REQUIRE_JSONSCHEMA: "1"
       - name: Packaging regression tests
-        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_msys2_sources.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py && python3 tests/test_package_source.py && python3 tests/test_source_metadata.py --cmake "$(command -v cmake)"
+        run: python3 tests/test_packaging.py && python3 tests/test_package_licenses.py && python3 tests/test_msys2_sources.py && python3 tests/test_qt_sources.py && python3 tests/test_macos_packaging.py && python3 tests/test_macos_provenance.py && python3 tests/test_package_source.py && python3 tests/test_source_metadata.py --cmake "$(command -v cmake)"
       - name: Synthetic validation
         run: python3 tools/validate_synthetic.py build/humtrace
       - name: CLI QA matrix (formats, corruption, immutability, memory, cancel)
@@ -162,8 +162,12 @@ jobs:
           python3 ../../tools/package_qt_sources.py --stage qtbase-source --version "$("$(brew --prefix qtbase)/bin/qmake" -query QT_VERSION)"
           brew info --json=v2 qtbase > qtbase-source/BREW_INFO.json
           cp "$(brew --prefix qtbase)/.brew/qtbase.rb" qtbase-source/QTBASE_INSTALLED_FORMULA.rb
+          brew info --json=v1 --installed > homebrew-info.json
+          python3 ../../tools/package_macos_provenance.py --dependencies MACOS_DEPENDENCIES.json --brew-info homebrew-info.json --brew-prefix "$(brew --prefix)" --stage homebrew-provenance
+          cat homebrew-provenance/MACOS_HOMEBREW_PROVENANCE.json
+          rm homebrew-info.json
           codesign --verify --deep --strict humtrace-gui.app
-          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt MACOS_DEPENDENCIES.json qtbase-source
+          zip -qry "../humtrace-$VER-macos-${{ matrix.arch }}.zip" humtrace-gui.app humtrace THIRD_PARTY_NOTICES.md limitations.md SOURCE_COMMIT.txt MACOS_DEPENDENCIES.json qtbase-source homebrew-provenance
           cd .. && shasum -a 256 humtrace-*.zip | tee SHA256SUMS
       - name: Smoke test extracted CLI and GUI
         run: |

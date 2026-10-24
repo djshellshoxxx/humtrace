@@ -50,14 +50,20 @@ set is limited to runtime owners recorded in `DEPENDENCY_LICENSES.json`.
 Windows and macOS workflows stage a SHA256-verified upstream QtBase source archive, its
 `LICENSES` tree, and a scope manifest matched to the installed Qt version.
 macOS also records Homebrew metadata and the installed QtBase formula, including
-its patch references. Its per-image dependency manifest records minimum OS,
-load commands and hashes after signing; it does not map every non-Qt dylib to
-its formula or provide their source. This QtBase archive is an upstream
-baseline; it does not establish correspondence to distribution-patched binaries
-or provide source for other Qt modules and dependencies. Linux declares system
-shared-library dependencies and installs this notice. Distribution patches,
-other Qt modules/dependencies, applicable license options, corresponding-source
-and relinkability obligations still need artifact-specific review. These
+its patch references. The current packaging change adds a candidate mapping for
+each final Mach-O image using exact filenames found in installed Homebrew
+Cellar kegs. The package records unique, ambiguous, and unmapped results,
+formula license/source fields, hashes of matching keg files, and installed
+formula recipes when available. This is an inventory aid, not proof that a
+filename match is the same binary that was copied or a license determination.
+The native CI run must validate this new mapping before it is accepted.
+The per-image dependency manifest records minimum OS, load commands and final
+hashes after signing. The QtBase archive is an upstream baseline; it does not
+establish correspondence to distribution-patched binaries or provide source
+for other Qt modules and dependencies. Linux declares system shared-library
+dependencies and installs this notice. Distribution patches, other Qt
+modules/dependencies, applicable license options, corresponding-source and
+relinkability obligations still need artifact-specific review. These
 inventories do not establish complete corresponding source or legal compliance.
 The exact-tag CI result and archive manifests establish build and package-test
 evidence. This draft does not certify an archive's licensing status.
