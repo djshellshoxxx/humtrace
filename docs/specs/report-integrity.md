@@ -41,6 +41,20 @@ qualified interpretation. The writer omits generation time so unchanged
 analysis can produce byte-identical reports. It does not yet serialize build
 revision, operating system/architecture, report completion status, decoder or
 method version detail, analyst notes, a report-file digest, or an imported
-report verification record. Import and verification tools are unimplemented.
-These omissions are open work against the target contract above, not accepted
+report verification record. The source-tree utility `tools/verify_report.py`
+validates a bounded-size report against the published 1.3 JSON Schema, rejects
+duplicate keys and non-finite JSON values, can compare the source file's exact
+byte length and SHA-256, and can write or check a separate report-file digest
+sidecar. It requires Python's `jsonschema` package and is a validation utility;
+it does not import reports into the desktop application or establish origin,
+authorship, acquisition time, or custody. The remaining omitted fields and GUI
+report import are open work against the target contract above, not accepted
 exceptions to it.
+
+Example from a source checkout:
+
+```sh
+python3 tools/verify_report.py analysis.json --input recording.wav \
+  --write-digest analysis.json.sha256
+python3 tools/verify_report.py analysis.json --digest-file analysis.json.sha256
+```

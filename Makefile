@@ -37,6 +37,7 @@ test: $(BUILD_DIR)/humtrace $(addprefix $(BUILD_DIR)/test_,$(TESTS))
 	$(PYTHON) tests/test_streaming.py $(BUILD_DIR)/humtrace
 	$(PYTHON) tests/test_cli_paging.py $(BUILD_DIR)/humtrace
 	$(PYTHON) tests/test_detector_cli.py $(BUILD_DIR)/humtrace
+	$(PYTHON) tests/test_verify_report.py $(BUILD_DIR)/humtrace
 	$(PYTHON) tests/test_packaging.py
 	$(PYTHON) tests/test_package_licenses.py
 	$(PYTHON) tests/test_qt_sources.py

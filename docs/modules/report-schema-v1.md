@@ -5,6 +5,7 @@
 Provide a stable, machine-readable export for the offline measurement application. Schema 1.3 retains measurement units and effective analysis settings. It does not claim evidence integrity or chain of custody.
 
 The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../schema/analysis-report-v1.schema.json), using JSON Schema 2020-12.
+The source-tree [`verify_report.py`](../../tools/verify_report.py) utility checks this schema with `jsonschema`, rejects malformed or duplicate-key JSON, caps report input at 64 MiB, and optionally compares input and report-file SHA-256 digests. Its hashes identify bytes only; it is not a certificate or chain-of-custody verifier, and desktop report import is not implemented.
 
 ## Structure
 
