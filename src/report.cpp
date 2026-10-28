@@ -1,5 +1,7 @@
 #include "humtrace/report.hpp"
 
+#include "humtrace/version.hpp"
+
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -62,8 +64,13 @@ void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
 std::string serialize_report_json(const AnalysisReport& report) {
     std::ostringstream output;
     output << std::setprecision(17)
-           << "{\n  \"schema_version\": \"1.0\",\n  \"application\": \"HumTrace\",\n  \"input\": {\n    \"path\": ";
+           << "{\n  \"schema_version\": \"" << kSchemaVersion << "\",\n  \"application\": \"HumTrace\",\n  \"application_version\": ";
+    write_string(output, report.application_version.empty() ? std::string(kVersion) : report.application_version);
+    output << ",\n  \"input\": {\n    \"path\": ";
     write_string(output, report.input_path);
+    output << ",\n    \"sha256\": ";
+    write_string(output, report.input_sha256);
+    output << ",\n    \"size_bytes\": " << report.input_size_bytes;
     output << ",\n    \"sample_rate_hz\": " << report.sample_rate_hz
            << ",\n    \"channels\": " << report.channels
            << ",\n    \"bit_depth\": " << report.bit_depth
@@ -103,6 +110,11 @@ std::string serialize_report_json(const AnalysisReport& report) {
         output << "]}";
     }
     if (!report.channel_results.empty()) output << '\n' << "  ";
+    output << "],\n  \"warnings\": [";
+    for (std::size_t i = 0; i < report.warnings.size(); ++i) {
+        if (i != 0) output << ", ";
+        write_string(output, report.warnings[i]);
+    }
     output << "],\n  \"interpretation\": {\n    \"source_classification\": null,\n"
            << "    \"note\": \"Frequency and harmonic measurements do not prove a physical source.\"\n  }\n}\n";
     return output.str();

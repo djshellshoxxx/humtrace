@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=HumTrace
+Comment=Inspect recordings for electrical interference
+Exec=humtrace-gui %f
+Icon=humtrace
+Categories=AudioVideo;Audio;Science;
+MimeType=audio/x-wav;

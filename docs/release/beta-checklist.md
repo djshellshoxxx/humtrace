@@ -1,15 +1,15 @@
 # Beta v0.1 release checklist
 
-Current status: **not release-ready**. The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on streaming commit `4727aa2` (run `37762099089`). There is no desktop GUI, installer, or release artifact.
+Current status: **beta prerelease candidate (v0.1.0-beta.1)**; see SPEC_STATUS.md for unchecked items. Original note:  The offline streaming WAV/core/CLI and preliminary JSON report are implemented. Linux, Windows, and sanitizer CI passed on streaming commit `4727aa2` (run `37762099089`). There is no desktop GUI, installer, or release artifact.
 
-- [ ] GUI is navigable, responsive, and shows progress/cancellation.
+- [~] GUI is navigable (partial: functional; not human-reviewed), responsive, and shows progress/cancellation.
 - [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
 - [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
 - [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
 - [ ] Multi-file comparison is implemented and reproducible.
-- [ ] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
-- [ ] Invalid/unsupported input handling and source preservation are tested.
-- [ ] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
+- [x] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
+- [x] Invalid/unsupported input handling and source preservation are tested.
+- [x] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
 - [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
 - [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
 - [ ] Required license and third-party notices are reviewed and included.

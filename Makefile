@@ -3,7 +3,7 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror
 CPPFLAGS ?= -Iinclude
 BUILD_DIR ?= build
 PYTHON ?= python3
-CORE_SOURCES = src/spectrum.cpp src/wav.cpp src/report.cpp
+CORE_SOURCES = src/spectrum.cpp src/wav.cpp src/report.cpp src/sha256.cpp src/analysis.cpp src/compare.cpp
 CORE_HEADERS = $(wildcard include/humtrace/*.hpp)
 
 .PHONY: all test clean
@@ -24,10 +24,18 @@ $(BUILD_DIR)/test_wav: src/wav.cpp tests/test_wav.cpp $(CORE_HEADERS) | $(BUILD_
 $(BUILD_DIR)/test_report: src/report.cpp tests/test_report.cpp $(CORE_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/report.cpp tests/test_report.cpp -o $@
 
-test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
+$(BUILD_DIR)/test_core: $(CORE_SOURCES) tests/test_core.cpp $(CORE_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) tests/test_core.cpp -o $@
+
+$(BUILD_DIR)/fuzz_wav: $(CORE_SOURCES) tests/fuzz_wav.cpp $(CORE_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) tests/fuzz_wav.cpp -o $@
+
+test: $(BUILD_DIR)/fuzz_wav $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_core $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
 	$(BUILD_DIR)/test_spectrum
 	$(BUILD_DIR)/test_wav
 	$(BUILD_DIR)/test_report
+	$(BUILD_DIR)/test_core
+	$(BUILD_DIR)/fuzz_wav
 	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
 
 clean:

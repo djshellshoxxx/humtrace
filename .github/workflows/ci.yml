@@ -2,37 +2,75 @@ name: CI
 
 on:
   push:
+    branches: ['**']
+    tags-ignore: ['v*']
+    paths-ignore: ['**.md', 'docs/**', 'skills/**', 'LICENSE*']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'skills/**', 'LICENSE*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Per-push gate: core + GUI build once, all tests via ctest with JUnit output.
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cmake ninja-build qt6-base-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: make
+        run: cmake --build build --parallel 4
       - name: Test
-        run: make test
-  windows:
+        run: ctest --test-dir build --parallel 4 --output-on-failure --output-junit junit.xml
+      - name: Package and smoke-test
+        run: scripts/package_linux.sh build dist && scripts/smoke_package.sh dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+            build/junit.xml
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cmake ninja-build
+      - name: Configure (ASan + UBSan, core only)
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DHUMTRACE_BUILD_GUI=OFF -DHUMTRACE_SANITIZE=ON
+      - name: Build
+        run: cmake --build build --parallel 4
+      - name: Test
+        run: ctest --test-dir build --parallel 4 --output-on-failure --output-junit junit.xml
+      - uses: actions/upload-artifact@v4
+        with: { name: sanitizer-junit, path: build/junit.xml }
+  # Slow platform: only on main, manual dispatch.
+  windows-cli:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: true
           install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make
-      - name: Build
-        run: make
-      - name: Test
+      - name: Build and test CLI
         run: make test
-  sanitizers:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: AddressSanitizer and UndefinedBehaviorSanitizer tests
-        run: make clean && make test CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -Wconversion -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-cli, path: build/humtrace.exe }

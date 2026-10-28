@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 import pathlib
@@ -35,7 +36,9 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
+    assert report["input"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert report["warnings"] == []
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
@@ -59,6 +62,33 @@ def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) 
     assert "not a RIFF/WAVE file" in result.stderr
 
 
+def run(executable, *args):
+    return subprocess.run([str(executable), *map(str, args)], capture_output=True, text=True, check=False)
+
+
+def check_safety_and_options(executable: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "safe.wav"
+    write_stereo_tones(source)
+    before = hashlib.sha256(source.read_bytes()).hexdigest()
+    result = run(executable, source, "--json", source, "--no-progress")
+    assert result.returncode != 0 and "overwrite the input" in result.stderr, result
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == before
+    for bad in (["--frame-size", "1000"], ["--frame-size", "abc"], ["--threshold", "5"], ["--bogus"]):
+        result = run(executable, source, *bad, "--no-progress")
+        assert result.returncode != 0 and "HumTrace:" in result.stderr, (bad, result)
+    assert run(executable).returncode == 2
+    assert run(executable, "--version").stdout.startswith("humtrace ")
+    other = directory / "other.wav"
+    write_stereo_tones(other)
+    result = run(executable, "--compare", source, other, "--no-progress")
+    assert result.returncode == 0 and result.stdout.count("sha256 ") == 2, result
+    assert run(executable, "--compare", source, "--no-progress").returncode == 2
+    report = directory / "r.json"
+    assert run(executable, source, "--json", report, "--no-progress").returncode == 0
+    assert run(executable, source, "--json", report, "--no-progress").returncode == 0
+    assert (directory / "r.json.bak").exists()
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_cli.py <humtrace executable>")
@@ -67,6 +97,7 @@ def main() -> None:
         directory = pathlib.Path(temporary)
         check_stereo_report(executable, directory)
         check_invalid_file_fails(executable, directory)
+        check_safety_and_options(executable, directory)
     print("All CLI integration tests passed.")
 
 

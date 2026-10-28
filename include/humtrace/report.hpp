@@ -16,6 +16,10 @@ struct ReportChannel {
 
 struct AnalysisReport {
     std::string input_path;
+    std::string input_sha256;          // lowercase hex of the exact input bytes
+    std::uint64_t input_size_bytes{};
+    std::string application_version;
+    std::vector<std::string> warnings;
     std::uint32_t sample_rate_hz{};
     std::uint16_t channels{};
     std::uint16_t bit_depth{};
