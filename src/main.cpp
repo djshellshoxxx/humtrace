@@ -1,128 +1,133 @@
-#include "humtrace/spectrum.hpp"
-#include "humtrace/report.hpp"
-#include "humtrace/wav.hpp"
+#include "humtrace/analysis.hpp"
+#include "humtrace/compare.hpp"
+#include "humtrace/version.hpp"
 
-#include <algorithm>
-#include <fstream>
+#include <atomic>
+#include <csignal>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
+namespace {
+std::atomic<bool> g_cancel{false};
+extern "C" void on_interrupt(int) { g_cancel.store(true); }
+
+void usage() {
+    std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--frame-size N]\n"
+                 "                [--threshold dBFS] [--prominence dB] [--no-progress]\n"
+                 "       humtrace --compare <a.wav> <b.wav> [...] [options]\n"
+                 "       humtrace --version\n";
+}
+
+double parse_number(const std::string& text, const char* name) {
+    std::size_t used = 0;
+    double value = 0.0;
+    try { value = std::stod(text, &used); } catch (const std::exception&) { used = 0; }
+    if (used != text.size() || used == 0)
+        throw std::runtime_error(std::string("invalid number for ") + name);
+    return value;
+}
+
+struct Cli {
+    std::vector<std::string> inputs;
+    std::string json_path;
+    bool compare{false};
+    bool progress{true};
+    humtrace::AnalysisOptions options;
+};
+
+Cli parse(int argc, char** argv) {
+    Cli cli;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        auto value = [&](const char* name) -> std::string {
+            if (i + 1 >= argc) throw std::runtime_error(std::string(name) + " needs a value");
+            return argv[++i];
+        };
+        if (arg == "--json") cli.json_path = value("--json");
+        else if (arg == "--compare") cli.compare = true;
+        else if (arg == "--no-progress") cli.progress = false;
+        else if (arg == "--frame-size") {
+            const auto v = parse_number(value("--frame-size"), "--frame-size");
+            if (v < 0 || v > 1e9) throw std::runtime_error("invalid frame size");
+            cli.options.frame_size_samples = static_cast<std::size_t>(v);
+        } else if (arg == "--threshold") cli.options.support_threshold_dbfs = parse_number(value("--threshold"), "--threshold");
+        else if (arg == "--prominence") cli.options.minimum_prominence_db = parse_number(value("--prominence"), "--prominence");
+        else if (arg.rfind("--", 0) == 0) throw std::runtime_error("unknown option " + arg);
+        else cli.inputs.push_back(arg);
+    }
+    if (cli.inputs.empty() || (!cli.compare && cli.inputs.size() != 1) || (cli.compare && cli.inputs.size() < 2))
+        throw std::invalid_argument("bad arguments");
+    if (cli.compare && !cli.json_path.empty())
+        throw std::runtime_error("--json is not supported with --compare");
+    return cli;
+}
+
+void print_report(const humtrace::AnalysisReport& r) {
+    std::cout << std::fixed << std::setprecision(3) << "HumTrace analysis ("
+              << static_cast<double>(r.frame_size_samples) / r.sample_rate_hz << " s per frame)\n"
+              << "Sample rate: " << r.sample_rate_hz << " Hz\nChannels: " << r.channels
+              << "\nBit depth: " << r.bit_depth << "\nDuration: " << r.duration_seconds << " s\n"
+              << "FFT bins: " << r.frame_size_samples / 2 + 1 << " ("
+              << static_cast<double>(r.sample_rate_hz) / static_cast<double>(r.frame_size_samples)
+              << " Hz/bin)\nTimeline hop: "
+              << static_cast<double>(r.hop_size_samples) / r.sample_rate_hz << " s\n"
+              << "SHA-256: " << r.input_sha256 << '\n';
+    for (const auto& w : r.warnings) std::cout << "Warning: " << w << '\n';
+    for (const auto& channel : r.channel_results) {
+        std::cout << "Channel " << channel.channel_number << " measured frames: " << channel.frames.size() << '\n';
+        for (const auto& frame : channel.frames) {
+            const auto& peak = frame.strongest_peak;
+            std::cout << "  " << static_cast<double>(frame.start_sample) / r.sample_rate_hz << " s: ";
+            if (peak.frequency_hz == 0.0) std::cout << "no non-DC energy";
+            else std::cout << "strongest non-DC component " << peak.frequency_hz << " Hz, " << peak.level_dbfs << " dBFS";
+            std::cout << "; 50 Hz bins over " << r.support_threshold_dbfs << " dBFS and "
+                      << r.minimum_prominence_db << " dB local prominence: "
+                      << frame.mains_50.supporting_harmonics << '/' << frame.mains_50.harmonics.size()
+                      << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
+                      << frame.mains_60.harmonics.size() << '\n';
+        }
+    }
+    std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
+}
+} // namespace
+
 int main(int argc, char** argv) {
-    if (argc != 2 && (argc != 4 || std::string(argv[2]) != "--json")) {
-        std::cerr << "Usage: humtrace <input.wav> [--json <report.json>]\n";
-        return 2;
+    if (argc == 2 && std::string(argv[1]) == "--version") {
+        std::cout << "humtrace " << humtrace::kVersion << '\n';
+        return 0;
     }
     try {
-        std::ifstream input(argv[1], std::ios::binary);
-        if (!input)
-            throw std::runtime_error("could not open input file");
-        humtrace::WavStreamReader reader(input);
-        const auto& metadata = reader.metadata();
-        const auto frames = metadata.frame_count;
-        if (frames < 4)
-            throw std::runtime_error("audio is too short to analyze");
-        std::size_t window_size = 1;
-        const auto frame_limit = std::min<std::uint64_t>(
-            frames, std::max<std::uint64_t>(4, std::min<std::uint64_t>(metadata.sample_rate_hz, 65536)));
-        while (window_size <= frame_limit / 2)
-            window_size *= 2;
-        const std::size_t hop_size = window_size / 2;
-        constexpr std::size_t max_interleaved_window_samples = 16 * 1024 * 1024;
-        if (window_size > max_interleaved_window_samples / metadata.channels)
-            throw std::runtime_error("too many channels for the selected analysis window");
-        const auto bin_spacing = static_cast<double>(metadata.sample_rate_hz) /
-                                 static_cast<double>(window_size);
-        humtrace::AnalysisReport report;
-        report.input_path = argv[1];
-        report.sample_rate_hz = metadata.sample_rate_hz;
-        report.channels = metadata.channels;
-        report.bit_depth = metadata.bit_depth;
-        report.format_code = metadata.format_code;
-        report.duration_seconds = static_cast<double>(frames) / metadata.sample_rate_hz;
-        report.frame_size_samples = window_size;
-        report.hop_size_samples = hop_size;
-
-        std::cout << std::fixed << std::setprecision(3)
-                  << "HumTrace analysis (" << static_cast<double>(window_size) /
-                         metadata.sample_rate_hz << " s per frame)\n"
-                  << "Sample rate: " << metadata.sample_rate_hz << " Hz\n"
-                  << "Channels: " << metadata.channels << "\n"
-                  << "Bit depth: " << metadata.bit_depth << "\n"
-                  << "Duration: " << static_cast<double>(frames) / metadata.sample_rate_hz << " s\n"
-                  << "FFT bins: " << window_size / 2 + 1 << " (" << bin_spacing << " Hz/bin)\n"
-                  << "Timeline hop: " << static_cast<double>(hop_size) / metadata.sample_rate_hz << " s\n";
-
-        std::vector<humtrace::ReportChannel> channel_results(metadata.channels);
-        for (std::uint16_t channel = 0; channel < metadata.channels; ++channel)
-            channel_results[channel].channel_number = static_cast<std::uint16_t>(channel + 1);
-        auto interleaved_window = reader.read_frames(window_size);
-        const auto samples_per_window = window_size * metadata.channels;
-        if (interleaved_window.size() != samples_per_window)
-            throw std::runtime_error("could not read the first complete analysis window");
-        std::uint64_t window_start = 0;
-        while (true) {
-            for (std::uint16_t channel = 0; channel < metadata.channels; ++channel) {
-                std::vector<double> samples(window_size);
-                for (std::size_t frame = 0; frame < window_size; ++frame)
-                    samples[frame] = interleaved_window[frame * metadata.channels + channel];
-                auto measured = humtrace::analyze_interference_timeline(
-                    samples, metadata.sample_rate_hz, window_size, window_size);
-                if (measured.empty())
-                    throw std::runtime_error("analysis produced no complete frames");
-                measured[0].start_sample = window_start;
-                channel_results[channel].frames.push_back(std::move(measured[0]));
+        Cli cli;
+        try { cli = parse(argc, argv); }
+        catch (const std::invalid_argument&) { usage(); return 2; }
+        std::signal(SIGINT, on_interrupt);
+        std::signal(SIGTERM, on_interrupt);
+        cli.options.cancel = &g_cancel;
+        if (cli.progress)
+            cli.options.progress = [](double f) {
+                std::cerr << "\rProgress: " << static_cast<int>(f * 100) << "%" << std::flush;
+            };
+        std::vector<humtrace::FileSummary> summaries;
+        for (const auto& path : cli.inputs) {
+            const auto report = humtrace::analyze_wav_file(path, cli.options);
+            if (cli.progress) std::cerr << '\n';
+            if (cli.compare) { summaries.push_back(humtrace::summarize(report)); continue; }
+            print_report(report);
+            if (!cli.json_path.empty()) {
+                humtrace::write_file_safely(cli.json_path, humtrace::serialize_report_json(report), path);
+                std::cout << "JSON report saved: " << cli.json_path << '\n';
             }
-            if (window_start + hop_size + window_size > frames)
-                break;
-            const auto retained_samples = hop_size * metadata.channels;
-            std::move(interleaved_window.begin() + static_cast<std::ptrdiff_t>(retained_samples),
-                      interleaved_window.end(), interleaved_window.begin());
-            auto next_samples = reader.read_frames(hop_size);
-            if (next_samples.size() != retained_samples)
-                break;
-            std::copy(next_samples.begin(), next_samples.end(),
-                      interleaved_window.end() - static_cast<std::ptrdiff_t>(next_samples.size()));
-            window_start += hop_size;
         }
-
-        for (const auto& channel : channel_results) {
-            const auto& timeline = channel.frames;
-            std::cout << "Channel " << channel.channel_number << " measured frames: " << timeline.size() << '\n';
-            for (const auto& frame : timeline) {
-                const auto start_seconds = static_cast<double>(frame.start_sample) / metadata.sample_rate_hz;
-                const auto& peak = frame.strongest_peak;
-                std::cout << "  " << start_seconds << " s: ";
-                if (peak.frequency_hz == 0.0)
-                    std::cout << "no non-DC energy";
-                else
-                    std::cout << "strongest non-DC component " << peak.frequency_hz << " Hz, "
-                              << peak.level_dbfs << " dBFS";
-                std::cout << "; "
-                          << "50 Hz bins over -60 dBFS and 10 dB local prominence: "
-                          << frame.mains_50.supporting_harmonics << '/' << frame.mains_50.harmonics.size()
-                          << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
-                          << frame.mains_60.harmonics.size() << '\n';
-            }
-            report.channel_results.push_back(channel);
-        }
-        std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
-        if (argc == 4) {
-            const std::string report_path = argv[3];
-            const auto json = humtrace::serialize_report_json(report);
-            std::ofstream report_file(report_path, std::ios::binary | std::ios::trunc);
-            if (!report_file)
-                throw std::runtime_error("could not create JSON report");
-            report_file << json;
-            if (!report_file)
-                throw std::runtime_error("failed while writing JSON report");
-            std::cout << "JSON report saved: " << report_path << '\n';
-        }
+        if (cli.compare) std::cout << humtrace::format_comparison(summaries);
+    } catch (const humtrace::AnalysisCancelled&) {
+        std::cerr << "\nHumTrace: cancelled\n";
+        return 130;
     } catch (const std::exception& error) {
-        std::cerr << "HumTrace: " << error.what() << '\n';
+        std::cerr << "\nHumTrace: " << error.what() << '\n';
         return 1;
     }
     return 0;
