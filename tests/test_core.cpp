@@ -123,6 +123,14 @@ void safe_write_protects_input_and_backs_up(const fs::path& dir) {
     std::ifstream(out) >> a; std::ifstream(out.string() + ".bak") >> b;
     require(a == "two" && b == "one", "previous report backed up");
     require(!fs::exists(out.string() + ".tmp"), "no temp file left");
+    // Regression: a pre-planted symlink at <out>.tmp must not be written through.
+    const auto victim = write_tmp(dir, "victim.txt", "keep");
+    const auto out2 = dir / "r2.json";
+    fs::create_symlink(victim, out2.string() + ".tmp");
+    threw = false;
+    try { humtrace::write_file_safely(out2.string(), "evil", in.string()); } catch (const std::runtime_error&) { threw = true; }
+    std::string kept; std::ifstream(victim) >> kept;
+    require(threw && kept == "keep", "symlinked temp path refused");
 }
 } // namespace
 

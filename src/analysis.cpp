@@ -180,6 +180,8 @@ void write_file_safely(const std::string& path, const std::string& contents,
     if (!input_path.empty() && fs::exists(target, ec) && fs::equivalent(target, fs::path(input_path), ec))
         throw std::runtime_error("refusing to overwrite the input recording");
     const fs::path temp = target.string() + ".tmp";
+    if (fs::is_symlink(fs::symlink_status(temp, ec)))
+        throw std::runtime_error("refusing to write through a symbolic link");
     {
         std::ofstream out(temp, std::ios::binary | std::ios::trunc);
         if (!out)
