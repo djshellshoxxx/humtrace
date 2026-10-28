@@ -3,12 +3,14 @@
 #pragma once
 
 #include "humtrace/report.hpp"
+#include "humtrace/spectrum.hpp"
 
 #include <atomic>
 #include <cstddef>
 #include <functional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace humtrace {
 
@@ -34,6 +36,13 @@ public:
 // AnalysisCancelled on cancellation. Hashes the input bytes for the report.
 [[nodiscard]] AnalysisReport analyze_wav_file(const std::string& path,
                                               const AnalysisOptions& options = {});
+
+// Spectrum of one frame (for display). `start_sample` must be a frame start from
+// a prior analysis. Throws std::runtime_error on invalid arguments.
+[[nodiscard]] std::vector<SpectrumBin> load_frame_spectrum(const std::string& path,
+                                                           std::uint16_t channel_number,
+                                                           std::uint64_t start_sample,
+                                                           std::size_t frame_size);
 
 // Writes `contents` to `path` atomically (temp file + rename). An existing
 // file is first copied to `path + ".bak"`. Refuses to touch `input_path`.

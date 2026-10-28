@@ -143,6 +143,33 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
     return report;
 }
 
+std::vector<SpectrumBin> load_frame_spectrum(const std::string& path, std::uint16_t channel_number,
+                                             std::uint64_t start_sample, std::size_t frame_size) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        throw std::runtime_error("could not open input file");
+    WavStreamReader reader(input);
+    const auto& m = reader.metadata();
+    if (channel_number == 0 || channel_number > m.channels)
+        throw std::runtime_error("channel out of range");
+    if (!is_power_of_two(frame_size) || frame_size < 4 || frame_size > kMaxFrameSize ||
+        start_sample > m.frame_count || frame_size > m.frame_count - start_sample)
+        throw std::runtime_error("frame is outside the recording");
+    for (std::uint64_t skipped = 0; skipped < start_sample;) {
+        const auto step = static_cast<std::size_t>(std::min<std::uint64_t>(start_sample - skipped, 65536));
+        if (reader.read_frames(step).size() != step * m.channels)
+            throw std::runtime_error("input ended early");
+        skipped += step;
+    }
+    const auto block = reader.read_frames(frame_size);
+    if (block.size() != frame_size * m.channels)
+        throw std::runtime_error("input ended early");
+    std::vector<double> samples(frame_size);
+    for (std::size_t f = 0; f < frame_size; ++f)
+        samples[f] = block[f * m.channels + (channel_number - 1U)];
+    return analyze_spectrum(samples, m.sample_rate_hz);
+}
+
 void write_file_safely(const std::string& path, const std::string& contents,
                        const std::string& input_path) {
     namespace fs = std::filesystem;

@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <numbers>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -31,7 +32,7 @@ void put32(std::string& s, std::uint32_t v) { put16(s, v & 0xffff); put16(s, std
 std::string make_wav(double hz, unsigned rate, unsigned frames, std::uint32_t declared_extra = 0) {
     std::string data;
     for (unsigned i = 0; i < frames; ++i)
-        put16(data, std::uint16_t(std::int16_t(std::lround(0.5 * 32767 * std::sin(2 * M_PI * hz * i / rate)))));
+        put16(data, std::uint16_t(std::int16_t(std::lround(0.5 * 32767 * std::sin(2 * std::numbers::pi * hz * i / rate)))));
     std::string w = "RIFF";
     put32(w, 36 + std::uint32_t(data.size()) + declared_extra);
     w += "WAVEfmt ";

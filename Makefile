@@ -27,11 +27,15 @@ $(BUILD_DIR)/test_report: src/report.cpp tests/test_report.cpp $(CORE_HEADERS) |
 $(BUILD_DIR)/test_core: $(CORE_SOURCES) tests/test_core.cpp $(CORE_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) tests/test_core.cpp -o $@
 
-test: $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_core $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
+$(BUILD_DIR)/fuzz_wav: $(CORE_SOURCES) tests/fuzz_wav.cpp $(CORE_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CORE_SOURCES) tests/fuzz_wav.cpp -o $@
+
+test: $(BUILD_DIR)/fuzz_wav $(BUILD_DIR)/humtrace $(BUILD_DIR)/test_core $(BUILD_DIR)/test_spectrum $(BUILD_DIR)/test_wav $(BUILD_DIR)/test_report
 	$(BUILD_DIR)/test_spectrum
 	$(BUILD_DIR)/test_wav
 	$(BUILD_DIR)/test_report
 	$(BUILD_DIR)/test_core
+	$(BUILD_DIR)/fuzz_wav
 	$(PYTHON) tests/test_cli.py $(BUILD_DIR)/humtrace
 
 clean:

@@ -8,7 +8,7 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.0`.
+- `schema_version`: current string value `1.1` (`1.0` reports remain valid).
 - `application`: `HumTrace`.
 - `input`: source path and decoded sample rate, channels, bit depth, format code, and duration.
 - `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
@@ -24,9 +24,11 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 - Consumers must check `schema_version` and tolerate added fields in later minor revisions.
 - Frame timestamps refer to window start; they do not identify the exact onset of a transient.
 
+- Added in 1.1: top-level `application_version` and `warnings[]`; `input.sha256` and `input.size_bytes`.
+
 ## Current gaps
 
-The report omits input hashes, decoder/library versions, software build ID, user annotations, validation status, and a full error/warning list. Do not present it as a forensic provenance record until those fields and their handling are specified and validated.
+The report omits decoder/library versions, software build ID, user annotations, validation status, and a full error/warning list. Do not present it as a forensic provenance record until those fields and their handling are specified and validated.
 
 ## Migration
 

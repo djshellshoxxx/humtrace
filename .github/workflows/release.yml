@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel a release in progress.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cmake ninja-build qt6-base-dev libgl1-mesa-dev
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --parallel 4 --output-on-failure --output-junit junit.xml
+      - run: scripts/package_linux.sh build dist && scripts/smoke_package.sh dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with: { name: release-linux, path: "dist/*.tar.gz\ndist/*.sha256\nbuild/junit.xml" }
+  windows-cli:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make zip
+      - run: make test
+      - name: Package
+        run: |
+          v=$(grep -oP 'kVersion = "\K[^"]+' include/humtrace/version.hpp)
+          mkdir -p dist/humtrace-$v-windows-x64-cli
+          cp build/humtrace.exe README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md dist/humtrace-$v-windows-x64-cli/
+          (cd dist && zip -qr humtrace-$v-windows-x64-cli.zip humtrace-$v-windows-x64-cli && sha256sum humtrace-$v-windows-x64-cli.zip > humtrace-$v-windows-x64-cli.zip.sha256)
+      - uses: actions/upload-artifact@v4
+        with: { name: release-windows, path: "dist/*.zip\ndist/*.sha256" }
+  publish:
+    needs: [linux, windows-cli]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat artifacts/*.sha256 > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "HumTrace $GITHUB_REF_NAME (beta)" --target "$GITHUB_SHA" \
+            --notes "Beta prerelease built from commit $GITHUB_SHA. CLI for Linux and Windows; Qt GUI for Linux (requires system Qt 6). Windows GUI, accessibility testing and the validation corpus are NOT done; see docs/release/beta-checklist.md. SHA-256 sums are in SHA256SUMS.txt." \
+            artifacts/*.tar.gz artifacts/*.zip artifacts/*.sha256 SHA256SUMS.txt

@@ -1,0 +1,24 @@
+HumTrace third-party notices
+============================
+
+Runtime dependencies
+--------------------
+Qt 6 (Core, Gui, Widgets; Test for tests only) - https://www.qt.io/
+  License: LGPL-3.0 / GPL-3.0 / commercial (Qt module dependent).
+  Use: humtrace-gui only. Linked dynamically from the system (Ubuntu qt6-base-dev
+  6.4.2 in CI). Qt binaries are NOT redistributed in HumTrace release archives.
+  FLAGGED FOR OWNER: LGPL terms apply to anyone who redistributes Qt with HumTrace
+  (e.g. a Windows installer). Review before bundling. See
+  docs/research/gui-toolkit-decision-research.md.
+
+Original code
+-------------
+SHA-256 (src/sha256.cpp) is an original implementation of FIPS 180-4, verified against
+the published test vectors in tests/test_core.cpp. No third-party source code is
+copied into this repository's src/, include/, gui/ or tests/ directories.
+
+Vendored tooling
+----------------
+skills/ and shared/scripts/ contain vendored agent skills and helper scripts with their
+own licenses (see skills/_third_party_licenses). They are development tooling and are
+not part of the HumTrace binaries or release archives.
