@@ -6,12 +6,14 @@
 #include "humtrace/spectrum.hpp"
 #include "humtrace/tracking.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <numbers>
 #include <random>
 #include <stdexcept>
