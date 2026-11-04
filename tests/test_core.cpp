@@ -126,7 +126,14 @@ void safe_write_protects_input_and_backs_up(const fs::path& dir) {
     // Regression: a pre-planted symlink at <out>.tmp must not be written through.
     const auto victim = write_tmp(dir, "victim.txt", "keep");
     const auto out2 = dir / "r2.json";
-    fs::create_symlink(victim, out2.string() + ".tmp");
+    // Creating symlinks needs a privilege on Windows; the check runs wherever the OS allows it.
+    std::error_code link_error;
+    fs::create_symlink(victim, out2.string() + ".tmp", link_error);
+    if (link_error) {
+        std::cout << "note: symlink regression not exercised (cannot create symlinks: "
+                  << link_error.message() << ")\n";
+        return;
+    }
     threw = false;
     try { humtrace::write_file_safely(out2.string(), "evil", in.string()); } catch (const std::runtime_error&) { threw = true; }
     std::string kept; std::ifstream(victim) >> kept;
