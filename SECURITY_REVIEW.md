@@ -4,7 +4,7 @@ Scope: code added/changed on this branch (analysis engine, SHA-256, CLI, GUI, CI
 
 | ID | Sev | Finding | Fix / status | Verification |
 |---|---|---|---|---|
-| S1 | Low | `write_file_safely` wrote to predictable `<out>.tmp`; a pre-planted symlink would be followed. | Fixed: symlink at temp path is refused. | `tests/test_core.cpp` regression |
+| S1 | Low | `write_file_safely` wrote to predictable `<out>.tmp`; a pre-planted symlink would be followed. | Fixed: symlink at temp path is refused. | `tests/test_core.cpp` regression (Linux; skipped on Windows runners without symlink privilege) |
 | S2 | Med | Report could overwrite the input recording via `--json same.wav`. | Fixed: `fs::equivalent` check before any write. | `test_core`, `test_cli.py` |
 | S3 | Med | Unbounded memory for very long files/huge frame requests. | Fixed: frame size 4..65536 power of two, 16M-sample window cap, `max_result_frames` cap (200k). | `test_core` (cap, bad sizes); 10-min file ~11 MB RSS |
 | S4 | Low | Header lies about data length / truncated files. | Parser rejects or warns; no crash under ASan/UBSan. | `test_core`, `fuzz_wav` (209 accepted / 391 rejected, 0 faults) |
