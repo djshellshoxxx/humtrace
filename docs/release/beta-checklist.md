@@ -5,15 +5,15 @@ Current status: **beta prerelease candidate (v0.1.0-beta.1)**; see SPEC_STATUS.m
 - [~] GUI is navigable (partial: functional; not human-reviewed), responsive, and shows progress/cancellation.
 - [ ] Audio loading supports advertised formats; long-file analysis and report serialization have validated memory bounds.
 - [ ] Mono/stereo findings include verified frequency, level, time, harmonics, noise-floor/SNR evidence, and qualified explanation.
-- [ ] Spectrum, waveform, spectrogram, and finding timeline are implemented and visually checked.
-- [ ] Multi-file comparison is implemented and reproducible.
+- [~] Spectrum, waveform, spectrogram, and finding timeline are implemented (including tone tracks); NOT visually checked by a human.
+- [~] Multi-file comparison is implemented (CLI text/JSON, GUI dialog) and covered by tests; GUI not human reviewed.
 - [x] Versioned JSON measurement export is extended with input hashes, provenance/build metadata, warnings, and schema compatibility tests.
 - [x] Invalid/unsupported input handling and source preservation are tested.
 - [x] Resampling, alignment, channel selection, and preprocessing are explicit and recorded; no silent transform occurs.
 - [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
 - [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
 - [ ] Required license and third-party notices are reviewed and included.
-- [ ] Linux and Windows native builds and packaged artifacts are tested.
+- [ ] Linux and Windows native builds and packaged artifacts are tested (Linux done; Windows CLI+GUI build and ctest passed in CI run 41799701966; Windows release zip not yet produced).
 - [ ] CI, sanitizer, static checks, dependency review, and release notes are complete.
 - [ ] User guide and known limitations match the actual shipped build.
 

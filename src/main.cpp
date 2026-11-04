@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <csignal>
+#include <filesystem>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -18,7 +19,7 @@ extern "C" void on_interrupt(int) { g_cancel.store(true); }
 void usage() {
     std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--frame-size N]\n"
                  "                [--threshold dBFS] [--prominence dB] [--no-progress]\n"
-                 "       humtrace --compare <a.wav> <b.wav> [...] [options]\n"
+                 "       humtrace --compare <a.wav> <b.wav> [...] [--json <comparison.json>] [options]\n"
                  "       humtrace --version\n";
 }
 
@@ -61,8 +62,6 @@ Cli parse(int argc, char** argv) {
     }
     if (cli.inputs.empty() || (!cli.compare && cli.inputs.size() != 1) || (cli.compare && cli.inputs.size() < 2))
         throw std::invalid_argument("bad arguments");
-    if (cli.compare && !cli.json_path.empty())
-        throw std::runtime_error("--json is not supported with --compare");
     return cli;
 }
 
@@ -91,6 +90,21 @@ void print_report(const humtrace::AnalysisReport& r) {
                       << frame.mains_60.harmonics.size() << '\n';
         }
     }
+    std::cout << "Tone tracks (tolerance " << r.track_tolerance_hz << " Hz, min " << r.track_min_frames
+              << " frames, max gap " << r.track_max_gap_frames << "):\n";
+    for (const auto& channel : r.channel_results) {
+        std::cout << "Channel " << channel.channel_number << " tone tracks: " << channel.tracks.size() << '\n';
+        for (const auto& t : channel.tracks) {
+            std::cout << "  " << t.median_frequency_hz << " Hz, "
+                      << static_cast<double>(t.start_sample) / r.sample_rate_hz << "-"
+                      << static_cast<double>(t.end_sample) / r.sample_rate_hz << " s, median "
+                      << t.median_level_dbfs << " dBFS, prominence " << t.median_prominence_db
+                      << " dB, persistence " << t.persistence << ", drift " << t.drift_hz_per_second << " Hz/s";
+            if (t.mains.nominal_hz > 0.0)
+                std::cout << ", near " << t.mains.harmonic << " x " << t.mains.nominal_hz << " Hz";
+            std::cout << '\n';
+        }
+    }
     std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
 }
 } // namespace
@@ -107,6 +121,7 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, on_interrupt);
         std::signal(SIGTERM, on_interrupt);
         cli.options.cancel = &g_cancel;
+        cli.options.build_display = false;  // CLI has no display
         if (cli.progress)
             cli.options.progress = [](double f) {
                 std::cerr << "\rProgress: " << static_cast<int>(f * 100) << "%" << std::flush;
@@ -122,7 +137,20 @@ int main(int argc, char** argv) {
                 std::cout << "JSON report saved: " << cli.json_path << '\n';
             }
         }
-        if (cli.compare) std::cout << humtrace::format_comparison(summaries);
+        if (cli.compare) {
+            std::cout << humtrace::format_comparison(summaries);
+            if (!cli.json_path.empty()) {
+                for (const auto& path : cli.inputs) {  // never overwrite any compared input
+                    std::error_code ec;
+                    if (std::filesystem::exists(cli.json_path, ec) &&
+                        std::filesystem::equivalent(cli.json_path, path, ec))
+                        throw std::runtime_error("refusing to overwrite an input recording");
+                }
+                humtrace::write_file_safely(cli.json_path, humtrace::serialize_comparison_json(summaries),
+                                            cli.inputs.front());
+                std::cout << "JSON comparison saved: " << cli.json_path << '\n';
+            }
+        }
     } catch (const humtrace::AnalysisCancelled&) {
         std::cerr << "\nHumTrace: cancelled\n";
         return 130;

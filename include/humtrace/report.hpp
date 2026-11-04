@@ -1,6 +1,8 @@
 #pragma once
 
+#include "humtrace/display.hpp"
 #include "humtrace/spectrum.hpp"
+#include "humtrace/tracking.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +14,7 @@ namespace humtrace {
 struct ReportChannel {
     std::uint16_t channel_number{};
     std::vector<InterferenceFrame> frames;
+    std::vector<ToneTrack> tracks;   // persistent narrowband tones
 };
 
 struct AnalysisReport {
@@ -30,6 +33,14 @@ struct AnalysisReport {
     double support_threshold_dbfs{-60.0};
     double minimum_prominence_db{10.0};
     std::vector<ReportChannel> channel_results;
+    // Tone tracking settings actually used, echoed for reproducibility.
+    std::size_t max_tonal_peaks{};
+    double track_tolerance_hz{};
+    std::size_t track_max_gap_frames{};
+    std::size_t track_min_frames{};
+    bool tracks_truncated{false};
+    // Display-only products; not serialized. Empty when not requested.
+    std::vector<ChannelDisplay> display;
 };
 
 [[nodiscard]] std::string serialize_report_json(const AnalysisReport& report);

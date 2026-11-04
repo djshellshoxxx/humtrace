@@ -16,6 +16,14 @@ struct SpectralPeak {
     double level_dbfs{};
 };
 
+// A local spectral maximum that met level and prominence thresholds.
+struct TonalPeak {
+    double frequency_hz{};      // parabolic-interpolated
+    double level_dbfs{};        // parabolic-interpolated
+    double local_floor_dbfs{};  // median of nearby bins excluding guard bins
+    double prominence_db{};     // bin level minus local floor
+};
+
 struct HarmonicMeasurement {
     std::size_t harmonic_number{};
     double expected_frequency_hz{};
@@ -51,6 +59,13 @@ struct InterferenceFrame {
 
 // Return the strongest non-DC bin. Throws std::invalid_argument when absent.
 [[nodiscard]] SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum);
+
+// Local maxima (excluding DC and Nyquist) whose level >= threshold_dbfs and whose
+// prominence over the local floor >= minimum_prominence_db, strongest first,
+// at most max_peaks. Throws std::invalid_argument on invalid settings.
+[[nodiscard]] std::vector<TonalPeak> find_tonal_peaks(
+    const std::vector<SpectrumBin>& spectrum, double threshold_dbfs,
+    double minimum_prominence_db, std::size_t max_peaks);
 
 // Measure the nearest FFT bin at each integer multiple of nominal_hz through
 // Nyquist. Threshold support is a measurement aid, not a source classification.

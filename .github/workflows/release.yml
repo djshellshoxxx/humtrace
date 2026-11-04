@@ -26,11 +26,15 @@ jobs:
       - run: scripts/package_linux.sh build dist && scripts/smoke_package.sh dist/*.tar.gz
       - uses: actions/upload-artifact@v4
         with: { name: release-linux, path: "dist/*.tar.gz\ndist/*.sha256\nbuild/junit.xml" }
-  windows-cli:
+  # Windows CLI + Qt GUI from one cmake build. Not yet run on a Windows host; the
+  # windeployqt tool name is unverified (msys2 qt6-tools), hence the fallback lookup.
+  windows:
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 1 }
@@ -38,18 +42,34 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python make zip
-      - run: make test
-      - name: Package
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-tools
+            zip
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --parallel 4 --output-on-failure --output-junit junit.xml
+      - name: Package CLI and GUI
         run: |
           v=$(grep -oP 'kVersion = "\K[^"]+' include/humtrace/version.hpp)
-          mkdir -p dist/humtrace-$v-windows-x64-cli
-          cp build/humtrace.exe README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md dist/humtrace-$v-windows-x64-cli/
-          (cd dist && zip -qr humtrace-$v-windows-x64-cli.zip humtrace-$v-windows-x64-cli && sha256sum humtrace-$v-windows-x64-cli.zip > humtrace-$v-windows-x64-cli.zip.sha256)
+          cli=humtrace-$v-windows-x64-cli
+          gui=humtrace-$v-windows-x64-gui
+          mkdir -p dist/$cli dist/$gui
+          cp build/humtrace.exe README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md schema/*.json dist/$cli/
+          cp build/humtrace.exe build/humtrace-gui.exe README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md schema/*.json dist/$gui/
+          tool=$(command -v windeployqt6 || command -v windeployqt-qt6 || command -v windeployqt)
+          "$tool" --release --no-translations "dist/$gui/humtrace-gui.exe"
+          for d in $cli $gui; do
+            (cd dist && zip -qr $d.zip $d && sha256sum $d.zip > $d.zip.sha256)
+          done
       - uses: actions/upload-artifact@v4
         with: { name: release-windows, path: "dist/*.zip\ndist/*.sha256" }
   publish:
-    needs: [linux, windows-cli]
+    needs: [linux, windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -64,5 +84,5 @@ jobs:
           cat artifacts/*.sha256 > SHA256SUMS.txt
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease \
             --title "HumTrace $GITHUB_REF_NAME (beta)" --target "$GITHUB_SHA" \
-            --notes "Beta prerelease built from commit $GITHUB_SHA. CLI for Linux and Windows; Qt GUI for Linux (requires system Qt 6). Windows GUI, accessibility testing and the validation corpus are NOT done; see docs/release/beta-checklist.md. SHA-256 sums are in SHA256SUMS.txt." \
+            --notes "Beta prerelease built from commit $GITHUB_SHA. CLI for Linux and Windows; Qt GUI for Linux (requires system Qt 6) and a Windows GUI zip built by CI that has not been run on a real Windows machine. Accessibility testing, human visual review and the validation corpus are NOT done; see docs/release/beta-checklist.md. SHA-256 sums are in SHA256SUMS.txt." \
             artifacts/*.tar.gz artifacts/*.zip artifacts/*.sha256 SHA256SUMS.txt

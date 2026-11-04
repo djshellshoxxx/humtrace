@@ -1,65 +1,195 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.0",
-  "title": "HumTrace Analysis Report 1.0",
+  "$id": "urn:circuit-drift-labs:humtrace:analysis-report:1.2",
+  "title": "HumTrace Analysis Report 1.2",
   "type": "object",
-  "required": ["schema_version", "application", "input", "settings", "channels", "interpretation"],
+  "required": [
+    "schema_version",
+    "application",
+    "input",
+    "settings",
+    "channels",
+    "interpretation"
+  ],
   "properties": {
-    "schema_version": { "enum": ["1.0", "1.1"] },
-    "application_version": { "type": "string" },
-    "warnings": { "type": "array", "items": { "type": "string" } },
-    "application": { "const": "HumTrace" },
+    "schema_version": {
+      "enum": [
+        "1.0",
+        "1.1",
+        "1.2"
+      ]
+    },
+    "application_version": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "application": {
+      "const": "HumTrace"
+    },
     "input": {
       "type": "object",
-      "required": ["path", "sample_rate_hz", "channels", "bit_depth", "format_code", "duration_seconds"],
+      "required": [
+        "path",
+        "sample_rate_hz",
+        "channels",
+        "bit_depth",
+        "format_code",
+        "duration_seconds"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "size_bytes": { "type": "integer", "minimum": 0 },
-        "sample_rate_hz": { "type": "integer", "minimum": 1 },
-        "channels": { "type": "integer", "minimum": 1 },
-        "bit_depth": { "type": "integer", "minimum": 1 },
-        "format_code": { "enum": [1, 3] },
-        "duration_seconds": { "type": ["number", "null"], "minimum": 0 }
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sample_rate_hz": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bit_depth": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format_code": {
+          "enum": [
+            1,
+            3
+          ]
+        },
+        "duration_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
       }
     },
     "settings": {
       "type": "object",
-      "required": ["window", "frame_size_samples", "hop_size_samples", "support_threshold_dbfs", "minimum_prominence_db"],
+      "required": [
+        "window",
+        "frame_size_samples",
+        "hop_size_samples",
+        "support_threshold_dbfs",
+        "minimum_prominence_db"
+      ],
       "properties": {
-        "window": { "const": "hann" },
-        "frame_size_samples": { "type": "integer", "minimum": 4 },
-        "hop_size_samples": { "type": "integer", "minimum": 1 },
-        "support_threshold_dbfs": { "type": ["number", "null"] },
-        "minimum_prominence_db": { "type": ["number", "null"], "minimum": 0 }
+        "window": {
+          "const": "hann"
+        },
+        "frame_size_samples": {
+          "type": "integer",
+          "minimum": 4
+        },
+        "hop_size_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "support_threshold_dbfs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tone_tracking": {
+          "$ref": "#/$defs/toneTrackingSettings"
+        }
       }
     },
     "channels": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["channel_number", "frames"],
+        "required": [
+          "channel_number",
+          "frames"
+        ],
         "properties": {
-          "channel_number": { "type": "integer", "minimum": 1 },
+          "channel_number": {
+            "type": "integer",
+            "minimum": 1
+          },
           "frames": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["start_sample", "start_seconds", "strongest_peak", "mains_50_hz_measurements", "mains_60_hz_measurements"],
+              "required": [
+                "start_sample",
+                "start_seconds",
+                "strongest_peak",
+                "mains_50_hz_measurements",
+                "mains_60_hz_measurements"
+              ],
               "properties": {
-                "start_sample": { "type": "integer", "minimum": 0 },
-                "start_seconds": { "type": ["number", "null"], "minimum": 0 },
+                "start_sample": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "start_seconds": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
                 "strongest_peak": {
                   "type": "object",
-                  "required": ["frequency_hz", "level_dbfs"],
+                  "required": [
+                    "frequency_hz",
+                    "level_dbfs"
+                  ],
                   "properties": {
-                    "frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-                    "level_dbfs": { "type": ["number", "null"] }
+                    "frequency_hz": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "level_dbfs": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
                   }
                 },
-                "mains_50_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" },
-                "mains_60_hz_measurements": { "$ref": "#/$defs/harmonicCandidate" }
+                "mains_50_hz_measurements": {
+                  "$ref": "#/$defs/harmonicCandidate"
+                },
+                "mains_60_hz_measurements": {
+                  "$ref": "#/$defs/harmonicCandidate"
+                }
               }
+            }
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/toneTrack"
             }
           }
         }
@@ -67,35 +197,275 @@
     },
     "interpretation": {
       "type": "object",
-      "required": ["source_classification", "note"],
+      "required": [
+        "source_classification",
+        "note"
+      ],
       "properties": {
-        "source_classification": { "type": "null" },
-        "note": { "type": "string" }
+        "source_classification": {
+          "type": "null"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     }
   },
   "$defs": {
     "harmonicCandidate": {
       "type": "object",
-      "required": ["nominal_frequency_hz", "supporting_harmonics", "harmonics"],
+      "required": [
+        "nominal_frequency_hz",
+        "supporting_harmonics",
+        "harmonics"
+      ],
       "properties": {
-        "nominal_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-        "supporting_harmonics": { "type": "integer", "minimum": 0 },
+        "nominal_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "supporting_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
         "harmonics": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["number", "expected_frequency_hz", "measured_bin_hz", "level_dbfs", "local_floor_dbfs", "prominence_db", "supported"],
+            "required": [
+              "number",
+              "expected_frequency_hz",
+              "measured_bin_hz",
+              "level_dbfs",
+              "local_floor_dbfs",
+              "prominence_db",
+              "supported"
+            ],
             "properties": {
-              "number": { "type": "integer", "minimum": 1 },
-              "expected_frequency_hz": { "type": ["number", "null"], "minimum": 0 },
-              "measured_bin_hz": { "type": ["number", "null"], "minimum": 0 },
-              "level_dbfs": { "type": ["number", "null"] },
-              "local_floor_dbfs": { "type": ["number", "null"] },
-              "prominence_db": { "type": ["number", "null"] },
-              "supported": { "type": "boolean" }
+              "number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "expected_frequency_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "measured_bin_hz": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "level_dbfs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "local_floor_dbfs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "prominence_db": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "supported": {
+                "type": "boolean"
+              }
             }
           }
+        }
+      }
+    },
+    "toneTrackingSettings": {
+      "description": "Present from schema 1.2. Online greedy nearest-frequency association of per-frame peaks.",
+      "type": "object",
+      "required": [
+        "max_peaks_per_frame",
+        "frequency_tolerance_hz",
+        "max_gap_frames",
+        "min_frames",
+        "truncated"
+      ],
+      "properties": {
+        "max_peaks_per_frame": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frequency_tolerance_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "max_gap_frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True if active-track or total-track limits dropped candidates."
+        }
+      }
+    },
+    "toneTrack": {
+      "description": "Persistent narrowband tone track. A measurement only; near_mains_multiple is frequency proximity, not a source claim.",
+      "type": "object",
+      "required": [
+        "start_sample",
+        "end_sample",
+        "start_seconds",
+        "end_seconds",
+        "frames_detected",
+        "frames_spanned",
+        "persistence",
+        "median_frequency_hz",
+        "min_frequency_hz",
+        "max_frequency_hz",
+        "drift_hz_per_second",
+        "median_level_dbfs",
+        "max_level_dbfs",
+        "median_prominence_db",
+        "near_mains_multiple"
+      ],
+      "properties": {
+        "start_sample": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_sample": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "end_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "frames_detected": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frames_spanned": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "persistence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "median_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "min_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "max_frequency_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "drift_hz_per_second": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "median_level_dbfs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_level_dbfs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "median_prominence_db": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "near_mains_multiple": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/nearMainsMultiple"
+            }
+          ]
+        }
+      }
+    },
+    "nearMainsMultiple": {
+      "type": "object",
+      "required": [
+        "nominal_hz",
+        "harmonic",
+        "deviation_hz"
+      ],
+      "properties": {
+        "nominal_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "harmonic": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "deviation_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       }
     }

@@ -4,6 +4,7 @@
 
 #include "humtrace/report.hpp"
 #include "humtrace/spectrum.hpp"
+#include "humtrace/tracking.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -21,6 +22,14 @@ struct AnalysisOptions {
     double minimum_prominence_db{10.0};
     // Hard cap on retained (frame x channel) results, bounding report memory.
     std::size_t max_result_frames{200000};
+    // Persistent tone tracking: peaks considered per frame, and association rules.
+    std::size_t max_tonal_peaks{8};
+    TrackerSettings tracker{};
+    // Display products (waveform, spectrogram), bounded independent of length.
+    bool build_display{true};
+    std::size_t waveform_buckets{4096};
+    std::size_t spectrogram_columns{1024};
+    std::size_t spectrogram_rows{256};
     // Optional; polled between frames. Setting it true stops analysis.
     const std::atomic<bool>* cancel{nullptr};
     // Optional; called with a fraction in [0,1] roughly once per window.

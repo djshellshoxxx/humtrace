@@ -1,6 +1,7 @@
 #include "humtrace/report.hpp"
 
 #include "humtrace/version.hpp"
+#include "json_writer.hpp"
 
 #include <cmath>
 #include <iomanip>
@@ -8,34 +9,8 @@
 
 namespace humtrace {
 namespace {
-void write_string(std::ostream& output, const std::string& value) {
-    static constexpr char hex[] = "0123456789abcdef";
-    output << '"';
-    for (const unsigned char byte : value) {
-        switch (byte) {
-        case '"': output << "\\\""; break;
-        case '\\': output << "\\\\"; break;
-        case '\b': output << "\\b"; break;
-        case '\f': output << "\\f"; break;
-        case '\n': output << "\\n"; break;
-        case '\r': output << "\\r"; break;
-        case '\t': output << "\\t"; break;
-        default:
-            if (byte < 0x20)
-                output << "\\u00" << hex[byte >> 4] << hex[byte & 0x0f];
-            else
-                output << static_cast<char>(byte);
-        }
-    }
-    output << '"';
-}
-
-void write_number(std::ostream& output, double value) {
-    if (std::isfinite(value))
-        output << value;
-    else
-        output << "null";
-}
+using json::write_number;
+using json::write_string;
 
 void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
     output << "{\"nominal_frequency_hz\": ";
@@ -58,6 +33,42 @@ void write_candidate(std::ostream& output, const HarmonicCandidate& candidate) {
         output << ", \"supported\": " << (harmonic.supports_threshold ? "true" : "false") << '}';
     }
     output << "]}";
+}
+void write_track(std::ostream& output, const ToneTrack& t, std::uint32_t sample_rate_hz) {
+    const double rate = sample_rate_hz == 0 ? 0.0 : static_cast<double>(sample_rate_hz);
+    output << "{\"start_sample\": " << t.start_sample << ", \"end_sample\": " << t.end_sample
+           << ", \"start_seconds\": ";
+    write_number(output, rate > 0.0 ? static_cast<double>(t.start_sample) / rate : std::nan(""));
+    output << ", \"end_seconds\": ";
+    write_number(output, rate > 0.0 ? static_cast<double>(t.end_sample) / rate : std::nan(""));
+    output << ", \"frames_detected\": " << t.frames_detected
+           << ", \"frames_spanned\": " << t.frames_spanned << ", \"persistence\": ";
+    write_number(output, t.persistence);
+    output << ", \"median_frequency_hz\": ";
+    write_number(output, t.median_frequency_hz);
+    output << ", \"min_frequency_hz\": ";
+    write_number(output, t.min_frequency_hz);
+    output << ", \"max_frequency_hz\": ";
+    write_number(output, t.max_frequency_hz);
+    output << ", \"drift_hz_per_second\": ";
+    write_number(output, t.drift_hz_per_second);
+    output << ", \"median_level_dbfs\": ";
+    write_number(output, t.median_level_dbfs);
+    output << ", \"max_level_dbfs\": ";
+    write_number(output, t.max_level_dbfs);
+    output << ", \"median_prominence_db\": ";
+    write_number(output, t.median_prominence_db);
+    output << ", \"near_mains_multiple\": ";
+    if (t.mains.nominal_hz <= 0.0) {
+        output << "null";
+    } else {
+        output << "{\"nominal_hz\": ";
+        write_number(output, t.mains.nominal_hz);
+        output << ", \"harmonic\": " << t.mains.harmonic << ", \"deviation_hz\": ";
+        write_number(output, t.mains.deviation_hz);
+        output << '}';
+    }
+    output << '}';
 }
 } // namespace
 
@@ -83,6 +94,12 @@ std::string serialize_report_json(const AnalysisReport& report) {
     write_number(output, report.support_threshold_dbfs);
     output << ",\n    \"minimum_prominence_db\": ";
     write_number(output, report.minimum_prominence_db);
+    output << ",\n    \"tone_tracking\": {\"max_peaks_per_frame\": " << report.max_tonal_peaks
+           << ", \"frequency_tolerance_hz\": ";
+    write_number(output, report.track_tolerance_hz);
+    output << ", \"max_gap_frames\": " << report.track_max_gap_frames
+           << ", \"min_frames\": " << report.track_min_frames
+           << ", \"truncated\": " << (report.tracks_truncated ? "true" : "false") << '}';
     output << "\n  },\n  \"channels\": [";
     for (std::size_t channel_index = 0; channel_index < report.channel_results.size(); ++channel_index) {
         const auto& channel = report.channel_results[channel_index];
@@ -107,6 +124,12 @@ std::string serialize_report_json(const AnalysisReport& report) {
             output << '}';
         }
         if (!channel.frames.empty()) output << '\n' << "    ";
+        output << "], \"tracks\": [";
+        for (std::size_t t = 0; t < channel.tracks.size(); ++t) {
+            output << (t == 0 ? "\n      " : ",\n      ");
+            write_track(output, channel.tracks[t], report.sample_rate_hz);
+        }
+        if (!channel.tracks.empty()) output << '\n' << "    ";
         output << "]}";
     }
     if (!report.channel_results.empty()) output << '\n' << "  ";
@@ -116,7 +139,7 @@ std::string serialize_report_json(const AnalysisReport& report) {
         write_string(output, report.warnings[i]);
     }
     output << "],\n  \"interpretation\": {\n    \"source_classification\": null,\n"
-           << "    \"note\": \"Frequency and harmonic measurements do not prove a physical source.\"\n  }\n}\n";
+           << "    \"note\": \"Frequency, harmonic and tone-track measurements do not prove a physical source. near_mains_multiple is frequency proximity only.\"\n  }\n}\n";
     return output.str();
 }
 
