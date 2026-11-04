@@ -99,6 +99,27 @@ std::vector<SpectrumBin> analyze_spectrum(const std::vector<double>& samples,
     return result;
 }
 
+namespace {
+// Parabolic (log-magnitude) interpolation around a local maximum at `index`.
+SpectralPeak interpolate_peak(const std::vector<SpectrumBin>& spectrum, std::size_t index) {
+    const auto& peak = spectrum[index];
+    if (index == 0 || index + 1 >= spectrum.size())
+        return {peak.frequency_hz, peak.level_dbfs};
+    const double left = spectrum[index - 1].level_dbfs;
+    const double center = peak.level_dbfs;
+    const double right = spectrum[index + 1].level_dbfs;
+    if (!std::isfinite(left) || !std::isfinite(center) || !std::isfinite(right))
+        return {peak.frequency_hz, peak.level_dbfs};
+    const double curvature = left - 2.0 * center + right;
+    if (curvature >= 0.0)
+        return {peak.frequency_hz, peak.level_dbfs};
+    const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
+    const double interpolated_level = center - 0.25 * (left - right) * offset;
+    const double bin_width = spectrum[index].frequency_hz - spectrum[index - 1].frequency_hz;
+    return {peak.frequency_hz + offset * bin_width, interpolated_level};
+}
+} // namespace
+
 SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
     if (spectrum.size() < 2)
         throw std::invalid_argument("spectrum has no non-DC bins");
@@ -106,21 +127,39 @@ SpectralPeak strongest_peak(const std::vector<SpectrumBin>& spectrum) {
         [](const auto& lhs, const auto& rhs) { return lhs.level_dbfs < rhs.level_dbfs; });
     if (std::isinf(peak->level_dbfs) && peak->level_dbfs < 0.0)
         return {0.0, peak->level_dbfs};
-    const auto index = static_cast<std::size_t>(peak - spectrum.begin());
-    if (index == 0 || index + 1 >= spectrum.size())
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double left = spectrum[index - 1].level_dbfs;
-    const double center = peak->level_dbfs;
-    const double right = spectrum[index + 1].level_dbfs;
-    if (!std::isfinite(left) || !std::isfinite(center) || !std::isfinite(right))
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double curvature = left - 2.0 * center + right;
-    if (curvature >= 0.0)
-        return {peak->frequency_hz, peak->level_dbfs};
-    const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
-    const double interpolated_level = center - 0.25 * (left - right) * offset;
-    const double bin_width = spectrum[index].frequency_hz - spectrum[index - 1].frequency_hz;
-    return {peak->frequency_hz + offset * bin_width, interpolated_level};
+    return interpolate_peak(spectrum, static_cast<std::size_t>(peak - spectrum.begin()));
+}
+
+std::vector<TonalPeak> find_tonal_peaks(const std::vector<SpectrumBin>& spectrum,
+                                        double threshold_dbfs, double minimum_prominence_db,
+                                        std::size_t max_peaks) {
+    if (!std::isfinite(threshold_dbfs) || !std::isfinite(minimum_prominence_db) ||
+        minimum_prominence_db < 0.0)
+        throw std::invalid_argument("invalid tonal peak settings");
+    std::vector<TonalPeak> peaks;
+    if (spectrum.size() < 4 || max_peaks == 0)
+        return peaks;
+    for (std::size_t i = 1; i + 1 < spectrum.size(); ++i) {
+        const double level = spectrum[i].level_dbfs;
+        // Strict on the left, non-strict on the right: a flat top yields one peak.
+        if (!std::isfinite(level) || level < threshold_dbfs ||
+            !(level > spectrum[i - 1].level_dbfs) || level < spectrum[i + 1].level_dbfs)
+            continue;
+        const double floor = local_spectral_floor(spectrum, i);
+        const double prominence = std::isfinite(floor) ? level - floor
+                                                       : std::numeric_limits<double>::infinity();
+        if (prominence < minimum_prominence_db)
+            continue;
+        const auto refined = interpolate_peak(spectrum, i);
+        peaks.push_back({refined.frequency_hz, refined.level_dbfs, floor, prominence});
+    }
+    std::sort(peaks.begin(), peaks.end(), [](const TonalPeak& a, const TonalPeak& b) {
+        return a.level_dbfs != b.level_dbfs ? a.level_dbfs > b.level_dbfs
+                                            : a.frequency_hz < b.frequency_hz;
+    });
+    if (peaks.size() > max_peaks)
+        peaks.resize(max_peaks);
+    return peaks;
 }
 
 HarmonicCandidate measure_harmonics(const std::vector<SpectrumBin>& spectrum,

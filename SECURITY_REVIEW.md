@@ -14,5 +14,8 @@ Scope: code added/changed on this branch (analysis engine, SHA-256, CLI, GUI, CI
 | S8 | Low (open) | CI actions pinned by tag, not commit SHA; Windows job uses third-party `msys2/setup-msys2@v2` (pre-existing). | Open; permissions limited to `contents: read` except the publish job. | workflow review |
 | S9 | Info | Qt is LGPL/GPL; not bundled in release archives. | Flagged to owner in THIRD-PARTY-NOTICES. | n/a |
 | S10 | Info | SHA-256 is an original implementation. | Checked against 4 published vectors incl. 1M×'a'. | `test_core` |
+| S11 | Med | `--compare --json` could target any compared input, not just the first. | Fixed: every input checked with `fs::equivalent` before writing; GUI export refuses input paths. | `test_cli.py` (second input), `gui_smoke` |
+| S12 | Low | Tracker/display memory scaled with peaks and length. | Bounded: <=64 peaks/frame, <=1024 active / 100k tracks (defaults 64 / 4096), waveform <=65536 buckets, spectrogram <=8192x2048 (defaults 4096, 1024x256); out-of-range options rejected. 10-min stereo 48 kHz: 13 MB RSS, 14.2 s (baseline 14.4 s). | `test_tracking` |
+| S13 | Info | Tone tracks near n x 50/60 Hz could be read as a source claim. | Labelled `near_mains_multiple` (proximity only, n<=10); report and comparison interpretation notes state no source claim. | `test_report`, `test_cli.py` |
 
 No secrets were found in code, fixtures or workflows. No shell or SQL strings are built from input.

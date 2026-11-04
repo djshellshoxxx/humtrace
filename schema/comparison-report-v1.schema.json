@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:circuit-drift-labs:humtrace:comparison-report:1.0",
+  "title": "HumTrace Comparison Report 1.0",
+  "type": "object",
+  "required": [
+    "comparison_schema_version",
+    "application",
+    "files",
+    "shared_tones",
+    "settings",
+    "interpretation"
+  ],
+  "properties": {
+    "comparison_schema_version": {
+      "const": "1.0"
+    },
+    "application": {
+      "const": "HumTrace"
+    },
+    "application_version": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "path",
+          "sha256",
+          "sample_rate_hz",
+          "frame_size_samples",
+          "track_tolerance_hz",
+          "channels"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based position on the command line."
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{64})?$"
+          },
+          "sample_rate_hz": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "frame_size_samples": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "track_tolerance_hz": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "channel_number",
+                "frames",
+                "frames_50_hz_supported",
+                "frames_60_hz_supported",
+                "median_peak_hz",
+                "median_peak_dbfs",
+                "track_frequencies_hz"
+              ],
+              "properties": {
+                "channel_number": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "frames": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "frames_50_hz_supported": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "frames_60_hz_supported": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "median_peak_hz": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "median_peak_dbfs": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "track_frequencies_hz": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "shared_tones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "frequency_hz",
+          "files",
+          "near_mains_multiple"
+        ],
+        "properties": {
+          "frequency_hz": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "files": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "1-based file indexes."
+          },
+          "near_mains_multiple": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/nearMainsMultiple"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": [
+        "min_supporting_harmonics",
+        "shared_tone_min_persistence"
+      ],
+      "properties": {
+        "min_supporting_harmonics": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shared_tone_min_persistence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "interpretation": {
+      "type": "object",
+      "required": [
+        "source_classification",
+        "note"
+      ],
+      "properties": {
+        "source_classification": {
+          "type": "null"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nearMainsMultiple": {
+      "type": "object",
+      "required": [
+        "nominal_hz",
+        "harmonic",
+        "deviation_hz"
+      ],
+      "properties": {
+        "nominal_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "harmonic": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "deviation_hz": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

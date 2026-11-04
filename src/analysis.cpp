@@ -1,6 +1,8 @@
 #include "humtrace/analysis.hpp"
 
+#include "humtrace/display.hpp"
 #include "humtrace/sha256.hpp"
+#include "humtrace/tracking.hpp"
 #include "humtrace/spectrum.hpp"
 #include "humtrace/version.hpp"
 #include "humtrace/wav.hpp"
@@ -71,6 +73,14 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
     report.minimum_prominence_db = options.minimum_prominence_db;
     if (!(options.minimum_prominence_db >= 0.0) || !(options.support_threshold_dbfs <= 0.0))
         throw std::runtime_error("threshold must be <= 0 dBFS and prominence >= 0 dB");
+    if (options.max_tonal_peaks > 64 || options.tracker.max_gap_frames > 1000 ||
+        options.tracker.max_active_tracks > 1024 || options.tracker.max_tracks > 100000)
+        throw std::runtime_error("tone tracking limits are out of range");
+    if (options.build_display &&
+        (options.waveform_buckets == 0 || options.waveform_buckets > 65536 ||
+         options.spectrogram_columns == 0 || options.spectrogram_columns > 8192 ||
+         options.spectrogram_rows == 0 || options.spectrogram_rows > 2048))
+        throw std::runtime_error("display sizes are out of range");
 
     hash_file(path, report, options);
     std::ifstream input(path, std::ios::binary);
@@ -106,24 +116,58 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         report.channel_results[c].channel_number = static_cast<std::uint16_t>(c + 1);
         report.channel_results[c].frames.reserve(windows);
     }
+    std::vector<ToneTracker> trackers;
+    trackers.reserve(metadata.channels);
+    for (std::uint16_t c = 0; c < metadata.channels; ++c)
+        trackers.emplace_back(options.tracker, metadata.sample_rate_hz, window_size, hop_size);
+    report.max_tonal_peaks = options.max_tonal_peaks;
+    report.track_tolerance_hz = trackers.front().tolerance_hz();
+    report.track_max_gap_frames = options.tracker.max_gap_frames;
+    report.track_min_frames = trackers.front().effective_min_frames();
+
+    // Analyzed span: complete windows only; the trailing partial window is excluded.
+    const std::uint64_t analyzed_samples = (windows - 1) * hop_size + window_size;
+    std::vector<WaveformBuilder> waveforms;
+    std::vector<SpectrogramBuilder> spectrograms;
+    if (options.build_display) {
+        for (std::uint16_t c = 0; c < metadata.channels; ++c) {
+            waveforms.emplace_back(analyzed_samples, options.waveform_buckets);
+            spectrograms.emplace_back(static_cast<std::size_t>(windows), options.spectrogram_columns,
+                                      options.spectrogram_rows, metadata.sample_rate_hz, window_size);
+        }
+    }
+    auto feed_waveform = [&](const std::vector<double>& interleaved) {
+        if (waveforms.empty())
+            return;
+        for (std::size_t i = 0; i < interleaved.size(); ++i)
+            waveforms[i % metadata.channels].add(interleaved[i]);
+    };
+
     auto window = reader.read_frames(window_size);
     const auto samples_per_window = window_size * metadata.channels;
     if (window.size() != samples_per_window)
         throw std::runtime_error("could not read the first complete analysis window");
+    feed_waveform(window);
     std::uint64_t window_start = 0;
+    std::size_t frame_index = 0;
     std::vector<double> samples(window_size);
     while (true) {
         check_cancel(options);
         for (std::uint16_t c = 0; c < metadata.channels; ++c) {
             for (std::size_t f = 0; f < window_size; ++f)
                 samples[f] = window[f * metadata.channels + c];
-            auto measured = analyze_interference_timeline(
-                samples, metadata.sample_rate_hz, window_size, window_size,
-                options.support_threshold_dbfs, 10, options.minimum_prominence_db);
-            if (measured.empty())
-                throw std::runtime_error("analysis produced no complete frames");
-            measured[0].start_sample = window_start;
-            report.channel_results[c].frames.push_back(std::move(measured[0]));
+            const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
+            report.channel_results[c].frames.push_back(
+                {window_start, strongest_peak(spectrum),
+                 measure_harmonics(spectrum, 50.0, options.support_threshold_dbfs, 10,
+                                   options.minimum_prominence_db),
+                 measure_harmonics(spectrum, 60.0, options.support_threshold_dbfs, 10,
+                                   options.minimum_prominence_db)});
+            trackers[c].push(frame_index,
+                             find_tonal_peaks(spectrum, options.support_threshold_dbfs,
+                                              options.minimum_prominence_db, options.max_tonal_peaks));
+            if (!spectrograms.empty())
+                spectrograms[c].add_frame(spectrum);
         }
         if (options.progress)
             options.progress(std::min(1.0, static_cast<double>(window_start + window_size) /
@@ -137,9 +181,19 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
             report.warnings.push_back("input ended before the declared data length");
             break;
         }
+        feed_waveform(next);
         std::copy(next.begin(), next.end(), window.end() - static_cast<std::ptrdiff_t>(next.size()));
         window_start += hop_size;
+        ++frame_index;
     }
+    for (std::uint16_t c = 0; c < metadata.channels; ++c) {
+        report.channel_results[c].tracks = trackers[c].finish();
+        report.tracks_truncated = report.tracks_truncated || trackers[c].truncated();
+    }
+    if (report.tracks_truncated)
+        report.warnings.push_back("tone tracking limits were reached; some tracks were omitted");
+    for (std::size_t c = 0; c < waveforms.size(); ++c)
+        report.display.push_back({static_cast<std::uint16_t>(c + 1), waveforms[c].take(), spectrograms[c].take()});
     return report;
 }
 

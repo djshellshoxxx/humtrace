@@ -5,3 +5,7 @@
 - Pitfall: keep the QThread pointer local in lambdas; a second `openFile` can replace `thread_` before the first thread's `finished` fires.
 - Perf: replacing the recurrence twiddles with a strided table made analysis ~2x SLOWER (13 s -> 24 s on 10 min stereo 48 kHz); reverted. FFT is ~85% of time (gprof). Remaining option: real-FFT packing; not needed for beta.
 - mingw with `-std=c++20` lacks `M_PI`; use `std::numbers::pi`.
+- Tracking: 50% overlapped frames share samples, so a noise peak persists ~2 frames. min_frames=3 gave false tracks in white noise at 4096-frame; default is 5 frames and 0.5 s.
+- Tracking: matching against a mean of the last 3 observations lags drifting tones (1 Hz/frame drift broke tracks at 1.5 Hz tolerance). Use min(distance to last obs, distance to linear prediction).
+- jsonschema cannot resolve a relative cross-file `$ref` without a registry; keep schema files self-contained.
+- Wrapped QLabel in a stretchy QVBoxLayout gets squeezed; give it a minimum height.

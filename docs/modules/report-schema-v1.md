@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.0
+# HumTrace JSON report schema (1.0 - 1.2) and comparison schema 1.0
 
 ## Purpose
 
@@ -8,11 +8,11 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.1` (`1.0` reports remain valid).
+- `schema_version`: current string value `1.2` (`1.0` and `1.1` reports remain valid; `tracks` and `settings.tone_tracking` are optional in the schema for them).
 - `application`: `HumTrace`.
 - `input`: source path and decoded sample rate, channels, bit depth, format code, and duration.
 - `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
-- `channels[]`: channel number and a `frames[]` timeline.
+- `channels[]`: channel number, a `frames[]` timeline and (1.2) `tracks[]`.
 - Each frame contains start sample/time, strongest non-DC peak, and nominal 50/60 Hz measurements.
 - Each harmonic measurement contains harmonic number, expected and measured bin frequency, level, local floor, prominence, and a threshold-support boolean.
 - `interpretation`: null source classification and a statement that measurements do not prove a physical source.
@@ -24,7 +24,13 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 - Consumers must check `schema_version` and tolerate added fields in later minor revisions.
 - Frame timestamps refer to window start; they do not identify the exact onset of a transient.
 
+- Added in 1.2: `settings.tone_tracking` (`max_peaks_per_frame`, `frequency_tolerance_hz`, `max_gap_frames`, `min_frames` (effective: max of 5 frames and 0.5 s of hops), `truncated`) and per-channel `tracks[]`. Each track has `start_sample`/`end_sample`, `start_seconds`/`end_seconds`, `frames_detected`, `frames_spanned`, `persistence`, `median`/`min`/`max_frequency_hz`, `drift_hz_per_second`, `median_level_dbfs`, `max_level_dbfs`, `median_prominence_db`, and `near_mains_multiple` (null or `{nominal_hz, harmonic, deviation_hz}`; nearest n x 50/60 Hz, n <= 10). Any number may be `null`. `truncated: true` means track limits (64 active, 4096 total) dropped candidates.
+- `near_mains_multiple` is frequency proximity only; it is not a source claim.
 - Added in 1.1: top-level `application_version` and `warnings[]`; `input.sha256` and `input.size_bytes`.
+
+## Comparison report
+
+[`schema/comparison-report-v1.schema.json`](../../schema/comparison-report-v1.schema.json), written by `humtrace --compare a.wav b.wav --json out.json` and the GUI compare dialog. Fields: `comparison_schema_version` (`1.0`), `application`, `application_version`, `files[]` (1-based `index`, `path`, `sha256`, `sample_rate_hz`, `frame_size_samples`, `track_tolerance_hz`, per-channel summaries with `track_frequencies_hz`), `shared_tones[]` (`frequency_hz`, 1-based `files`, `near_mains_multiple`), `settings` and `interpretation` (null `source_classification`). A shared tone means similar tracked frequencies, not a common source.
 
 ## Current gaps
 

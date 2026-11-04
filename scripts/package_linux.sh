@@ -12,7 +12,7 @@ install -m755 "$build/humtrace" "$build/humtrace-gui" "$stage/bin/"
 strip "$stage/bin/humtrace" "$stage/bin/humtrace-gui"
 install -m644 packaging/humtrace.desktop "$stage/share/applications/"
 install -m644 packaging/humtrace.svg "$stage/share/icons/"
-install -m644 README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md schema/analysis-report-v1.schema.json "$stage/"
+install -m644 README.md THIRD-PARTY-NOTICES docs/user-guide/limitations.md schema/analysis-report-v1.schema.json schema/comparison-report-v1.schema.json "$stage/"
 printf 'version=%s\ncommit=%s\nRuntime: Qt 6 Widgets (apt: libqt6widgets6 libqt6gui6 libqt6core6) for humtrace-gui; the CLI has no Qt dependency.\n' \
   "$version" "$(git rev-parse HEAD)" > "$stage/BUILD-INFO.txt"
 tar -C "$out" --sort=name --owner=0 --group=0 -czf "$out/$name.tar.gz" "$name"
