@@ -13,7 +13,7 @@ Current status: **beta prerelease candidate (v0.1.0-beta.1)**; see SPEC_STATUS.m
 - [ ] Keyboard-only inspection, screen-reader summaries/tables, focus visibility, contrast, and high-DPI layout pass on the packaged applications.
 - [ ] Labeled validation corpus demonstrates documented false-positive/false-negative and measurement-error results.
 - [ ] Required license and third-party notices are reviewed and included.
-- [ ] Linux and Windows native builds and packaged artifacts are tested (Linux done; Windows CLI+GUI CI/release job defined but not yet run).
+- [ ] Linux and Windows native builds and packaged artifacts are tested (Linux done; Windows CLI+GUI build and ctest passed in CI run 41799701966; Windows release zip not yet produced).
 - [ ] CI, sanitizer, static checks, dependency review, and release notes are complete.
 - [ ] User guide and known limitations match the actual shipped build.
 

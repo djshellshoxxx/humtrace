@@ -22,7 +22,7 @@ DONE = implemented and tested here; PARTIAL = some of it; MISSING = not started.
 | Keyboard-only/screen-reader/contrast/high-DPI | PARTIAL | Accessible names, table equivalent, arrow-key timeline navigation. NOT tested with a screen reader or on high-DPI. |
 | Labeled validation corpus (FP/FN) | MISSING | Needs real recordings; only synthetic tests exist. |
 | Linux package | DONE (unsigned tarball) | `scripts/package_linux.sh`, smoke-tested. Qt not bundled (LGPL review). |
-| Windows package | PARTIAL | CI/release `windows` job (CLI + GUI via cmake, ctest offscreen, windeployqt zip) is defined but NOT run; the windeployqt tool name in msys2 is unverified. Earlier CLI-only zip did pass CI. |
+| Windows package | PARTIAL | CI `windows` job (msys2 UCRT64, CLI + GUI via cmake, all 8 ctest tests incl. offscreen GUI smoke) passed (run 41799701966). Release windeployqt zip NOT yet run; msys2 tool name unverified. Symlink regression in test_core is skipped on Windows (no symlink privilege). GUI never run interactively on Windows. |
 | CI / sanitizers / releases | DONE | `.github/workflows/`. TSan not used (core has no threads; GUI worker is exercised by smoke test only). |
 | Dependency/license review | PARTIAL | `THIRD-PARTY-NOTICES`; Qt LGPL decision flagged to owner. |
 | Docs match build | DONE (updated for 1.2) | README, limitations, schema doc, checklist updated. |

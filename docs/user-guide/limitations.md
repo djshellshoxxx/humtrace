@@ -7,7 +7,7 @@
 - `near_mains_multiple` flags tracks near n x 50/60 Hz (n <= 10). It is frequency proximity only and is not evidence of mains hum or any source.
 - The Hann-windowed FFT provides nominal resolution of sample rate divided by window length. Frequency and level accuracy need broader fractional-bin and noisy-signal validation.
 - The JSON report (schema 1.2) records the input SHA-256, size, and application version, but it is not a chain-of-custody report: it is unsigned and the hash is computed by the same tool.
-- The Qt GUI has waveform, log-frequency spectrogram with track overlay, spectrum, findings and tracks tables, and a comparison dialog. None of it has been visually reviewed by a human, tested with a screen reader, or built/run on Windows (the Windows CI job is defined but unrun). No ENF matching, non-WAV codecs, or plugin exists.
+- The Qt GUI has waveform, log-frequency spectrogram with track overlay, spectrum, findings and tracks tables, and a comparison dialog. None of it has been visually reviewed by a human, tested with a screen reader, or run interactively on Windows (Windows CI builds it and runs an offscreen smoke test only). No ENF matching, non-WAV codecs, or plugin exists.
 - Comparison (CLI text/JSON and GUI) matches tracked frequencies across files by tolerance; it does not align time, correct sample-rate differences, or show a common source.
 - No validation corpus of real recordings exists; false-positive and false-negative rates are unknown.
 - Measurements in dBFS do not establish acoustic SPL, line voltage, ground-loop presence, hardware identity, location, or recording time.
