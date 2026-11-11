@@ -36,9 +36,11 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.1"
+    assert report["schema_version"] == "1.2"
     assert report["input"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert report["warnings"] == []
+    assert report["settings"]["peak_tracking"]["peaks_per_frame"] == 8
+    assert all(track["observed_frames"] >= 3 for channel in report["channels"] for track in channel["tracks"])
     assert report["input"]["sample_rate_hz"] == 4096
     assert report["input"]["channels"] == 2
     assert report["input"]["duration_seconds"] == 2.0
@@ -76,6 +78,12 @@ def check_safety_and_options(executable: pathlib.Path, directory: pathlib.Path) 
     for bad in (["--frame-size", "1000"], ["--frame-size", "abc"], ["--threshold", "5"], ["--bogus"]):
         result = run(executable, source, *bad, "--no-progress")
         assert result.returncode != 0 and "HumTrace:" in result.stderr, (bad, result)
+    for bad in (["--peaks-per-frame", "0"], ["--peaks-per-frame", "65"], ["--track-tolerance-hz", "-1"],
+                ["--track-min-frames", "0"], ["--track-max-gap-frames", "x"]):
+        result = run(executable, source, *bad, "--no-progress")
+        assert result.returncode != 0 and "HumTrace:" in result.stderr, (bad, result)
+    tuned = run(executable, source, "--peaks-per-frame", "4", "--track-min-frames", "2", "--no-progress")
+    assert tuned.returncode == 0 and "peak tracks" in tuned.stdout and "Track 1:" in tuned.stdout, tuned
     assert run(executable).returncode == 2
     assert run(executable, "--version").stdout.startswith("humtrace ")
     other = directory / "other.wav"

@@ -6,6 +6,7 @@
 #include "humtrace/wav.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -16,6 +17,7 @@ namespace humtrace {
 namespace {
 constexpr std::size_t kMaxInterleavedWindowSamples = 16 * 1024 * 1024;
 constexpr std::size_t kMaxFrameSize = 65536;
+constexpr std::size_t kMaxPeaksPerFrame = 64;
 
 bool is_power_of_two(std::size_t value) { return value != 0 && (value & (value - 1)) == 0; }
 
@@ -71,6 +73,16 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
     report.minimum_prominence_db = options.minimum_prominence_db;
     if (!(options.minimum_prominence_db >= 0.0) || !(options.support_threshold_dbfs <= 0.0))
         throw std::runtime_error("threshold must be <= 0 dBFS and prominence >= 0 dB");
+    report.peak_picking = options.peak_picking;
+    report.peak_picking.support_threshold_dbfs = options.support_threshold_dbfs;
+    report.peak_picking.minimum_prominence_db = options.minimum_prominence_db;
+    report.track_settings = options.tracks;
+    if (report.peak_picking.max_peaks == 0 || report.peak_picking.max_peaks > kMaxPeaksPerFrame ||
+        !std::isfinite(report.peak_picking.dynamic_range_db) || report.peak_picking.dynamic_range_db < 0.0)
+        throw std::runtime_error("peaks per frame must be 1 to 64 and dynamic range finite and >= 0");
+    if (!std::isfinite(options.tracks.frequency_tolerance_hz) || options.tracks.frequency_tolerance_hz < 0.0 ||
+        options.tracks.min_observed_frames == 0)
+        throw std::runtime_error("track tolerance must be finite and >= 0 and minimum frames >= 1");
 
     hash_file(path, report, options);
     std::ifstream input(path, std::ios::binary);
@@ -106,6 +118,7 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         report.channel_results[c].channel_number = static_cast<std::uint16_t>(c + 1);
         report.channel_results[c].frames.reserve(windows);
     }
+    std::vector<std::vector<PeakFrame>> peak_timelines(metadata.channels);
     auto window = reader.read_frames(window_size);
     const auto samples_per_window = window_size * metadata.channels;
     if (window.size() != samples_per_window)
@@ -117,13 +130,14 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         for (std::uint16_t c = 0; c < metadata.channels; ++c) {
             for (std::size_t f = 0; f < window_size; ++f)
                 samples[f] = window[f * metadata.channels + c];
-            auto measured = analyze_interference_timeline(
-                samples, metadata.sample_rate_hz, window_size, window_size,
-                options.support_threshold_dbfs, 10, options.minimum_prominence_db);
-            if (measured.empty())
-                throw std::runtime_error("analysis produced no complete frames");
-            measured[0].start_sample = window_start;
-            report.channel_results[c].frames.push_back(std::move(measured[0]));
+            // One spectrum per window feeds the dominant bin, harmonics and peak list.
+            const auto spectrum = analyze_spectrum(samples, metadata.sample_rate_hz);
+            report.channel_results[c].frames.push_back({window_start, strongest_peak(spectrum),
+                measure_harmonics(spectrum, 50.0, options.support_threshold_dbfs, 10,
+                                  options.minimum_prominence_db),
+                measure_harmonics(spectrum, 60.0, options.support_threshold_dbfs, 10,
+                                  options.minimum_prominence_db)});
+            peak_timelines[c].push_back({window_start, find_spectral_peaks(spectrum, report.peak_picking)});
         }
         if (options.progress)
             options.progress(std::min(1.0, static_cast<double>(window_start + window_size) /
@@ -139,6 +153,11 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         }
         std::copy(next.begin(), next.end(), window.end() - static_cast<std::ptrdiff_t>(next.size()));
         window_start += hop_size;
+    }
+    for (std::uint16_t c = 0; c < metadata.channels; ++c) {
+        check_cancel(options);
+        report.channel_results[c].tracks = associate_peak_tracks(
+            peak_timelines[c], metadata.sample_rate_hz, options.tracks, report.channel_results[c].channel_number);
     }
     return report;
 }
