@@ -12,8 +12,8 @@ DONE = implemented and tested here; PARTIAL = some of it; MISSING = not started.
 | Spectrum view | DONE | `gui/timeline_widget.cpp` `SpectrumWidget` (selected frame). Not visually reviewed by a human. |
 | Finding timeline | PARTIAL | Per-frame harmonic-support bars + table in the GUI. Peak tracks (observed/missing frames, drift) exist in CLI output and JSON only, not the GUI; no event intervals. Synthetic-tested only (`tests/test_tracks.cpp`); thresholds unvalidated. |
 | Persistent narrowband tone detection | PARTIAL | `find_spectral_peaks` + `associate_peak_tracks` (`src/tracks.cpp`) link top-N peaks across frames; synthetic tests only (`tests/test_tracks.cpp`, `test_core.cpp`). Tolerance/gap/persistence defaults are unvalidated against real recordings; no false-positive/negative measurement. |
-| 50/60 Hz harmonic candidates w/ level, local floor, prominence | DONE (per frame) | `measure_harmonics`; persistence/evidence aggregation only in comparison summary. |
-| Exposed settings, versioned reproducible report | DONE | CLI `--frame-size/--threshold/--prominence`, GUI controls, schema 1.2. |
+| 50/60 Hz harmonic candidates w/ level, local floor, prominence | DONE (per frame) | `measure_harmonics`; persistence/evidence aggregation only in comparison summary. Also a whole-file Welch PSD (`src/psd.cpp`, dBFS^2/Hz) with 50/60 Hz prominence flags in CLI/JSON; synthetic-tested only, not shown in the GUI. |
+| Exposed settings, versioned reproducible report | DONE | CLI `--frame-size/--threshold/--prominence`, GUI controls, schema 1.3. |
 | Input hashes, build metadata, warnings in report | DONE | `input.sha256`, `size_bytes`, `application_version`, `warnings` (`tests/test_report.cpp`, `test_cli.py`). |
 | Invalid files, cancellation, source preserved | DONE | `tests/test_core.cpp`, `test_cli.py`, GUI smoke. Cancel is unit-tested in core and wired to Ctrl-C/GUI Cancel; GUI cancel click itself is not UI-tested. |
 | Progress + cancel off the UI thread | DONE | `gui/main_window.cpp` worker thread. |

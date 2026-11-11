@@ -9,7 +9,8 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
 - Associates up to N spectral peaks per frame (default 8) into per-channel tracks by nearest-frequency matching with a frequency tolerance, bounded frame gap and minimum persistence; each track reports observed/missing frames, frequency and level statistics and first-to-last drift. Synthetic-tested only; thresholds are unvalidated.
-- Exports versioned JSON measurements (schema 1.2) while keeping observed energy separate from source attribution.
+- Estimates a per-channel Welch PSD (Hann; segment defaults to the analysis frame, 50% overlap; streaming over every sample, bounded memory) in dBFS^2/Hz, with a median local noise floor and prominence flags for nominal 50/60 Hz harmonics. The PSD unit differs from the peak-amplitude dBFS used elsewhere. Synthetic-tested only; not a validated detector.
+- Exports versioned JSON measurements (schema 1.3) while keeping observed energy separate from source attribution.
 
 This is a **beta (v0.1.0-beta.1)** with a command-line tool and a basic Qt desktop viewer (Linux verified; Windows GUI not built). It lacks waveform/spectrogram views, a GUI view of tracks and a validated real-recording corpus. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The per-frame timeline is independent; the separate peak-track association is a prototype covered by synthetic tests only, with unvalidated default settings, and has no event-boundary logic beyond observed spans. JSON output is a measurement export, not a forensic chain-of-custody report. There is no plugin. See [SPEC_STATUS.md](SPEC_STATUS.md) for exactly what is and is not done.
 
@@ -21,6 +22,7 @@ Requires a C++20 compiler and `make`.
 make && make test                       # CLI only, no dependencies
 build/humtrace recording.wav --json analysis.json [--frame-size 8192 --threshold -60 --prominence 10]
 build/humtrace recording.wav --peaks-per-frame 8 --track-tolerance-hz 1 --track-max-gap-frames 1 --track-min-frames 3
+build/humtrace recording.wav --psd-segment-size 8192 --psd-hop-size 4096
 build/humtrace --compare a.wav b.wav
 # CLI + Qt 6 GUI + ctest (needs cmake, ninja, qt6-base-dev):
 cmake -S . -B build-cmake -G Ninja && cmake --build build-cmake && ctest --test-dir build-cmake

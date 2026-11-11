@@ -147,6 +147,18 @@ void engine_reports_persistent_tone_track(const fs::path& dir) {
     require(humtrace::analyze_wav_file(in.string(), options).channel_results[0].tracks.empty(),
             "min observed frames filters tracks");
     options.tracks.min_observed_frames = 3;
+    // Welch PSD consumes every sample, including the trailing partial hop.
+    const auto& psd = report.channel_results[0].psd;
+    require(psd && psd->samples_processed == 4096u * 6 && psd->segments_averaged == 11, "PSD covers the whole file");
+    require(psd->mains_60.harmonics[0].prominent && std::abs(psd->mains_60.harmonics[0].measured_bin_hz - 60.0) < 1.0,
+            "PSD sees the 60 Hz tone");
+    options.psd_segment_size = 65536;  // longer than the 6 s file: no complete segment
+    require(!humtrace::analyze_wav_file(in.string(), options).channel_results[0].psd, "PSD absent without a complete segment");
+    options.psd_segment_size = 1000;
+    bool bad_psd = false;
+    try { (void)humtrace::analyze_wav_file(in.string(), options); } catch (const std::runtime_error&) { bad_psd = true; }
+    require(bad_psd, "non-power-of-two PSD segment rejected");
+    options.psd_segment_size = 0;
     options.peak_picking.max_peaks = 0;
     bool threw = false;
     try { (void)humtrace::analyze_wav_file(in.string(), options); } catch (const std::runtime_error&) { threw = true; }

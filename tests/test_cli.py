@@ -36,7 +36,7 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["schema_version"] == "1.2"
+    assert report["schema_version"] == "1.3"
     assert report["input"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert report["warnings"] == []
     assert report["settings"]["peak_tracking"]["peaks_per_frame"] == 8
@@ -52,6 +52,34 @@ def check_stereo_report(executable: pathlib.Path, directory: pathlib.Path) -> No
         peak = channel["frames"][0]["strongest_peak"]
         assert abs(peak["frequency_hz"] - frequency_hz) < 0.2, peak
         assert abs(peak["level_dbfs"] - level_dbfs) < 0.15, peak
+
+
+    # Default PSD: segment equals the timeline frame (4096), hop is half of it, and every
+    # sample of the file is consumed (8192 frames -> 3 complete segments).
+    welch = report["settings"]["welch_psd"]
+    assert welch["window"] == "hann" and welch["density_unit"] == "dBFS^2/Hz"
+    assert welch["segment_size_samples"] == 4096 and welch["hop_size_samples"] == 2048
+    for channel in report["channels"]:
+        psd = channel["psd"]
+        assert psd["samples_processed"] == 8192, psd
+        assert psd["segments_averaged"] == 3, psd
+        assert abs(psd["bin_width_hz"] - 1.0) < 1e-9, psd
+        assert psd["source_classification"] is None
+    assert report["channels"][0]["psd"]["mains_60_hz_psd"]["harmonics"][0]["prominent"] is True
+    assert report["channels"][1]["psd"]["mains_50_hz_psd"]["harmonics"][0]["prominent"] is True
+
+    # Custom PSD segment and hop: 1 + (8192 - 1024) / 256 = 29 segments.
+    custom_path = directory / "custom psd.json"
+    result = subprocess.run(
+        [str(executable), str(source), "--json", str(custom_path),
+         "--psd-segment-size", "1024", "--psd-hop-size", "256"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Welch PSD (Hann, 1024-sample segments, hop 256, 29 segments" in result.stdout, result.stdout
+    custom = json.loads(custom_path.read_text(encoding="utf-8"))
+    assert custom["settings"]["welch_psd"]["segment_size_samples"] == 1024
+    assert custom["channels"][0]["psd"]["segments_averaged"] == 29
 
 
 def check_invalid_file_fails(executable: pathlib.Path, directory: pathlib.Path) -> None:
@@ -84,6 +112,12 @@ def check_safety_and_options(executable: pathlib.Path, directory: pathlib.Path) 
         assert result.returncode != 0 and "HumTrace:" in result.stderr, (bad, result)
     tuned = run(executable, source, "--peaks-per-frame", "4", "--track-min-frames", "2", "--no-progress")
     assert tuned.returncode == 0 and "peak tracks" in tuned.stdout and "Track 1:" in tuned.stdout, tuned
+    for bad in (["--psd-segment-size", "1000"], ["--psd-segment-size", "2"], ["--psd-hop-size", "0"]):
+        result = run(executable, source, *bad, "--no-progress")
+        assert result.returncode != 0 and "HumTrace:" in result.stderr, (bad, result)
+    # PSD hop larger than the segment is rejected by the engine.
+    result = run(executable, source, "--psd-segment-size", "1024", "--psd-hop-size", "2048", "--no-progress")
+    assert result.returncode != 0 and "PSD hop" in result.stderr, result
     assert run(executable).returncode == 2
     assert run(executable, "--version").stdout.startswith("humtrace ")
     other = directory / "other.wav"
