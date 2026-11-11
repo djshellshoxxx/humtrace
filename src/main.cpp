@@ -3,6 +3,7 @@
 #include "humtrace/version.hpp"
 
 #include <atomic>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <iomanip>
@@ -18,6 +19,8 @@ extern "C" void on_interrupt(int) { g_cancel.store(true); }
 void usage() {
     std::cerr << "Usage: humtrace <input.wav> [--json <report.json>] [--frame-size N]\n"
                  "                [--threshold dBFS] [--prominence dB] [--no-progress]\n"
+                 "                [--peaks-per-frame N] [--track-tolerance-hz HZ]\n"
+                 "                [--track-max-gap-frames N] [--track-min-frames N]\n"
                  "       humtrace --compare <a.wav> <b.wav> [...] [options]\n"
                  "       humtrace --version\n";
 }
@@ -29,6 +32,17 @@ double parse_number(const std::string& text, const char* name) {
     if (used != text.size() || used == 0)
         throw std::runtime_error(std::string("invalid number for ") + name);
     return value;
+}
+
+std::size_t parse_count(const std::string& text, const char* name, std::size_t minimum,
+                        std::size_t maximum) {
+    std::size_t consumed = 0;
+    unsigned long long value = 0;
+    try { value = std::stoull(text, &consumed); } catch (const std::exception&) { consumed = 0; }
+    if (consumed != text.size() || consumed == 0 || value < minimum || value > maximum)
+        throw std::runtime_error(std::string(name) + " must be an integer from " +
+                                 std::to_string(minimum) + " to " + std::to_string(maximum));
+    return static_cast<std::size_t>(value);
 }
 
 struct Cli {
@@ -56,6 +70,13 @@ Cli parse(int argc, char** argv) {
             cli.options.frame_size_samples = static_cast<std::size_t>(v);
         } else if (arg == "--threshold") cli.options.support_threshold_dbfs = parse_number(value("--threshold"), "--threshold");
         else if (arg == "--prominence") cli.options.minimum_prominence_db = parse_number(value("--prominence"), "--prominence");
+        else if (arg == "--peaks-per-frame") cli.options.peak_picking.max_peaks = parse_count(value("--peaks-per-frame"), "--peaks-per-frame", 1, 64);
+        else if (arg == "--track-tolerance-hz") {
+            const auto v = parse_number(value("--track-tolerance-hz"), "--track-tolerance-hz");
+            if (!std::isfinite(v) || v < 0.0) throw std::runtime_error("--track-tolerance-hz must be finite and non-negative");
+            cli.options.tracks.frequency_tolerance_hz = v;
+        } else if (arg == "--track-max-gap-frames") cli.options.tracks.max_gap_frames = parse_count(value("--track-max-gap-frames"), "--track-max-gap-frames", 0, 1000);
+        else if (arg == "--track-min-frames") cli.options.tracks.min_observed_frames = parse_count(value("--track-min-frames"), "--track-min-frames", 1, 1000000);
         else if (arg.rfind("--", 0) == 0) throw std::runtime_error("unknown option " + arg);
         else cli.inputs.push_back(arg);
     }
@@ -90,8 +111,26 @@ void print_report(const humtrace::AnalysisReport& r) {
                       << "; 60 Hz: " << frame.mains_60.supporting_harmonics << '/'
                       << frame.mains_60.harmonics.size() << '\n';
         }
+        std::cout << "Channel " << channel.channel_number << " peak tracks: " << channel.tracks.size()
+                  << " (peaks per frame " << r.peak_picking.max_peaks << ", tolerance "
+                  << r.track_settings.frequency_tolerance_hz << " Hz, max gap "
+                  << r.track_settings.max_gap_frames << " frames, min "
+                  << r.track_settings.min_observed_frames << " observed frames)\n";
+        for (const auto& track : channel.tracks) {
+            std::cout << "  Track " << track.track_number << ": "
+                      << static_cast<double>(track.start_sample) / r.sample_rate_hz << "-"
+                      << static_cast<double>(track.end_sample) / r.sample_rate_hz << " s, "
+                      << track.observations.size() << " observed, " << track.missing_frames
+                      << " missing; frequency mean " << track.mean_frequency_hz << " Hz (min "
+                      << track.min_frequency_hz << ", max " << track.max_frequency_hz << "), drift "
+                      << track.frequency_drift_hz << " Hz";
+            if (std::isfinite(track.drift_rate_hz_per_second))
+                std::cout << " (" << track.drift_rate_hz_per_second << " Hz/s)";
+            std::cout << "; level mean " << track.mean_level_dbfs << " dBFS, max "
+                      << track.max_level_dbfs << " dBFS\n";
+        }
     }
-    std::cout << "Interpretation: spectral components are measurements, not source attribution.\n";
+    std::cout << "Interpretation: spectral components and tracks are measurements, not source attribution.\n";
 }
 } // namespace
 

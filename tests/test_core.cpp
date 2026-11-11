@@ -132,6 +132,26 @@ void safe_write_protects_input_and_backs_up(const fs::path& dir) {
     std::string kept; std::ifstream(victim) >> kept;
     require(threw && kept == "keep", "symlinked temp path refused");
 }
+
+void engine_reports_persistent_tone_track(const fs::path& dir) {
+    // 6 s of 60 Hz at 4096 Hz -> 4096-sample frames, hop 2048, 5 frames.
+    const auto in = write_tmp(dir, "track.wav", make_wav(60.0, 4096, 4096 * 6));
+    humtrace::AnalysisOptions options;
+    const auto report = humtrace::analyze_wav_file(in.string(), options);
+    require(report.channel_results.size() == 1 && report.channel_results[0].tracks.size() == 1,
+            "persistent tone yields one track");
+    const auto& track = report.channel_results[0].tracks[0];
+    require(std::abs(track.mean_frequency_hz - 60.0) < 0.2 && track.missing_frames == 0 &&
+            track.observations.size() == report.channel_results[0].frames.size(), "track covers all frames");
+    options.tracks.min_observed_frames = 1000;
+    require(humtrace::analyze_wav_file(in.string(), options).channel_results[0].tracks.empty(),
+            "min observed frames filters tracks");
+    options.tracks.min_observed_frames = 3;
+    options.peak_picking.max_peaks = 0;
+    bool threw = false;
+    try { (void)humtrace::analyze_wav_file(in.string(), options); } catch (const std::runtime_error&) { threw = true; }
+    require(threw, "invalid peak settings rejected");
+}
 } // namespace
 
 int main() {
@@ -139,6 +159,7 @@ int main() {
     fs::create_directories(dir);
     sha256_known_vectors();
     analyzes_synthetic_tone_and_hashes_input(dir);
+    engine_reports_persistent_tone_track(dir);
     cancellation_stops_analysis(dir);
     rejects_bad_input(dir);
     safe_write_protects_input_and_backs_up(dir);

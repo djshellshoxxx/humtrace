@@ -1,4 +1,4 @@
-# HumTrace JSON report schema 1.0
+# HumTrace JSON report schema 1.2
 
 ## Purpose
 
@@ -8,14 +8,15 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 
 ## Structure
 
-- `schema_version`: current string value `1.1` (`1.0` reports remain valid).
+- `schema_version`: current string value `1.2` (`1.0` and `1.1` reports remain valid).
 - `application`: `HumTrace`.
 - `input`: source path and decoded sample rate, channels, bit depth, format code, and duration.
-- `settings`: Hann window, frame size, hop, absolute dBFS threshold, and local prominence threshold.
-- `channels[]`: channel number and a `frames[]` timeline.
+- `settings`: Hann window, frame size, hop, absolute dBFS threshold, local prominence threshold, and (1.2) `peak_tracking`: peaks per frame, dynamic range, leakage exclusion bins, frequency tolerance, maximum gap frames, minimum observed frames.
+- `channels[]`: channel number, a `frames[]` timeline, and (1.2) `tracks[]`.
 - Each frame contains start sample/time, strongest non-DC peak, and nominal 50/60 Hz measurements.
 - Each harmonic measurement contains harmonic number, expected and measured bin frequency, level, local floor, prominence, and a threshold-support boolean.
-- `interpretation`: null source classification and a statement that measurements do not prove a physical source.
+- `tracks[]` (1.2): track number, first and last observed frame start (sample and seconds), observed and missing frame counts, mean/min/max frequency, mean/max level, first-to-last frequency change, and first-to-last drift rate (`null` when the span is zero). Each track lists its observations (frame start, frequency, level, prominence). Missing frames are counted, not interpolated. Each track has a null `source_classification`. Tracks are synthetic-tested only; their settings are unvalidated.
+- `interpretation`: null source classification and a statement that measurements, including tracks, do not prove a physical source or cause.
 
 ## Encoding rules
 
@@ -24,6 +25,7 @@ The JSON Schema definition is [`schema/analysis-report-v1.schema.json`](../../sc
 - Consumers must check `schema_version` and tolerate added fields in later minor revisions.
 - Frame timestamps refer to window start; they do not identify the exact onset of a transient.
 
+- Added in 1.2: `settings.peak_tracking` and `channels[].tracks[]` (additive; 1.0/1.1 consumers unaffected).
 - Added in 1.1: top-level `application_version` and `warnings[]`; `input.sha256` and `input.size_bytes`.
 
 ## Current gaps

@@ -8,9 +8,10 @@ HumTrace is a Circuit Drift Labs audio interference analysis project. The reposi
 - Reports sample rate, channels, bit depth, duration, and FFT resolution.
 - Computes a Hann-windowed, one-sided spectrum per channel in overlapping frames and reports each frame's strongest non-DC component with its start time.
 - Reports nominal 50/60 Hz harmonic-bin measurements with absolute level and local-prominence thresholds.
-- Exports versioned JSON measurements while keeping observed energy separate from source attribution.
+- Associates up to N spectral peaks per frame (default 8) into per-channel tracks by nearest-frequency matching with a frequency tolerance, bounded frame gap and minimum persistence; each track reports observed/missing frames, frequency and level statistics and first-to-last drift. Synthetic-tested only; thresholds are unvalidated.
+- Exports versioned JSON measurements (schema 1.2) while keeping observed energy separate from source attribution.
 
-This is a **beta (v0.1.0-beta.1)** with a command-line tool and a basic Qt desktop viewer (Linux verified; Windows GUI not built). It lacks waveform/spectrogram views, persistent tracking and a validated real-recording corpus. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The timeline reports each frame independently; it does not associate peaks into persistent tracks or compare recordings. JSON output is a measurement export, not a forensic chain-of-custody report. There is no plugin. See [SPEC_STATUS.md](SPEC_STATUS.md) for exactly what is and is not done.
+This is a **beta (v0.1.0-beta.1)** with a command-line tool and a basic Qt desktop viewer (Linux verified; Windows GUI not built). It lacks waveform/spectrogram views, a GUI view of tracks and a validated real-recording corpus. The CLI streams WAV audio through bounded rolling analysis windows, but retains the generated timeline and JSON report in memory; `decode_wav` remains an in-memory convenience wrapper. The per-frame timeline is independent; the separate peak-track association is a prototype covered by synthetic tests only, with unvalidated default settings, and has no event-boundary logic beyond observed spans. JSON output is a measurement export, not a forensic chain-of-custody report. There is no plugin. See [SPEC_STATUS.md](SPEC_STATUS.md) for exactly what is and is not done.
 
 ## Build and test
 
@@ -19,6 +20,7 @@ Requires a C++20 compiler and `make`.
 ```sh
 make && make test                       # CLI only, no dependencies
 build/humtrace recording.wav --json analysis.json [--frame-size 8192 --threshold -60 --prominence 10]
+build/humtrace recording.wav --peaks-per-frame 8 --track-tolerance-hz 1 --track-max-gap-frames 1 --track-min-frames 3
 build/humtrace --compare a.wav b.wav
 # CLI + Qt 6 GUI + ctest (needs cmake, ninja, qt6-base-dev):
 cmake -S . -B build-cmake -G Ninja && cmake --build build-cmake && ctest --test-dir build-cmake
