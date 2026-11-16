@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schema_version", "application", "input", "settings", "channels", "interpretation"],
   "properties": {
-    "schema_version": { "enum": ["1.0", "1.1", "1.2"] },
+    "schema_version": { "enum": ["1.0", "1.1", "1.2", "1.3"] },
     "application_version": { "type": "string" },
     "warnings": { "type": "array", "items": { "type": "string" } },
     "application": { "const": "HumTrace" },
@@ -43,7 +43,8 @@
             "max_gap_frames": { "type": "integer", "minimum": 0 },
             "min_observed_frames": { "type": "integer", "minimum": 1 }
           }
-        }
+        },
+        "welch_psd": {"anyOf": [{"type": "object", "required": ["window", "density_unit", "segment_size_samples", "hop_size_samples", "guard_bins", "radius_bins", "max_harmonics", "minimum_prominence_db"], "properties": {"window": {"const": "hann"}, "density_unit": {"const": "dBFS^2/Hz"}, "segment_size_samples": {"type": "integer", "minimum": 4}, "hop_size_samples": {"type": "integer", "minimum": 1}, "guard_bins": {"type": "integer", "minimum": 0}, "radius_bins": {"type": "integer", "minimum": 1}, "max_harmonics": {"type": "integer", "minimum": 1}, "minimum_prominence_db": {"type": "number", "minimum": 0}}}, {"type": "null"}]}
       }
     },
     "channels": {
@@ -54,6 +55,7 @@
         "properties": {
           "channel_number": { "type": "integer", "minimum": 1 },
           "tracks": { "type": "array", "items": { "$ref": "#/$defs/peakTrack" } },
+          "psd": { "anyOf": [{ "$ref": "#/$defs/psdSummary" }, { "type": "null" }] },
           "frames": {
             "type": "array",
             "items": {
@@ -88,6 +90,9 @@
     }
   },
   "$defs": {
+    "psdHarmonic": {"type": "object", "required": ["number", "expected_frequency_hz", "measured_bin_hz", "level_dbfs2_per_hz", "local_floor_dbfs2_per_hz", "prominence_db", "prominent"], "properties": {"number": {"type": "integer", "minimum": 1}, "expected_frequency_hz": {"type": ["number", "null"], "minimum": 0}, "measured_bin_hz": {"type": ["number", "null"], "minimum": 0}, "level_dbfs2_per_hz": {"type": ["number", "null"]}, "local_floor_dbfs2_per_hz": {"type": ["number", "null"]}, "prominence_db": {"type": ["number", "null"]}, "prominent": {"type": "boolean"}}},
+    "psdHarmonicCandidate": {"type": "object", "required": ["nominal_frequency_hz", "prominent_harmonics", "harmonics"], "properties": {"nominal_frequency_hz": {"type": ["number", "null"], "minimum": 0}, "prominent_harmonics": {"type": "integer", "minimum": 0}, "harmonics": {"type": "array", "items": {"$ref": "#/$defs/psdHarmonic"}}}},
+    "psdSummary": {"type": "object", "required": ["segments_averaged", "samples_processed", "bin_width_hz", "density_unit", "broadband_median_dbfs2_per_hz", "source_classification", "mains_50_hz_psd", "mains_60_hz_psd"], "properties": {"segments_averaged": {"type": "integer", "minimum": 1}, "samples_processed": {"type": "integer", "minimum": 0}, "bin_width_hz": {"type": ["number", "null"], "minimum": 0}, "density_unit": {"const": "dBFS^2/Hz"}, "broadband_median_dbfs2_per_hz": {"type": ["number", "null"]}, "source_classification": {"type": "null"}, "mains_50_hz_psd": {"$ref": "#/$defs/psdHarmonicCandidate"}, "mains_60_hz_psd": {"$ref": "#/$defs/psdHarmonicCandidate"}}},
     "peakTrack": {
       "type": "object",
       "required": ["track_number", "start_sample", "start_seconds", "end_sample", "end_seconds", "observed_frames", "missing_frames", "mean_frequency_hz", "min_frequency_hz", "max_frequency_hz", "mean_level_dbfs", "max_level_dbfs", "frequency_drift_hz", "drift_rate_hz_per_second", "source_classification", "observations"],

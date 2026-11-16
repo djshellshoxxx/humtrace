@@ -1,5 +1,6 @@
 #include "humtrace/analysis.hpp"
 
+#include "humtrace/psd.hpp"
 #include "humtrace/sha256.hpp"
 #include "humtrace/spectrum.hpp"
 #include "humtrace/version.hpp"
@@ -73,6 +74,7 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
     report.minimum_prominence_db = options.minimum_prominence_db;
     if (!(options.minimum_prominence_db >= 0.0) || !(options.support_threshold_dbfs <= 0.0))
         throw std::runtime_error("threshold must be <= 0 dBFS and prominence >= 0 dB");
+    report.psd_noise_floor.minimum_prominence_db = options.minimum_prominence_db;
     report.peak_picking = options.peak_picking;
     report.peak_picking.support_threshold_dbfs = options.support_threshold_dbfs;
     report.peak_picking.minimum_prominence_db = options.minimum_prominence_db;
@@ -101,6 +103,16 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
     if (windows > options.max_result_frames / metadata.channels)
         throw std::runtime_error("recording too long for the result limit; choose a larger frame size");
 
+    WelchSettings welch;
+    welch.segment_size = options.psd_segment_size != 0 ? options.psd_segment_size : window_size;
+    welch.hop_size = options.psd_hop_size != 0 ? options.psd_hop_size : welch.segment_size / 2;
+    if (welch.segment_size < 4 || welch.segment_size > max_welch_segment_size ||
+        !is_power_of_two(welch.segment_size))
+        throw std::runtime_error("PSD segment size must be a power of two between 4 and 1048576");
+    if (welch.hop_size == 0 || welch.hop_size > welch.segment_size)
+        throw std::runtime_error("PSD hop size must be between 1 and the segment size");
+    report.welch_psd = welch;
+
     report.sample_rate_hz = metadata.sample_rate_hz;
     report.channels = metadata.channels;
     report.bit_depth = metadata.bit_depth;
@@ -119,10 +131,25 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         report.channel_results[c].frames.reserve(windows);
     }
     std::vector<std::vector<PeakFrame>> peak_timelines(metadata.channels);
+    std::vector<WelchPsd> psd_estimators;
+    psd_estimators.reserve(metadata.channels);
+    for (std::uint16_t c = 0; c < metadata.channels; ++c)
+        psd_estimators.emplace_back(static_cast<double>(metadata.sample_rate_hz), welch);
+    // Every sample read from the file is fed to the per-channel PSD estimators exactly once, in order.
+    std::vector<double> psd_channel;
+    const auto push_to_psd = [&](const std::vector<double>& interleaved) {
+        psd_channel.resize(interleaved.size() / metadata.channels);
+        for (std::uint16_t c = 0; c < metadata.channels; ++c) {
+            for (std::size_t f = 0; f < psd_channel.size(); ++f)
+                psd_channel[f] = interleaved[f * metadata.channels + c];
+            psd_estimators[c].push(psd_channel);
+        }
+    };
     auto window = reader.read_frames(window_size);
     const auto samples_per_window = window_size * metadata.channels;
     if (window.size() != samples_per_window)
         throw std::runtime_error("could not read the first complete analysis window");
+    push_to_psd(window);
     std::uint64_t window_start = 0;
     std::vector<double> samples(window_size);
     while (true) {
@@ -147,6 +174,7 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         const auto retained = hop_size * metadata.channels;
         std::move(window.begin() + static_cast<std::ptrdiff_t>(retained), window.end(), window.begin());
         auto next = reader.read_frames(hop_size);
+        push_to_psd(next);
         if (next.size() != retained) {
             report.warnings.push_back("input ended before the declared data length");
             break;
@@ -154,8 +182,17 @@ AnalysisReport analyze_wav_file(const std::string& path, const AnalysisOptions& 
         std::copy(next.begin(), next.end(), window.end() - static_cast<std::ptrdiff_t>(next.size()));
         window_start += hop_size;
     }
+    // The timeline loop stops before the last partial hop; the PSD consumes the rest of the file.
+    while (true) {
+        check_cancel(options);
+        const auto rest = reader.read_frames(65536);
+        if (rest.empty())
+            break;
+        push_to_psd(rest);
+    }
     for (std::uint16_t c = 0; c < metadata.channels; ++c) {
         check_cancel(options);
+        report.channel_results[c].psd = summarize_welch_psd(psd_estimators[c].finish(), report.psd_noise_floor);
         report.channel_results[c].tracks = associate_peak_tracks(
             peak_timelines[c], metadata.sample_rate_hz, options.tracks, report.channel_results[c].channel_number);
     }

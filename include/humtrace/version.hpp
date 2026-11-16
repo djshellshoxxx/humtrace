@@ -2,5 +2,5 @@
 
 namespace humtrace {
 inline constexpr const char* kVersion = "0.1.0-beta.1";
-inline constexpr const char* kSchemaVersion = "1.2";
+inline constexpr const char* kSchemaVersion = "1.3";
 } // namespace humtrace
