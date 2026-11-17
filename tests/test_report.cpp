@@ -24,7 +24,7 @@ void emits_versioned_report_with_escaped_path_and_measurements() {
         0, {60.25, -18.0}, {50.0, 0, {}}, {60.0, 1, {{1, 60.0, 60.0, -18.0, -70.0, 52.0, true}}}});
 
     const auto json = humtrace::serialize_report_json(report);
-    require(json.find("\"schema_version\": \"1.1\"") != std::string::npos,
+    require(json.find("\"schema_version\": \"1.3\"") != std::string::npos,
             "report carries a schema version");
     require(json.find("field\\\"mic.wav") != std::string::npos,
             "quotes in the input path are escaped");
@@ -47,10 +47,81 @@ void encodes_non_finite_measurements_as_json_null() {
     require(json.find("\"level_dbfs\": null") != std::string::npos,
             "negative infinity is represented with valid JSON null");
 }
+void serializes_tracks_with_measurements_and_null_undefined_drift_rate() {
+    humtrace::AnalysisReport report;
+    report.sample_rate_hz = 4096;
+    report.channels = 1;
+    report.frame_size_samples = 4096;
+    report.hop_size_samples = 2048;
+    report.channel_results.resize(1);
+    report.channel_results[0].channel_number = 1;
+    humtrace::PeakTrack track;
+    track.channel_number = 1;
+    track.track_number = 1;
+    track.start_sample = 0;
+    track.end_sample = 0;
+    track.mean_frequency_hz = 60.0;
+    track.min_frequency_hz = 60.0;
+    track.max_frequency_hz = 60.0;
+    track.mean_level_dbfs = -6.0;
+    track.max_level_dbfs = -6.0;
+    track.drift_rate_hz_per_second = std::numeric_limits<double>::quiet_NaN();
+    track.observations.push_back({0, 60.0, -6.0, 20.0});
+    report.channel_results[0].tracks.push_back(track);
+    const auto json = humtrace::serialize_report_json(report);
+    require(json.find("\"tracks\": [{\"track_number\": 1") != std::string::npos,
+            "channel tracks are serialized");
+    require(json.find("\"drift_rate_hz_per_second\": null") != std::string::npos,
+            "undefined drift rate is null");
+    require(json.find("\"source_classification\": null") != std::string::npos,
+            "tracks carry no source classification");
+    require(json.find("\"peak_tracking\"") != std::string::npos,
+            "tracking settings are recorded");
+}
+void psd_is_null_when_not_computed_and_serialized_when_present() {
+    humtrace::AnalysisReport report;
+    report.sample_rate_hz = 4096;
+    report.channels = 1;
+    report.frame_size_samples = 1024;
+    report.hop_size_samples = 512;
+    report.channel_results.resize(1);
+    report.channel_results[0].channel_number = 1;
+    auto json = humtrace::serialize_report_json(report);
+    require(json.find("\"welch_psd\": null") != std::string::npos,
+            "settings.welch_psd is null when no PSD was requested");
+    require(json.find("\"psd\": null") != std::string::npos,
+            "channel psd is null when no PSD is available");
+
+    report.welch_psd = humtrace::WelchSettings{1024, 512};
+    humtrace::PsdSummary summary;
+    summary.segments_averaged = 7;
+    summary.samples_processed = 4096;
+    summary.bin_width_hz = 4.0;
+    summary.broadband_median_dbfs2_per_hz = -43.5;
+    summary.mains_60.nominal_frequency_hz = 60.0;
+    summary.mains_60.prominent_harmonics = 1;
+    summary.mains_60.harmonics.push_back({1, 60.0, 60.0, -24.0, -44.0, 20.0, true});
+    report.channel_results[0].psd = summary;
+    json = humtrace::serialize_report_json(report);
+    require(json.find("\"segment_size_samples\": 1024") != std::string::npos,
+            "PSD segment size is recorded in settings");
+    require(json.find("\"density_unit\": \"dBFS^2/Hz\"") != std::string::npos,
+            "PSD density unit is recorded");
+    require(json.find("\"segments_averaged\": 7") != std::string::npos,
+            "channel PSD segment count is serialized");
+    require(json.find("\"prominent\": true") != std::string::npos,
+            "harmonic PSD prominence flag is serialized");
+    require(json.find("\"level_dbfs2_per_hz\": -24") != std::string::npos,
+            "PSD harmonic level is serialized");
+    require(json.find("\"source_classification\": null, \"mains_50_hz_psd\"") != std::string::npos,
+            "PSD summary carries a null source classification");
+}
 } // namespace
 
 int main() {
     emits_versioned_report_with_escaped_path_and_measurements();
     encodes_non_finite_measurements_as_json_null();
+    serializes_tracks_with_measurements_and_null_undefined_drift_rate();
+    psd_is_null_when_not_computed_and_serialized_when_present();
     std::cout << "All report tests passed.\n";
 }

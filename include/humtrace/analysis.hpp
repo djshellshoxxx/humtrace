@@ -19,6 +19,14 @@ struct AnalysisOptions {
     std::size_t frame_size_samples{0};
     double support_threshold_dbfs{-60.0};
     double minimum_prominence_db{10.0};
+    // Peak picking and track association. The picker's threshold and prominence
+    // are taken from support_threshold_dbfs / minimum_prominence_db above.
+    PeakPickingSettings peak_picking;
+    TrackSettings tracks;
+    // Welch PSD over every sample of the file. 0 = default: the analysis frame
+    // size for the segment, and half the segment for the hop.
+    std::size_t psd_segment_size{0};
+    std::size_t psd_hop_size{0};
     // Hard cap on retained (frame x channel) results, bounding report memory.
     std::size_t max_result_frames{200000};
     // Optional; polled between frames. Setting it true stops analysis.
